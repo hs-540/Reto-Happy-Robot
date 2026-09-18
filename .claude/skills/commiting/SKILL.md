@@ -19,7 +19,7 @@ Create a git commit whose message follows this project's convention.
 ## Steps
 
 1. Run `git status` and `git diff --stat` (both staged and unstaged) to see what changed.
-2. If there are unstaged changes, ask the user whether to commit **all** changed files or **only** what's already staged. Skip this question if everything is already staged, or if nothing is staged and there are unstaged changes (ask which files to include, since committing nothing isn't an option).
+2. If there are unstaged changes, you MUST use the `AskUserQuestion` tool to ask whether to commit **all** changed files or **only** what's already staged — do not assume or infer the answer, and do not skip this by reasoning about it in text. Skip the question only if everything is already staged (nothing unstaged) — in that case just commit what's staged. If nothing is staged and there are unstaged changes, still use `AskUserQuestion`, asking which files to include (committing nothing isn't an option).
 3. Pick the right `type` based on the nature of the change.
 4. Draft a message under 60 chars total, in English, preserving domain-specific terms as-is.
 5. Stage the relevant files according to the user's answer (avoid `git add -A`; add specific paths).
