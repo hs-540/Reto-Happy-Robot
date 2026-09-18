@@ -35,6 +35,16 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+const secrets = [
+  parsed.data.VERCEL_AI_GATEWAY_API_KEY,
+  parsed.data.CLOUDFLARE_AI_GATEWAY_API_KEY,
+  parsed.data.HAPPYROBOT_API_KEY,
+];
+
+export function redactSecrets(text: string): string {
+  return secrets.reduce((acc, secret) => acc.split(secret).join("[REDACTED]"), text);
+}
+
 function deepFreeze<T>(value: T): Readonly<T> {
   if (typeof value === "object" && value !== null) {
     Object.freeze(value);
