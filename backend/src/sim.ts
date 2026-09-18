@@ -2,6 +2,7 @@ import type {
   ElementStatus,
   ElementView,
   InyectarPayload,
+  ResourceStatus,
   ResourceView,
   SensorMetric,
   StateView,
@@ -69,10 +70,26 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
   }
   sembrarElementos();
 
+  const recursos = new Map<string, { status: ResourceStatus; assignedElementId: string | null }>();
+
+  function sembrarRecursos(): void {
+    recursos.clear();
+    for (const r of guion.resources) {
+      recursos.set(r.id, { status: r.status, assignedElementId: r.assignedElementId });
+    }
+  }
+  sembrarRecursos();
+
   function estadoDe(id: string): EstadoElemento {
     const estado = elementos.get(id);
     if (!estado) throw new Error(`evento para elemento desconocido: ${id}`);
     return estado;
+  }
+
+  function recursoDe(id: string): { status: ResourceStatus; assignedElementId: string | null } {
+    const recurso = recursos.get(id);
+    if (!recurso) throw new Error(`evento para recurso desconocido: ${id}`);
+    return recurso;
   }
 
   function relojIso(seg: number): string {
@@ -83,6 +100,13 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
     if (ev.kind === "narrative") {
       if (ev.nota !== undefined) {
         feed.publicar({ kind: "sistema", mensaje: ev.nota });
+      }
+      if (ev.payload.evento !== "eta_incumplida" || ev.payload.resourceId === undefined) return;
+      // momento 4 del guion: la cuadrilla falla su ETA → replanteamiento, queda libre
+      const recurso = recursoDe(ev.payload.resourceId);
+      if (recurso.status !== "disponible") {
+        recurso.status = "disponible";
+        recurso.assignedElementId = null;
       }
       return;
     }
@@ -151,6 +175,7 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
       feed.reiniciar();
       inyecciones = 0;
       sembrarElementos();
+      sembrarRecursos();
     },
     pausar(): void {
       pausado = true;
@@ -189,14 +214,17 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
           actualizadoEn: relojIso(estado.actualizadoEn),
         };
       });
-      const recursos: ResourceView[] = guion.resources.map((r) => ({
-        id: r.id,
-        type: r.type,
-        status: r.status,
-        assignedElementId: r.assignedElementId,
-        lat: r.lat,
-        lng: r.lng,
-      }));
+      const vistasRecursos: ResourceView[] = guion.resources.map((r) => {
+        const recurso = recursoDe(r.id);
+        return {
+          id: r.id,
+          type: r.type,
+          status: recurso.status,
+          assignedElementId: recurso.assignedElementId,
+          lat: r.lat,
+          lng: r.lng,
+        };
+      });
       return {
         tick: Math.floor(segundos / TICK_SEGUNDOS),
         pausado,
@@ -204,7 +232,7 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
         relojSimulacion: relojIso(segundos),
         ultimoSeq: feed.ultimoSeq(),
         elementos: vistas,
-        recursos,
+        recursos: vistasRecursos,
       };
     },
     tick(): number {
