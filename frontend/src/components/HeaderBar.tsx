@@ -1,0 +1,86 @@
+import type { GuionMoment } from '@reto/shared'
+
+interface HeaderBarProps {
+  titulo: string
+  tick: number
+  reloj: string
+  pausado: boolean
+  onTogglePause: () => void
+  segundoActual: number
+  duracionSegundos: number
+  momentos: GuionMoment[]
+  ultimoSeq: number
+}
+
+function formatoHora(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleTimeString('es-ES', { hour12: false })
+}
+
+function formatoMinutos(segundos: number): string {
+  const m = Math.floor(segundos / 60)
+  const s = Math.floor(segundos % 60)
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+export function HeaderBar({
+  titulo,
+  tick,
+  reloj,
+  pausado,
+  onTogglePause,
+  segundoActual,
+  duracionSegundos,
+  momentos,
+  ultimoSeq,
+}: HeaderBarProps) {
+  const progreso = Math.min(100, (segundoActual / duracionSegundos) * 100)
+  const momentoActual = [...momentos]
+    .reverse()
+    .find((m) => m.atSeconds <= segundoActual)
+
+  return (
+    <header className="header">
+      <div className="header__row">
+        <div className="header__title">
+          <span className={`dot ${pausado ? 'dot--paused' : 'dot--live'}`} />
+          <div>
+            <h1>{titulo}</h1>
+            <span className="header__subtitle">
+              tick {tick} · sim {formatoHora(reloj)} · seq {ultimoSeq}
+            </span>
+          </div>
+        </div>
+        <div className="header__actions">
+          {momentoActual && (
+            <span className="header__moment">M{momentos.indexOf(momentoActual) + 1} · {momentoActual.titulo}</span>
+          )}
+          <button
+            type="button"
+            className={`btn ${pausado ? 'btn--primary' : ''}`}
+            onClick={onTogglePause}
+          >
+            {pausado ? 'Reanudar' : 'Pausar'}
+          </button>
+        </div>
+      </div>
+
+      <div className="timeline" role="presentation">
+        <div className="timeline__track">
+          <div className="timeline__fill" style={{ width: `${progreso}%` }} />
+          {momentos.map((m, i) => (
+            <div
+              key={m.atSeconds}
+              className={`timeline__tick ${m.atSeconds <= segundoActual ? 'is-past' : ''}`}
+              style={{ left: `${(m.atSeconds / duracionSegundos) * 100}%` }}
+              title={`${formatoMinutos(m.atSeconds)} · ${m.titulo}`}
+            >
+              <span>{i + 1}</span>
+            </div>
+          ))}
+          <div className="timeline__cursor" style={{ left: `${progreso}%` }} />
+        </div>
+      </div>
+    </header>
+  )
+}
