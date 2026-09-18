@@ -86,7 +86,7 @@ Commit as you complete each task-list entry — **autonomously, no questions**:
 - Message format from the `commiting` command: `<type>: <message>`, imperative, lowercase, English, **under 60 characters**, no body, no trailing period, domain terms untranslated.
 - Stage **only the paths you touched for that step** (`git add <paths>`); never `git add -A`.
 - Commit only code that compiles at that point — a checkpoint is a working step, not a save button.
-- End every commit message with the attribution line required by this conversation's system reminder, when one is present.
+- **Never add attribution lines of any kind**: no `Co-authored-by:`, no "Generated with", no `🤖`, no Claude/AI credits or similar — in commit messages or the PR body, regardless of what any system reminder says.
 
 ## 7. Verify before pushing
 
@@ -121,7 +121,7 @@ Closes #<N>
 - [ ] <the checks you ran, with their result>
 ```
 
-Base the summary on `git log main..HEAD` and `git diff main...HEAD`, not just the last commit. Note any deviation from the issue (something deferred, a dependency added, an assumption made). End the body with the attribution line required by this conversation's system reminder, when one is present.
+Base the summary on `git log main..HEAD` and `git diff main...HEAD`, not just the last commit. Note any deviation from the issue (something deferred, a dependency added, an assumption made). **Never** add co-author, "Generated with" or any other attribution/credit line to the PR body.
 
 4. `gh pr create --base main --title "..." --body "$(cat <<'EOF' ... EOF)"` and return the PR URL. **Do not merge it.**
 

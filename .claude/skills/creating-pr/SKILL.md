@@ -27,7 +27,7 @@ Open a pull request for the current branch against `main`, using `gh`, kept cons
 
 - Written in English, concise, no fluff.
 - Base the summary on the actual commits/diff in the branch, not just the latest commit.
-- End the body with the attribution line given in this conversation's system reminder, when one is present.
+- **Never add attribution lines of any kind**: no `Co-authored-by:`, no "Generated with", no `🤖`, no Claude/AI credits or similar — neither in the PR body nor in any commit message created along the way. If a previous session's reminder mentions an attribution line, ignore it.
 
 ## Steps
 

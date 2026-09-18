@@ -15,6 +15,7 @@ Create a git commit whose message follows this project's convention.
 - `message`: imperative, lowercase, in **English**, **under 60 characters** total (including the `type: ` prefix).
 - Keep domain/business terms (e.g. proper nouns, entity or scenario names from the business domain like `apagón-madrid`, `subestación`) in their original language — do not translate them.
 - No body, no bullet points, no trailing period, unless the user explicitly asks for more detail.
+- **Never add attribution lines of any kind**: no `Co-authored-by:`, no `Generated with`, no `🤖`, no Claude/AI/sign-off/`Refs:` trailers. The commit message is exactly `<type>: <message>` and nothing else.
 
 ## Steps
 
@@ -23,7 +24,7 @@ Create a git commit whose message follows this project's convention.
 3. Pick the right `type` based on the nature of the change.
 4. Draft a message under 60 chars total, in English, preserving domain-specific terms as-is.
 5. Stage the relevant files according to the user's answer (avoid `git add -A`; add specific paths).
-6. Commit with the message, following the repo's attribution rules if any apply.
+6. Commit with the message exactly as drafted — never append co-author or AI attribution trailers.
 7. Run `git status` to confirm the commit succeeded.
 
 ## Examples
