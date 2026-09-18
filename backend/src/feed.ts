@@ -1,4 +1,4 @@
-import type { FeedItem } from "@reto/shared";
+import type { FeedItem } from "@swarmup/shared";
 
 /** FeedItem sin el sello del log: `seq` y `ts` los asigna el feed al publicar */
 type SinSello<T> = T extends unknown ? Omit<T, "seq" | "ts"> : never;

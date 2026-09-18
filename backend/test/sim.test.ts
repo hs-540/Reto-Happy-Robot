@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import type { FeedItem } from "@reto/shared";
+import type { FeedItem } from "@swarmup/shared";
 import { crearFeed, type Feed } from "../src/feed.js";
 import { cargarGuion, type Guion } from "../src/guion.js";
 import { crearSimulacion, TICK_SEGUNDOS } from "../src/sim.js";

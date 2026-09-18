@@ -1,5 +1,5 @@
 {
-  "name": "@reto/backend",
+  "name": "@swarmup/backend",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@reto/shared": "*",
+    "@swarmup/shared": "*",
     "express": "^4.19.2",
     "openai": "^7.19.0",
     "zod": "^4.6.5"

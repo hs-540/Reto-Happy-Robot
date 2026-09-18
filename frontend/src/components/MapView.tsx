@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Map as MapLibreMap, Marker, NavigationControl } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { ElementView, ResourceView } from '@reto/shared'
+import type { ElementView, ResourceView } from '@swarmup/shared'
 
 const STYLE: StyleSpecification = {
   version: 8,

@@ -1,4 +1,4 @@
-import type { AgentView, FeedItem } from '@reto/shared'
+import type { AgentView, FeedItem } from '@swarmup/shared'
 
 interface AgentPanelProps {
   agent: AgentView

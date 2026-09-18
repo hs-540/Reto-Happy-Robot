@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { GuionMoment } from '@reto/shared'
+import type { GuionMoment } from '@swarmup/shared'
 import { postControl } from '../api'
 
 interface HeaderBarProps {

@@ -1,5 +1,5 @@
 import express from "express";
-import type { ControlResponse, FeedResponse, HealthResponse, TopologyView } from "@reto/shared";
+import type { ControlResponse, FeedResponse, HealthResponse, TopologyView } from "@swarmup/shared";
 import { config, redactSecrets } from "./config.js";
 import { crearRegistroAcciones, esquemaControl } from "./control.js";
 import { crearFeed, parsearSince } from "./feed.js";
