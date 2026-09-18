@@ -16,9 +16,11 @@ const envSchema = z.object({
   VERCEL_AI_GATEWAY_URL: z.url(),
   VERCEL_AI_GATEWAY_API_KEY: z.string().min(1),
   VERCEL_AI_GATEWAY_MODEL: z.string().min(1),
+  VERCEL_AI_GATEWAY_EMBEDDING_MODEL: z.string().min(1).default("openai/text-embedding-3-small"),
   CLOUDFLARE_AI_GATEWAY_URL: z.url(),
   CLOUDFLARE_AI_GATEWAY_API_KEY: z.string().min(1),
   CLOUDFLARE_AI_GATEWAY_MODEL: z.string().min(1),
+  CLOUDFLARE_AI_GATEWAY_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
   LLM_GATEWAY_ORDER: z
     .string()
     .default("vercel,cloudflare")
@@ -29,6 +31,7 @@ const envSchema = z.object({
     }),
   HAPPYROBOT_API_KEY: z.string().min(1),
   CHROMA_PATH: z.string().min(1).default("backend/chroma-data"),
+  CHROMA_PORT: z.coerce.number().int().positive().default(8000),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -59,12 +62,14 @@ const gatewayPorId = {
     url: parsed.data.VERCEL_AI_GATEWAY_URL,
     apiKey: parsed.data.VERCEL_AI_GATEWAY_API_KEY,
     modelo: parsed.data.VERCEL_AI_GATEWAY_MODEL,
+    modeloEmbeddings: parsed.data.VERCEL_AI_GATEWAY_EMBEDDING_MODEL,
   },
   cloudflare: {
     id: "cloudflare",
     url: parsed.data.CLOUDFLARE_AI_GATEWAY_URL,
     apiKey: parsed.data.CLOUDFLARE_AI_GATEWAY_API_KEY,
     modelo: parsed.data.CLOUDFLARE_AI_GATEWAY_MODEL,
+    modeloEmbeddings: parsed.data.CLOUDFLARE_AI_GATEWAY_EMBEDDING_MODEL,
   },
 } as const;
 
@@ -85,5 +90,8 @@ export const config = deepFreeze({
   happyrobot: {
     apiKey: parsed.data.HAPPYROBOT_API_KEY,
   },
-  chromaPath: path.resolve(repoRoot, parsed.data.CHROMA_PATH),
+  chroma: {
+    path: path.resolve(repoRoot, parsed.data.CHROMA_PATH),
+    port: parsed.data.CHROMA_PORT,
+  },
 });
