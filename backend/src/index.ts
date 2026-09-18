@@ -1,11 +1,13 @@
 import express from "express";
-import type { HealthResponse, TopologyView } from "@reto/shared";
+import type { FeedResponse, HealthResponse, TopologyView } from "@reto/shared";
 import { config, redactSecrets } from "./config.js";
+import { crearFeed, parsearSince } from "./feed.js";
 import { aTopologia, cargarGuion } from "./guion.js";
 import { crearSimulacion } from "./sim.js";
 
 const guion = cargarGuion(new URL("../../data/scripts/apagon-madrid.json", import.meta.url));
-const sim = crearSimulacion(guion, Date.now());
+const feed = crearFeed();
+const sim = crearSimulacion(guion, Date.now(), feed);
 const topologia: TopologyView = aTopologia(guion);
 
 const app = express();
@@ -18,6 +20,16 @@ app.get("/api/topology", (_req, res) => {
 app.get("/api/state", (_req, res) => {
   sim.avanzar(Date.now());
   res.json(sim.estado());
+});
+
+app.get("/api/feed", (req, res) => {
+  const since = parsearSince(req.query.since);
+  if (since === null) {
+    res.status(400).json({ error: "since debe ser un entero >= 0" });
+    return;
+  }
+  const respuesta: FeedResponse = { items: feed.desde(since), ultimoSeq: feed.ultimoSeq() };
+  res.json(respuesta);
 });
 
 app.get("/api/health", (_req, res) => {
