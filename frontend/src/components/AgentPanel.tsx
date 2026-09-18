@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { AgentView, FeedItem } from '@reto/shared'
+import { postControl } from '../api'
 
 interface AgentPanelProps {
   agent: AgentView
@@ -6,6 +8,7 @@ interface AgentPanelProps {
   selectedElementId: string | null
   onSelectElement: (id: string) => void
   nombresElemento: Record<string, string>
+  onControlOk: () => void
 }
 
 const ETIQUETA_ACCION: Record<string, string> = {
@@ -48,8 +51,24 @@ export function AgentPanel({
   selectedElementId,
   onSelectElement,
   nombresElemento,
+  onControlOk,
 }: AgentPanelProps) {
+  const [pendienteId, setPendienteId] = useState<string | null>(null)
+  const [errorControl, setErrorControl] = useState<string | null>(null)
   const items = [...feed].sort((a, b) => b.seq - a.seq)
+
+  async function decidir(id: string, accion: 'confirmar' | 'rechazar') {
+    setPendienteId(id)
+    setErrorControl(null)
+    try {
+      await postControl({ accion, id })
+      onControlOk()
+    } catch (e) {
+      setErrorControl(e instanceof Error ? e.message : 'Error de control')
+    } finally {
+      setPendienteId(null)
+    }
+  }
 
   return (
     <aside className="agent">
@@ -121,13 +140,29 @@ export function AgentPanel({
                 <span className="card__destino">→ {a.destinatario}</span>
               )}
               {a.status === 'propuesta' && (
-                <button type="button" className="btn btn--primary btn--sm">
-                  Confirmar
-                </button>
+                <div className="card__decision">
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    disabled={pendienteId === a.id}
+                    onClick={() => decidir(a.id, 'confirmar')}
+                  >
+                    Confirmar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--sm"
+                    disabled={pendienteId === a.id}
+                    onClick={() => decidir(a.id, 'rechazar')}
+                  >
+                    Rechazar
+                  </button>
+                </div>
               )}
             </li>
           ))}
         </ul>
+        {errorControl && <p className="agent__error">{errorControl}</p>}
       </section>
 
       <section className="agent__section">

@@ -14,6 +14,7 @@ export function useCrisis() {
   const [topology, setTopology] = useState<TopologyView>(topologyMock)
   const [state, setState] = useState<StateView>(stateMock)
   const [live, setLive] = useState(false)
+  const [nonce, setNonce] = useState(0)
 
   useEffect(() => {
     let activo = true
@@ -45,7 +46,15 @@ export function useCrisis() {
       activo = false
       window.clearTimeout(timer)
     }
-  }, [])
+  }, [nonce])
 
-  return { topology, state, live, agent: agentMock, feed }
+  return {
+    topology,
+    state,
+    live,
+    agent: agentMock,
+    feed,
+    /** reconsulta inmediata tras una acción del operador, sin esperar el poll */
+    refrescar: () => setNonce((n) => n + 1),
+  }
 }

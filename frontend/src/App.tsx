@@ -9,8 +9,7 @@ import './App.css'
 const TICK_SEGUNDOS = 5
 
 function App() {
-  const { topology, state, agent, feed } = useCrisis()
-  const [pausado, setPausado] = useState(false)
+  const { topology, state, agent, feed, refrescar } = useCrisis()
   const [selectedElementId, setSelectedElementId] = useState<string | null>('hosp-01')
 
   const nombresElemento = Object.fromEntries(
@@ -23,8 +22,8 @@ function App() {
         titulo={topology.crisis.titulo}
         tick={state.tick}
         reloj={state.relojSimulacion}
-        pausado={pausado}
-        onTogglePause={() => setPausado((p) => !p)}
+        pausado={state.pausado}
+        onControlOk={refrescar}
         segundoActual={state.tick * TICK_SEGUNDOS}
         duracionSegundos={topology.crisis.duracionSegundos}
         momentos={topology.crisis.momentos}
@@ -42,6 +41,7 @@ function App() {
         selectedElementId={selectedElementId}
         onSelectElement={setSelectedElementId}
         nombresElemento={nombresElemento}
+        onControlOk={refrescar}
       />
       <ResourceBar
         recursos={state.recursos}
