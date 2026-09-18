@@ -66,6 +66,8 @@ export interface ResourceView {
 export interface StateView {
   tick: number;
   pausado: boolean;
+  /** false hasta que el guion arranca vía POST /api/control {accion:"iniciar"} */
+  iniciado: boolean;
   /** Instante simulado, ISO 8601 */
   relojSimulacion: string;
   /** Último seq emitido en el feed; correlaciona /api/state con /api/feed */

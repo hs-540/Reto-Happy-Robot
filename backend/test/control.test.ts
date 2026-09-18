@@ -63,6 +63,8 @@ test("confirmar o rechazar una acción desconocida no toca el gate", () => {
 });
 
 test("esquemaControl exige id en confirmar/rechazar y payload válido en inyectar", () => {
+  assert.ok(esquemaControl.safeParse({ accion: "iniciar" }).success);
+  assert.ok(esquemaControl.safeParse({ accion: "reiniciar" }).success);
   assert.ok(esquemaControl.safeParse({ accion: "pausar" }).success);
   assert.ok(esquemaControl.safeParse({ accion: "reanudar" }).success);
   assert.ok(esquemaControl.safeParse({ accion: "confirmar", id: "act-007" }).success);
@@ -70,7 +72,7 @@ test("esquemaControl exige id en confirmar/rechazar y payload válido en inyecta
 
   assert.ok(!esquemaControl.safeParse({ accion: "confirmar" }).success);
   assert.ok(!esquemaControl.safeParse({ accion: "rechazar", id: "" }).success);
-  assert.ok(!esquemaControl.safeParse({ accion: "reiniciar" }).success);
+  assert.ok(!esquemaControl.safeParse({ accion: "arrancar" }).success);
 
   const inyeccion = {
     accion: "inyectar",

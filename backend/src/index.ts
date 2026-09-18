@@ -1,10 +1,5 @@
 import express from "express";
-import type {
-  ControlResponse,
-  FeedResponse,
-  HealthResponse,
-  TopologyView,
-} from "@reto/shared";
+import type { ControlResponse, FeedResponse, HealthResponse, TopologyView } from "@reto/shared";
 import { config, redactSecrets } from "./config.js";
 import { crearRegistroAcciones, esquemaControl, type ResultadoGate } from "./control.js";
 import { crearFeed, parsearSince } from "./feed.js";
@@ -16,10 +11,13 @@ const feed = crearFeed();
 const sim = crearSimulacion(guion, Date.now(), feed);
 const registroAcciones = crearRegistroAcciones(feed);
 const topologia: TopologyView = aTopologia(guion);
-const idsElementos = new Set(guion.elements.map((e) => e.id));
 
 const app = express();
 app.use(express.json());
+
+function respuestaError(error: string): ControlResponse {
+  return { ok: false, error };
+}
 
 app.get("/api/topology", (_req, res) => {
   res.json(topologia);
@@ -42,13 +40,18 @@ app.get("/api/feed", (req, res) => {
 
 app.get("/api/health", (_req, res) => {
   sim.avanzar(Date.now());
-  const health: HealthResponse = { status: "ok", tick: sim.tick(), pausado: sim.pausado };
+  const health: HealthResponse = {
+    status: "ok",
+    tick: sim.tick(),
+    pausado: sim.pausado,
+    iniciado: sim.iniciado,
+  };
   res.json(health);
 });
 
 function responderGate(res: express.Response, resultado: ResultadoGate): void {
   if (resultado.ok) {
-    res.json({ ok: true } satisfies ControlResponse);
+    res.json({ ok: true });
     return;
   }
   const status = resultado.razon === "desconocida" ? 404 : 409;
@@ -56,20 +59,27 @@ function responderGate(res: express.Response, resultado: ResultadoGate): void {
     resultado.razon === "desconocida"
       ? "acción desconocida"
       : "la acción ya no está propuesta, el gate está cerrado";
-  res.status(status).json({ ok: false, error } satisfies ControlResponse);
+  res.status(status).json(respuestaError(error));
 }
 
 app.post("/api/control", (req, res) => {
+  sim.avanzar(Date.now());
   const parsed = esquemaControl.safeParse(req.body);
   if (!parsed.success) {
-    const error = parsed.error.issues
+    const detalles = parsed.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("; ");
-    res.status(400).json({ ok: false, error } satisfies ControlResponse);
+    res.status(400).json(respuestaError(`cuerpo inválido: ${detalles}`));
     return;
   }
-  const cuerpo = parsed.data;
-  switch (cuerpo.accion) {
+  const body = parsed.data;
+  switch (body.accion) {
+    case "iniciar":
+      sim.iniciar(Date.now());
+      break;
+    case "reiniciar":
+      sim.reiniciar();
+      break;
     case "pausar":
       sim.pausar();
       break;
@@ -77,22 +87,21 @@ app.post("/api/control", (req, res) => {
       sim.reanudar();
       break;
     case "confirmar":
-      responderGate(res, registroAcciones.confirmar(cuerpo.id));
+      responderGate(res, registroAcciones.confirmar(body.id));
       return;
     case "rechazar":
-      responderGate(res, registroAcciones.rechazar(cuerpo.id));
+      responderGate(res, registroAcciones.rechazar(body.id));
       return;
     case "inyectar":
-      if (!idsElementos.has(cuerpo.payload.elementId)) {
-        res
-          .status(400)
-          .json({ ok: false, error: `elemento desconocido: ${cuerpo.payload.elementId}` } satisfies ControlResponse);
+      try {
+        sim.inyectar(body.payload);
+      } catch (err) {
+        res.status(400).json(respuestaError(err instanceof Error ? err.message : String(err)));
         return;
       }
-      sim.inyectar(cuerpo.payload);
       break;
   }
-  res.json({ ok: true } satisfies ControlResponse);
+  res.json({ ok: true });
 });
 
 const errorHandler: express.ErrorRequestHandler = (err, _req, res, _next) => {

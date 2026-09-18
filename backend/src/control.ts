@@ -5,6 +5,8 @@ import type { Feed } from "./feed.js";
 
 /** Variantes del cuerpo de POST /api/control; `id`/`payload` obligatorios según `accion` */
 export const esquemaControl = z.discriminatedUnion("accion", [
+  z.object({ accion: z.literal("iniciar") }),
+  z.object({ accion: z.literal("reiniciar") }),
   z.object({ accion: z.literal("pausar") }),
   z.object({ accion: z.literal("reanudar") }),
   z.object({ accion: z.literal("confirmar"), id: z.string().min(1) }),

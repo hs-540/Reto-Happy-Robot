@@ -62,6 +62,7 @@ Foto completa del mundo. Se reemplaza entera en cada poll.
 {
   "tick": 42,
   "pausado": false,
+  "iniciado": true,
   "relojSimulacion": "2026-09-18T10:03:30.000Z",
   "ultimoSeq": 17,
   "elementos": [
@@ -176,17 +177,17 @@ Respuesta:
 { "ok": true }
 ```
 
-`accion`: `pausar` | `reanudar` | `confirmar` | `rechazar` | `inyectar`.
+`accion`: `iniciar` | `reiniciar` | `pausar` | `reanudar` | `confirmar` | `rechazar` | `inyectar`.
+La simulación **no arranca sola al boot**: `iniciar` arranca el guion cronometrado y `reiniciar` devuelve el mundo al estado inicial reproducible (reloj a 0, feed vacío, recursos y elementos re-sembrados) y lo deja detenido.
 `pausar` congela el reloj de simulación y detiene el tick del LLM.
-`confirmar`/`rechazar` requieren `id` (actionId). `inyectar` requiere `payload`.
-
-Errores (cuerpo `{ "ok": false, "error": "..." }`): `400` cuerpo inválido o elemento desconocido,
-`404` actionId desconocido, `409` acción que ya no está `propuesta` (gate cerrado).
+`confirmar`/`rechazar` requieren `id` (actionId) y solo actúan sobre acciones en `propuesta`: responden `404 {ok:false, error}` si el actionId es desconocido y `409 {ok:false, error}` si ya no está `propuesta` (gate cerrado).
+`inyectar` requiere `payload` (sensor event sin `id`, que asigna el backend); un `elementId` desconocido responde `400 {ok:false, error}`.
+Cuerpo inválido responde `400 {ok:false, error}`.
 
 ## GET /api/health
 
 ```json
-{ "status": "ok", "tick": 42, "pausado": false }
+{ "status": "ok", "tick": 42, "pausado": false, "iniciado": true }
 ```
 
 ## Correlación mapa ↔ agente
