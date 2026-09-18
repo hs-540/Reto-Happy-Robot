@@ -1,5 +1,3 @@
-import type { ElementType } from "./world.js";
-
 export type ActionType = "llamada_voz" | "mensaje_chat";
 
 export type ActionStatus = "propuesta" | "confirmada" | "ejecutada" | "rechazada";
@@ -46,13 +44,4 @@ export interface AgentView {
   planActual: AgentPlan | null;
   decisiones: Decision[];
   acciones: Action[];
-}
-
-export interface HistoricoIncidente {
-  id: string;
-  tipo: ElementType;
-  titulo: string;
-  resumen: string;
-  resultado: string;
-  fecha: string;
 }
