@@ -62,6 +62,7 @@ Foto completa del mundo. Se reemplaza entera en cada poll.
 {
   "tick": 42,
   "pausado": false,
+  "iniciado": true,
   "relojSimulacion": "2026-09-18T10:03:30.000Z",
   "ultimoSeq": 17,
   "elementos": [
@@ -176,14 +177,17 @@ Respuesta:
 { "ok": true }
 ```
 
-`accion`: `pausar` | `reanudar` | `confirmar` | `rechazar` | `inyectar`.
+`accion`: `iniciar` | `reiniciar` | `pausar` | `reanudar` | `confirmar` | `rechazar` | `inyectar`.
+La simulación **no arranca sola al boot**: `iniciar` arranca el guion cronometrado y `reiniciar` devuelve el mundo al estado inicial reproducible (reloj a 0, feed vacío, recursos y elementos re-sembrados) y lo deja detenido.
 `pausar` congela el reloj de simulación y detiene el tick del LLM.
-`confirmar`/`rechazar` requieren `id` (actionId). `inyectar` requiere `payload`.
+`confirmar`/`rechazar` requieren `id` (actionId); si no hay ninguna acción viva responden `409 {ok:false, error}`.
+`inyectar` requiere `payload` (sensor event sin `id`, que asigna el backend); un `elementId` desconocido responde `400 {ok:false, error}`.
+Cuerpo inválido responde `400 {ok:false, error}`.
 
 ## GET /api/health
 
 ```json
-{ "status": "ok", "tick": 42, "pausado": false }
+{ "status": "ok", "tick": 42, "pausado": false, "iniciado": true }
 ```
 
 ## Correlación mapa ↔ agente

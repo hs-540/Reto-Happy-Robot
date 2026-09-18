@@ -1,6 +1,7 @@
 import type {
   ElementStatus,
   ElementView,
+  InyectarPayload,
   ResourceView,
   SensorMetric,
   StateView,
@@ -29,9 +30,18 @@ interface EstadoElemento {
 export interface Simulacion {
   /** Avanza el reloj hasta `ahoraMs` y aplica los eventos vencidos del guion */
   avanzar(ahoraMs: number): void;
+  /** Arranca el guion en `ahoraMs` (sin efecto si ya está en marcha) */
+  iniciar(ahoraMs: number): void;
+  /** Vuelve al estado inicial reproducible y detiene el guion */
+  reiniciar(): void;
+  pausar(): void;
+  reanudar(): void;
+  /** Modo híbrido: aplica un sensor event de emergencia en el segundo simulado actual */
+  inyectar(payload: InyectarPayload): void;
   estado(): StateView;
   tick(): number;
   readonly pausado: boolean;
+  readonly iniciado: boolean;
 }
 
 export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Simulacion {
@@ -40,17 +50,24 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
   let segundos = 0;
   let ultimoMs = inicioMs;
   let pausado = false;
+  let iniciado = false;
+  let inyecciones = 0;
 
   const elementos = new Map<string, EstadoElemento>();
-  for (const e of guion.elements) {
-    elementos.set(e.id, {
-      severidad: 0,
-      sensores: {},
-      normalDesde: 0,
-      tuvoIncidente: false,
-      actualizadoEn: 0,
-    });
+
+  function sembrarElementos(): void {
+    elementos.clear();
+    for (const e of guion.elements) {
+      elementos.set(e.id, {
+        severidad: 0,
+        sensores: {},
+        normalDesde: 0,
+        tuvoIncidente: false,
+        actualizadoEn: 0,
+      });
+    }
   }
+  sembrarElementos();
 
   function estadoDe(id: string): EstadoElemento {
     const estado = elementos.get(id);
@@ -108,6 +125,10 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
 
   return {
     avanzar(ahoraMs: number): void {
+      if (!iniciado) {
+        ultimoMs = ahoraMs;
+        return;
+      }
       const deltaMs = ahoraMs - ultimoMs;
       ultimoMs = ahoraMs;
       if (!pausado) segundos += deltaMs / 1000;
@@ -115,6 +136,41 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
         aplicarEvento(timeline[siguiente]);
         siguiente++;
       }
+    },
+    iniciar(ahoraMs: number): void {
+      if (iniciado) return;
+      iniciado = true;
+      pausado = false;
+      ultimoMs = ahoraMs;
+    },
+    reiniciar(): void {
+      siguiente = 0;
+      segundos = 0;
+      pausado = false;
+      iniciado = false;
+      feed.reiniciar();
+      inyecciones = 0;
+      sembrarElementos();
+    },
+    pausar(): void {
+      pausado = true;
+    },
+    reanudar(): void {
+      pausado = false;
+    },
+    inyectar(payload: InyectarPayload): void {
+      inyecciones++;
+      aplicarEvento({
+        atSeconds: segundos,
+        kind: "sensor_event",
+        payload: {
+          id: `inyeccion-${inyecciones}`,
+          elementId: payload.elementId,
+          metric: payload.metric,
+          value: payload.value,
+          severidad: payload.severidad,
+        },
+      });
     },
     estado(): StateView {
       const vistas: ElementView[] = guion.elements.map((e) => {
@@ -144,6 +200,7 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
       return {
         tick: Math.floor(segundos / TICK_SEGUNDOS),
         pausado,
+        iniciado,
         relojSimulacion: relojIso(segundos),
         ultimoSeq: feed.ultimoSeq(),
         elementos: vistas,
@@ -155,6 +212,9 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
     },
     get pausado(): boolean {
       return pausado;
+    },
+    get iniciado(): boolean {
+      return iniciado;
     },
   };
 }
