@@ -18,12 +18,13 @@ Create a git commit whose message follows this project's convention.
 
 ## Steps
 
-1. Run `git status` and `git diff --stat` (or `--cached` if already staged) to see what changed.
-2. Pick the right `type` based on the nature of the change.
-3. Draft a message under 60 chars total, in English, preserving domain-specific terms as-is.
-4. Stage the relevant files (avoid `git add -A`; add specific paths).
-5. Commit with the message, following the repo's attribution rules if any apply.
-6. Run `git status` to confirm the commit succeeded.
+1. Run `git status` and `git diff --stat` (both staged and unstaged) to see what changed.
+2. If there are unstaged changes, ask the user whether to commit **all** changed files or **only** what's already staged. Skip this question if everything is already staged, or if nothing is staged and there are unstaged changes (ask which files to include, since committing nothing isn't an option).
+3. Pick the right `type` based on the nature of the change.
+4. Draft a message under 60 chars total, in English, preserving domain-specific terms as-is.
+5. Stage the relevant files according to the user's answer (avoid `git add -A`; add specific paths).
+6. Commit with the message, following the repo's attribution rules if any apply.
+7. Run `git status` to confirm the commit succeeded.
 
 ## Examples
 
