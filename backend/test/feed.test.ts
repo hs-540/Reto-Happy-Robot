@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parsearSince, crearFeed, type PublicacionFeed } from "../src/feed.js";
 import { cargarGuion } from "../src/guion.js";
+import { crearMundo } from "../src/mundo.js";
 import { crearSimulacion } from "../src/sim.js";
 
 test("parsearSince acepta entero no negativo y ausencia, rechaza el resto", () => {
@@ -45,7 +46,7 @@ test("la simulación publica los 5 momentos clave como sistema en orden", () => 
     new URL("../../data/scripts/apagon-madrid.json", import.meta.url),
   );
   const feed = crearFeed();
-  const sim = crearSimulacion(guion, Date.now(), feed);
+  const sim = crearSimulacion(guion, Date.now(), feed, crearMundo(guion));
   sim.iniciar(Date.now());
 
   sim.avanzar(Date.now() + (guion.duracionSegundos + 1) * 1000);
@@ -64,7 +65,7 @@ test("polling por seq reconstruye el feed completo sin perder ni duplicar", () =
     new URL("../../data/scripts/apagon-madrid.json", import.meta.url),
   );
   const feed = crearFeed();
-  const sim = crearSimulacion(guion, Date.now(), feed);
+  const sim = crearSimulacion(guion, Date.now(), feed, crearMundo(guion));
   sim.iniciar(Date.now());
 
   // primer poll a mitad de la demo, segundo al final (acumulador por seq)
