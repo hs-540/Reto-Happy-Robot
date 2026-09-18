@@ -3,39 +3,36 @@ import { HeaderBar } from './components/HeaderBar'
 import { MapView } from './components/MapView'
 import { AgentPanel } from './components/AgentPanel'
 import { ResourceBar } from './components/ResourceBar'
-import {
-  agent as agentData,
-  feed,
-  nombresElemento,
-  SEGUNDO_ACTUAL,
-  state,
-  topology,
-} from './data/mock'
+import { useCrisis } from './hooks/useCrisis'
 import './App.css'
 
+const TICK_SEGUNDOS = 5
+
 function App() {
-  const [pausado, setPausado] = useState(state.pausado)
+  const { topology, state, agent, feed } = useCrisis()
+  const [pausado, setPausado] = useState(false)
   const [selectedElementId, setSelectedElementId] = useState<string | null>('hosp-01')
 
-  const agent = { ...agentData, pausado }
-  const stateView = { ...state, pausado }
+  const nombresElemento = Object.fromEntries(
+    topology.elementos.map((e) => [e.id, e.name]),
+  )
 
   return (
     <div className="app">
       <HeaderBar
         titulo={topology.crisis.titulo}
-        tick={stateView.tick}
-        reloj={stateView.relojSimulacion}
+        tick={state.tick}
+        reloj={state.relojSimulacion}
         pausado={pausado}
         onTogglePause={() => setPausado((p) => !p)}
-        segundoActual={SEGUNDO_ACTUAL}
+        segundoActual={state.tick * TICK_SEGUNDOS}
         duracionSegundos={topology.crisis.duracionSegundos}
         momentos={topology.crisis.momentos}
-        ultimoSeq={stateView.ultimoSeq}
+        ultimoSeq={state.ultimoSeq}
       />
       <MapView
-        elementos={stateView.elementos}
-        recursos={stateView.recursos}
+        elementos={state.elementos}
+        recursos={state.recursos}
         selectedElementId={selectedElementId}
         onSelectElement={setSelectedElementId}
       />
@@ -47,8 +44,8 @@ function App() {
         nombresElemento={nombresElemento}
       />
       <ResourceBar
-        recursos={stateView.recursos}
-        elementos={stateView.elementos}
+        recursos={state.recursos}
+        elementos={state.elementos}
         nombresElemento={nombresElemento}
         selectedElementId={selectedElementId}
         onSelectElement={setSelectedElementId}
