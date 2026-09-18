@@ -30,29 +30,48 @@ const ICONS: Record<string, string> = {
     '<path d="M4 7h15v3h2v4h-2v3H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zm3 3v4h2v-4H7z" fill="currentColor"/>',
 }
 
-function markerNode(
-  opts: {
-    kind: 'element' | 'resource'
-    variant: string
-    icon: string
-    label: string
-    selected?: boolean
-    onClick?: () => void
-  },
-): HTMLElement {
-  const node = document.createElement('button')
-  node.type = 'button'
-  node.className = [
+interface MarkerSpec {
+  kind: 'element' | 'resource'
+  variant: string
+  icon: string
+  label: string
+}
+
+interface MarkerEntry {
+  marker: Marker
+  node: HTMLButtonElement
+  variant: string
+}
+
+function markerClassName(spec: MarkerSpec, selected: boolean): string {
+  return [
     'marker',
-    `marker--${opts.kind}`,
-    `marker--${opts.variant}`,
-    opts.selected ? 'is-selected' : '',
+    `marker--${spec.kind}`,
+    `marker--${spec.variant}`,
+    selected ? 'is-selected' : '',
   ]
     .filter(Boolean)
     .join(' ')
-  node.innerHTML = `<span class="marker__dot"><svg viewBox="0 0 24 24" aria-hidden="true">${opts.icon}</svg></span><span class="marker__label">${opts.label}</span>`
-  if (opts.onClick) node.addEventListener('click', opts.onClick)
+}
+
+function createMarkerNode(
+  spec: MarkerSpec,
+  selected: boolean,
+  onClick?: () => void,
+): HTMLButtonElement {
+  const node = document.createElement('button')
+  node.type = 'button'
+  node.className = markerClassName(spec, selected)
+  node.innerHTML = `<span class="marker__dot"><svg viewBox="0 0 24 24" aria-hidden="true">${spec.icon}</svg></span><span class="marker__label">${spec.label}</span>`
+  if (onClick) node.addEventListener('click', onClick)
   return node
+}
+
+function applyVariant(entry: MarkerEntry, variant: string) {
+  if (entry.variant === variant) return
+  entry.node.classList.remove(`marker--${entry.variant}`)
+  entry.node.classList.add(`marker--${variant}`)
+  entry.variant = variant
 }
 
 interface MapViewProps {
@@ -70,7 +89,8 @@ export function MapView({
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
-  const markersRef = useRef<Marker[]>([])
+  const markersRef = useRef<Map<string, MarkerEntry>>(new Map())
+  const prevSelectedRef = useRef<string | null | undefined>(selectedElementId)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -85,60 +105,101 @@ export function MapView({
       attributionControl: { compact: true },
     })
     map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right')
-    map.on('load', () => setReady(true))
+    map.on('load', () => {
+      if (mapRef.current === map) setReady(true)
+    })
     mapRef.current = map
+    const store = markersRef.current
     return () => {
       map.remove()
       mapRef.current = null
+      store.clear()
+      setReady(false)
     }
   }, [])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-
-    markersRef.current.forEach((m) => m.remove())
-    markersRef.current = []
+    const store = markersRef.current
+    const alive = new Set<string>()
 
     recursos.forEach((r) => {
-      const svg = ICONS[r.type] ?? ICONS.generador
-      const node = markerNode({
-        kind: 'resource',
-        variant: r.status,
-        icon: svg,
-        label: r.id,
-      })
-      markersRef.current.push(
-        new Marker({ element: node, anchor: 'center' })
-          .setLngLat([r.lng, r.lat])
-          .addTo(map),
-      )
+      alive.add(r.id)
+      const entry = store.get(r.id)
+      if (entry) {
+        applyVariant(entry, r.status)
+        entry.marker.setLngLat([r.lng, r.lat])
+      } else {
+        const node = createMarkerNode(
+          {
+            kind: 'resource',
+            variant: r.status,
+            icon: ICONS[r.type] ?? ICONS.generador,
+            label: r.id,
+          },
+          false,
+        )
+        store.set(r.id, {
+          marker: new Marker({ element: node, anchor: 'center' })
+            .setLngLat([r.lng, r.lat])
+            .addTo(map),
+          node,
+          variant: r.status,
+        })
+      }
     })
 
     elementos.forEach((el) => {
-      const svg = ICONS[el.type] ?? ICONS.hospital
-      const node = markerNode({
-        kind: 'element',
-        variant: el.status,
-        icon: svg,
-        label: el.name,
-        selected: el.id === selectedElementId,
-        onClick: () => onSelectElement(el.id),
-      })
-      markersRef.current.push(
-        new Marker({ element: node, anchor: 'center' })
-          .setLngLat([el.lng, el.lat])
-          .addTo(map),
-      )
+      alive.add(el.id)
+      const selected = el.id === selectedElementId
+      const entry = store.get(el.id)
+      if (entry) {
+        applyVariant(entry, el.status)
+        entry.node.classList.toggle('is-selected', selected)
+        entry.marker.setLngLat([el.lng, el.lat])
+      } else {
+        const node = createMarkerNode(
+          {
+            kind: 'element',
+            variant: el.status,
+            icon: ICONS[el.type] ?? ICONS.hospital,
+            label: el.name,
+          },
+          selected,
+          () => onSelectElement(el.id),
+        )
+        store.set(el.id, {
+          marker: new Marker({ element: node, anchor: 'center' })
+            .setLngLat([el.lng, el.lat])
+            .addTo(map),
+          node,
+          variant: el.status,
+        })
+      }
     })
+
+    for (const [id, entry] of store) {
+      if (!alive.has(id)) {
+        entry.marker.remove()
+        store.delete(id)
+      }
+    }
   }, [elementos, recursos, selectedElementId, onSelectElement, ready])
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready || !selectedElementId) return
+    if (!map || !ready) return
+    const prev = prevSelectedRef.current
+    prevSelectedRef.current = selectedElementId
+    if (prev === selectedElementId || !selectedElementId) return
     const el = elementos.find((e) => e.id === selectedElementId)
     if (!el) return
-    map.flyTo({ center: [el.lng, el.lat], zoom: 14.2, duration: 800 })
+    map.flyTo({
+      center: [el.lng, el.lat],
+      zoom: Math.max(map.getZoom(), 14.2),
+      duration: 800,
+    })
   }, [selectedElementId, elementos, ready])
 
   return <div className="map" ref={containerRef} />

@@ -164,7 +164,6 @@
 /* ---------- Markers ---------- */
 
 .marker {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -195,6 +194,10 @@
 }
 .marker--asignado {
   --c: var(--degradado);
+}
+
+.marker--resource {
+  cursor: default;
 }
 
 .marker__dot {
@@ -252,8 +255,8 @@
   z-index: 5;
 }
 
-.marker.is-selected .marker__dot,
-.marker:hover .marker__dot {
+.marker--element.is-selected .marker__dot,
+.marker--element:hover .marker__dot {
   transform: scale(1.15);
 }
 
