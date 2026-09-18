@@ -180,6 +180,9 @@ Respuesta:
 `pausar` congela el reloj de simulación y detiene el tick del LLM.
 `confirmar`/`rechazar` requieren `id` (actionId). `inyectar` requiere `payload`.
 
+Errores (cuerpo `{ "ok": false, "error": "..." }`): `400` cuerpo inválido o elemento desconocido,
+`404` actionId desconocido, `409` acción que ya no está `propuesta` (gate cerrado).
+
 ## GET /api/health
 
 ```json
