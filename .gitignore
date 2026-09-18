@@ -30,3 +30,4 @@ dist-ssr
 
 # Chroma local data
 backend/chroma-data
+*.tsbuildinfo
