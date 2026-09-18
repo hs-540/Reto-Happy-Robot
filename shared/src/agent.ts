@@ -1,6 +1,6 @@
 export type ActionType = "llamada_voz" | "mensaje_chat";
 
-export type ActionStatus = "propuesta" | "confirmada" | "ejecutada" | "rechazada";
+export type ActionStatus = "ejecutada";
 
 export interface Action {
   id: string;

@@ -23,55 +23,21 @@ function estadosDeAccion(feed: ReturnType<typeof crearFeed>): string[] {
     .map((i) => (i.kind === "accion" ? i.estado : ""));
 }
 
-test("toda acción nace propuesta y solo confirmar la lleva a ejecutada", () => {
+test("toda acción se registra ya ejecutada, sin gate humano", () => {
   const { feed, registro, proponerLlamada } = montar();
 
   const accion = proponerLlamada();
-  assert.equal(accion.status, "propuesta");
+  assert.equal(accion.status, "ejecutada");
   assert.ok(accion.id.startsWith("act-"));
-  assert.deepEqual(estadosDeAccion(feed), ["propuesta"]);
-
-  const resultado = registro.confirmar(accion.id);
-  assert.ok(resultado.ok);
-  assert.equal(resultado.accion.status, "ejecutada");
-  assert.deepEqual(estadosDeAccion(feed), ["propuesta", "confirmada", "ejecutada"]);
+  assert.deepEqual(estadosDeAccion(feed), ["ejecutada"]);
 });
 
-test("sin pulsar confirmar la acción sigue propuesta: nada se ejecuta", () => {
-  const { registro, proponerLlamada } = montar();
-  const accion = proponerLlamada();
-  // el único productor de `ejecutada` es confirmar; proponer nunca ejecuta
-  assert.equal(registro.rechazar(accion.id).ok, true);
-});
-
-test("rechazar solo vale en propuesta y cierra el gate", () => {
-  const { registro, proponerLlamada } = montar();
-  const accion = proponerLlamada();
-
-  const rechazo = registro.rechazar(accion.id);
-  assert.ok(rechazo.ok);
-  assert.equal(rechazo.accion.status, "rechazada");
-
-  assert.deepEqual(registro.rechazar(accion.id), { ok: false, razon: "no_propuesta" });
-  assert.deepEqual(registro.confirmar(accion.id), { ok: false, razon: "no_propuesta" });
-});
-
-test("confirmar o rechazar una acción desconocida no toca el gate", () => {
-  const { registro } = montar();
-  assert.deepEqual(registro.confirmar("act-999"), { ok: false, razon: "desconocida" });
-  assert.deepEqual(registro.rechazar("act-999"), { ok: false, razon: "desconocida" });
-});
-
-test("esquemaControl exige id en confirmar/rechazar y payload válido en inyectar", () => {
+test("esquemaControl valida las acciones de control y el payload de inyectar", () => {
   assert.ok(esquemaControl.safeParse({ accion: "iniciar" }).success);
   assert.ok(esquemaControl.safeParse({ accion: "reiniciar" }).success);
   assert.ok(esquemaControl.safeParse({ accion: "pausar" }).success);
   assert.ok(esquemaControl.safeParse({ accion: "reanudar" }).success);
-  assert.ok(esquemaControl.safeParse({ accion: "confirmar", id: "act-007" }).success);
-  assert.ok(esquemaControl.safeParse({ accion: "rechazar", id: "act-007" }).success);
-
-  assert.ok(!esquemaControl.safeParse({ accion: "confirmar" }).success);
-  assert.ok(!esquemaControl.safeParse({ accion: "rechazar", id: "" }).success);
+  assert.ok(!esquemaControl.safeParse({ accion: "confirmar", id: "act-007" }).success);
   assert.ok(!esquemaControl.safeParse({ accion: "arrancar" }).success);
 
   const inyeccion = {

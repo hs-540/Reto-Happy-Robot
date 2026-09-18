@@ -439,28 +439,10 @@
   border-color: color-mix(in srgb, var(--degradado) 40%, transparent);
 }
 
-.badge--propuesta {
-  color: var(--degradado);
-  background: color-mix(in srgb, var(--degradado) 14%, transparent);
-  border-color: color-mix(in srgb, var(--degradado) 40%, transparent);
-}
-
-.badge--confirmada {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
 .badge--ejecutada {
   color: var(--normal);
   background: color-mix(in srgb, var(--normal) 14%, transparent);
   border-color: color-mix(in srgb, var(--normal) 40%, transparent);
-}
-
-.badge--rechazada {
-  color: var(--critico);
-  background: color-mix(in srgb, var(--critico) 14%, transparent);
-  border-color: color-mix(in srgb, var(--critico) 40%, transparent);
 }
 
 /* Feed */
@@ -555,17 +537,6 @@
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-.card__decision {
-  display: flex;
-  gap: 8px;
-}
-
-.agent__error {
-  margin: 8px 0 0;
-  font-size: 11px;
-  color: var(--critico);
 }
 
 /* ---------- Resource bar ---------- */

@@ -1,7 +1,7 @@
 import express from "express";
 import type { ControlResponse, FeedResponse, HealthResponse, TopologyView } from "@reto/shared";
 import { config, redactSecrets } from "./config.js";
-import { crearRegistroAcciones, esquemaControl, type ResultadoGate } from "./control.js";
+import { crearRegistroAcciones, esquemaControl } from "./control.js";
 import { crearFeed, parsearSince } from "./feed.js";
 import { aTopologia, cargarGuion } from "./guion.js";
 import { crearSimulacion } from "./sim.js";
@@ -49,19 +49,6 @@ app.get("/api/health", (_req, res) => {
   res.json(health);
 });
 
-function responderGate(res: express.Response, resultado: ResultadoGate): void {
-  if (resultado.ok) {
-    res.json({ ok: true });
-    return;
-  }
-  const status = resultado.razon === "desconocida" ? 404 : 409;
-  const error =
-    resultado.razon === "desconocida"
-      ? "acción desconocida"
-      : "la acción ya no está propuesta, el gate está cerrado";
-  res.status(status).json(respuestaError(error));
-}
-
 app.post("/api/control", (req, res) => {
   sim.avanzar(Date.now());
   const parsed = esquemaControl.safeParse(req.body);
@@ -86,12 +73,6 @@ app.post("/api/control", (req, res) => {
     case "reanudar":
       sim.reanudar();
       break;
-    case "confirmar":
-      responderGate(res, registroAcciones.confirmar(body.id));
-      return;
-    case "rechazar":
-      responderGate(res, registroAcciones.rechazar(body.id));
-      return;
     case "inyectar":
       try {
         sim.inyectar(body.payload);
