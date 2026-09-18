@@ -1,0 +1,71 @@
+{
+  "$comentario": "Fuente única de las reglas duras del dominio (issue #26). Cualquier número que aplique el motor o el agente vive aquí y está documentado en docs/RULES.md. No duplicar valores en código.",
+  "severidad": {
+    "$comentario": "Severidad 0-100 (más alto = peor) → status del elemento",
+    "umbralDegradado": 30,
+    "umbralCritico": 60
+  },
+  "resolucion": {
+    "$comentario": "Para declarar `resuelto` no basta un tick bueno: hist-sub-002 (restauración parcial que engaña)",
+    "segundosEstables": 60,
+    "tensionEstable": 90
+  },
+  "umbralesMetrica": {
+    "$comentario": "direccion `bajo`: peor cuanto más bajo el valor. direccion `alto`: peor cuanto más alto. Cortes incluidos.",
+    "tension_red": { "direccion": "bajo", "degradado": 85, "critico": 50 },
+    "carga_ups": { "direccion": "bajo", "degradado": 50, "critico": 15 },
+    "bateria_generador": { "direccion": "bajo", "degradado": 60, "critico": 20 },
+    "temperatura": { "direccion": "alto", "degradado": 40, "critico": 45 },
+    "cobertura_red": { "direccion": "bajo", "degradado": 80, "critico": 50 }
+  },
+  "limitesSinEnergiaMin": {
+    "$comentario": "Minutos máximos sin energía de red ni respaldo fiable, por tipo de sitio. Superar el límite de un hospital activa la regla bloqueante hospital-plazo-energia.",
+    "hospital": 8,
+    "datacenter": 12,
+    "subestacion": 20
+  },
+  "ups": {
+    "$comentario": "Carga de UPS en %. Por debajo de `actuar` está prohibido esperar (hist-dc-002). Por debajo de `emergencia` es activación inmediata de respaldo.",
+    "actuar": 15,
+    "emergencia": 10,
+    "bateriaCritica": 20
+  },
+  "recursos": {
+    "$comentario": "Capacidad total del escenario (DESIGN.md). Exclusión mutua: un recurso atiende a un elemento a la vez.",
+    "capacidad": { "cuadrilla": 1, "generador": 2 }
+  },
+  "prioridad": {
+    "$comentario": "Orden de prioridad cuando los elementos compiten por recursos, y pesos para calcular la prioridad numérica de un elemento: prioridad = 0.5 * criticidad + pesoStatus + pesoTipo + pesoMinutoSinEnergia * min(minutosSinEnergia, 15).",
+    "ordenTipos": ["hospital", "subestacion", "datacenter"],
+    "pesoCriticidad": 0.5,
+    "pesoStatus": { "critico": 60, "degradado": 20, "normal": 0, "resuelto": 0 },
+    "pesoTipo": { "hospital": 30, "subestacion": 20, "datacenter": 10 },
+    "pesoMinutoSinEnergia": 2,
+    "maxMinutosContabilizados": 15
+  },
+  "reglasBloqueantes": [
+    {
+      "id": "sin-doble-asignacion",
+      "regla": "Un recurso solo atiende a un elemento a la vez; reasignar exige liberar primero."
+    },
+    {
+      "id": "hospital-prioridad-energia",
+      "regla": "Mientras un hospital esté critico y sin respaldo de energía, los generadores solo pueden asignarse a él."
+    },
+    {
+      "id": "hospital-plazo-energia",
+      "regla": "Si un hospital supera su límite de minutos sin energía, solo se permite actuar sobre él o sobre la subestación de origen."
+    },
+    {
+      "id": "ups-critica-actuar",
+      "regla": "Con carga_ups por debajo del umbral de actuación está prohibido esperar: hay que asignar recurso o escalar (hist-dc-002)."
+    }
+  ],
+  "$comentarioReglas": "El LLM no puede proponer una acción que viole reglasBloqueantes: la capa de reglas las rechaza antes de ejecutar.",
+  "triggersReplan": [
+    "Un evento hace que un elemento crítico cruce un umbral de severidad.",
+    "Una acción en marcha falla o no cumple su ETA.",
+    "Un hospital supera su límite de minutos sin energía."
+  ],
+  "$comentarioTriggers": "Disparan replanteamiento completo (abandonar plan actual), no solo ajuste incremental."
+}
