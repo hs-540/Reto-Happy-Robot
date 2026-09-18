@@ -195,7 +195,7 @@ export const agent: AgentView = {
           type: 'llamada_voz',
           targetElementId: 'hosp-01',
           destinatario: 'responsable_hospital',
-          status: 'propuesta',
+          status: 'ejecutada',
           mensaje:
             'Cortaremos suministro 10 min para conectar el generador portátil. Confirme recepción.',
           timestamp: '2026-09-18T10:02:12.000Z',
@@ -235,11 +235,11 @@ export const agent: AgentView = {
   ],
   acciones: [
     {
-      id: 'act-007',
-      type: 'llamada_voz',
-      targetElementId: 'hosp-01',
-      destinatario: 'responsable_hospital',
-      status: 'propuesta',
+    id: 'act-007',
+    type: 'llamada_voz',
+    targetElementId: 'hosp-01',
+    destinatario: 'responsable_hospital',
+    status: 'ejecutada',
       mensaje:
         'Cortaremos suministro 10 min para conectar el generador portátil. Confirme recepción.',
       timestamp: '2026-09-18T10:02:12.000Z',
@@ -283,8 +283,8 @@ export const feed: FeedItem[] = [
     elementId: 'hosp-01',
     actionId: 'act-007',
     tipo: 'llamada_voz',
-    estado: 'propuesta',
-    mensaje: 'Llamada al responsable del hospital pendiente de confirmación.',
+    estado: 'ejecutada',
+    mensaje: 'Llamada realizada al responsable del hospital para conectar el generador.',
   },
   {
     seq: 18,

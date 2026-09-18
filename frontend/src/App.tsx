@@ -41,7 +41,6 @@ function App() {
         selectedElementId={selectedElementId}
         onSelectElement={setSelectedElementId}
         nombresElemento={nombresElemento}
-        onControlOk={refrescar}
       />
       <ResourceBar
         recursos={state.recursos}
