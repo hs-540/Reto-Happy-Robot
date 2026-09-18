@@ -1,6 +1,6 @@
 import express from "express";
-import type { HealthResponse, TopologyView } from "@reto/shared";
-import { crearFeed } from "./feed.js";
+import type { FeedResponse, HealthResponse, TopologyView } from "@reto/shared";
+import { crearFeed, parsearSince } from "./feed.js";
 import { aTopologia, cargarGuion } from "./guion.js";
 import { TICK_SEGUNDOS, crearSimulacion } from "./sim.js";
 
@@ -21,6 +21,16 @@ app.get("/api/topology", (_req, res) => {
 app.get("/api/state", (_req, res) => {
   sim.avanzar(Date.now());
   res.json(sim.estado());
+});
+
+app.get("/api/feed", (req, res) => {
+  const since = parsearSince(req.query.since);
+  if (since === null) {
+    res.status(400).json({ error: "since debe ser un entero >= 0" });
+    return;
+  }
+  const respuesta: FeedResponse = { items: feed.desde(since), ultimoSeq: feed.ultimoSeq() };
+  res.json(respuesta);
 });
 
 app.get("/api/health", (_req, res) => {
