@@ -19,6 +19,14 @@ const envSchema = z.object({
   CLOUDFLARE_AI_GATEWAY_URL: z.url(),
   CLOUDFLARE_AI_GATEWAY_API_KEY: z.string().min(1),
   CLOUDFLARE_AI_GATEWAY_MODEL: z.string().min(1),
+  LLM_GATEWAY_ORDER: z
+    .string()
+    .default("vercel,cloudflare")
+    .transform((valor) => valor.split(",").map((parte) => parte.trim().toLowerCase()))
+    .pipe(z.array(z.enum(["vercel", "cloudflare"])).length(2))
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "cada gateway solo puede aparecer una vez",
+    }),
   HAPPYROBOT_API_KEY: z.string().min(1),
   CHROMA_PATH: z.string().min(1).default("backend/chroma-data"),
 });
@@ -45,6 +53,21 @@ export function redactSecrets(text: string): string {
   return secrets.reduce((acc, secret) => acc.split(secret).join("[REDACTED]"), text);
 }
 
+const gatewayPorId = {
+  vercel: {
+    id: "vercel",
+    url: parsed.data.VERCEL_AI_GATEWAY_URL,
+    apiKey: parsed.data.VERCEL_AI_GATEWAY_API_KEY,
+    modelo: parsed.data.VERCEL_AI_GATEWAY_MODEL,
+  },
+  cloudflare: {
+    id: "cloudflare",
+    url: parsed.data.CLOUDFLARE_AI_GATEWAY_URL,
+    apiKey: parsed.data.CLOUDFLARE_AI_GATEWAY_API_KEY,
+    modelo: parsed.data.CLOUDFLARE_AI_GATEWAY_MODEL,
+  },
+} as const;
+
 function deepFreeze<T>(value: T): Readonly<T> {
   if (typeof value === "object" && value !== null) {
     Object.freeze(value);
@@ -57,16 +80,7 @@ export const config = deepFreeze({
   port: parsed.data.PORT,
   tickMs: parsed.data.TICK_MS,
   llm: {
-    primary: {
-      url: parsed.data.VERCEL_AI_GATEWAY_URL,
-      apiKey: parsed.data.VERCEL_AI_GATEWAY_API_KEY,
-      model: parsed.data.VERCEL_AI_GATEWAY_MODEL,
-    },
-    fallback: {
-      url: parsed.data.CLOUDFLARE_AI_GATEWAY_URL,
-      apiKey: parsed.data.CLOUDFLARE_AI_GATEWAY_API_KEY,
-      model: parsed.data.CLOUDFLARE_AI_GATEWAY_MODEL,
-    },
+    gateways: parsed.data.LLM_GATEWAY_ORDER.map((id) => gatewayPorId[id]),
   },
   happyrobot: {
     apiKey: parsed.data.HAPPYROBOT_API_KEY,
