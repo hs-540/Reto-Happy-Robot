@@ -1,0 +1,308 @@
+import type {
+  ContextoValidacion,
+  ElementView,
+  ElementoValidacion,
+  RecursoValidacion,
+  ResourceView,
+} from "@swarmup/shared";
+import {
+  MAX_MINUTOS_SIN_ENERGIA,
+  UMBRAL_BATERIA_CRITICA,
+  UMBRAL_UPS_ACTUAR,
+  calcularPrioridad,
+  derivarStatusMetrica,
+} from "@swarmup/shared";
+import type { GuionElemento, GuionRecurso } from "./guion.js";
+
+/** Velocidad de desplazamiento de cuadrillas y generadores, km/min simulado */
+const VELOCIDAD_KM_MIN = 1.5;
+
+/** ETA mínima: aunque el recurso ya esté encima, el despliegue cuesta */
+const ETA_MINIMA_SEG = 15;
+
+/**
+ * Cambios del mundo que el agente debe observar. Los tres primeros son
+ * triggers de replanificación (RULES.md §7); `llegada` es ajuste incremental.
+ */
+export type EventoMundo =
+  | { tipo: "llegada"; recursoId: string; elementId: string }
+  | { tipo: "eta_incumplida"; recursoId: string; elementId: string; retrasoSeg: number }
+  | { tipo: "plazo_superado"; elementId: string; minutosSinEnergia: number };
+
+export type ResultadoAsignacion =
+  | { ok: true; etaSegundos: number }
+  | { ok: false; razon: string };
+
+interface EstadoRecurso {
+  id: string;
+  type: GuionRecurso["type"];
+  status: ResourceView["status"];
+  assignedElementId: string | null;
+  lat: number;
+  lng: number;
+  /** Punto de partida del trayecto en curso */
+  origen: { lat: number; lng: number } | null;
+  destino: { lat: number; lng: number } | null;
+  /** Segundo simulado en que arrancó el trayecto */
+  salidaEn: number | null;
+  /** Duración total del trayecto, incluye retrasos inyectados */
+  etaSegundos: number;
+  /** Ya se emitió `eta_incumplida` para este trayecto */
+  retrasoAvisado: boolean;
+}
+
+export interface Mundo {
+  /**
+   * Avanza el mundo al segundo simulado dado y devuelve lo que ha cambiado.
+   * `elementos` es la foto que produce la simulación de sensores en este tick.
+   */
+  avanzar(segundos: number, elementos: ElementView[]): EventoMundo[];
+  asignar(recursoId: string, elementId: string, segundos: number): ResultadoAsignacion;
+  liberar(recursoId: string): void;
+  /**
+   * Retrasa el trayecto en curso; alimenta el momento 4 del guion. El trigger
+   * de replanificación sale por el siguiente `avanzar`. Sin efecto si el
+   * recurso no iba de camino o ya se avisó de este retraso.
+   */
+  retrasar(recursoId: string, segundosExtra: number): void;
+  /** Vuelve al estado inicial del guion (lo llama `sim.reiniciar`) */
+  reiniciar(): void;
+  recursos(): ResourceView[];
+  /** Segundos acumulados sin red ni respaldo fiable, por elementId */
+  sinEnergiaSegundos(elementId: string): number;
+  /** Contexto que consume `validarAccion` de shared/rules */
+  contexto(elementos: ElementView[]): ContextoValidacion;
+  /** Elementos ordenados por `calcularPrioridad`, de más a menos urgente */
+  prioridades(elementos: ElementView[]): { elementId: string; score: number }[];
+}
+
+/** Distancia aproximada en km. A escala municipal la aproximación plana sobra. */
+function distanciaKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const dLat = (a.lat - b.lat) * 111;
+  const dLng = (a.lng - b.lng) * 111 * Math.cos((a.lat * Math.PI) / 180);
+  return Math.hypot(dLat, dLng);
+}
+
+export function crearMundo(guion: {
+  elements: GuionElemento[];
+  resources: GuionRecurso[];
+}): Mundo {
+  const criticidad = new Map(guion.elements.map((e) => [e.id, e.criticidad]));
+  const coords = new Map(guion.elements.map((e) => [e.id, { lat: e.lat, lng: e.lng }]));
+
+  const recursos = new Map<string, EstadoRecurso>();
+  /** segundos acumulados sin energía, por elemento */
+  const sinEnergia = new Map<string, number>();
+  /** ya se avisó de que este elemento superó su plazo */
+  const plazoAvisado = new Set<string>();
+  /** eventos emitidos fuera del tick; los drena el siguiente `avanzar` */
+  const pendientes: EventoMundo[] = [];
+  let ultimoSegundo = 0;
+
+  function sembrar(): void {
+    recursos.clear();
+    for (const r of guion.resources) {
+      recursos.set(r.id, {
+        id: r.id,
+        type: r.type,
+        status: r.status,
+        assignedElementId: r.assignedElementId,
+        lat: r.lat,
+        lng: r.lng,
+        origen: null,
+        destino: null,
+        salidaEn: null,
+        etaSegundos: 0,
+        retrasoAvisado: false,
+      });
+    }
+    sinEnergia.clear();
+    for (const e of guion.elements) sinEnergia.set(e.id, 0);
+    plazoAvisado.clear();
+    pendientes.length = 0;
+    ultimoSegundo = 0;
+  }
+  sembrar();
+
+  /**
+   * "Sin energía" = red caída y sin respaldo fiable (RULES.md §3).
+   * Respaldo fiable: generador nuestro ya desplegado, o reserva propia por
+   * encima del umbral de actuación. Sin lectura de tensión asumimos suministro:
+   * no inventamos una crisis a partir de la ausencia de datos.
+   */
+  function estaSinEnergia(e: ElementView): boolean {
+    const tension = e.sensores.tension_red;
+    if (tension === undefined) return false;
+    if (derivarStatusMetrica("tension_red", tension) !== "critico") return false;
+
+    for (const r of recursos.values()) {
+      if (r.type === "generador" && r.assignedElementId === e.id && r.status === "asignado") {
+        return false;
+      }
+    }
+
+    const ups = e.sensores.carga_ups;
+    if (ups !== undefined && ups > UMBRAL_UPS_ACTUAR) return false;
+    const bateria = e.sensores.bateria_generador;
+    if (bateria !== undefined && bateria > UMBRAL_BATERIA_CRITICA) return false;
+
+    return true;
+  }
+
+  function posicionEnTrayecto(r: EstadoRecurso, segundos: number): { lat: number; lng: number } {
+    if (!r.origen || !r.destino || r.salidaEn === null || r.etaSegundos <= 0) {
+      return { lat: r.lat, lng: r.lng };
+    }
+    const avance = Math.min((segundos - r.salidaEn) / r.etaSegundos, 1);
+    return {
+      lat: r.origen.lat + (r.destino.lat - r.origen.lat) * avance,
+      lng: r.origen.lng + (r.destino.lng - r.origen.lng) * avance,
+    };
+  }
+
+  return {
+    avanzar(segundos: number, elementos: ElementView[]): EventoMundo[] {
+      const delta = Math.max(segundos - ultimoSegundo, 0);
+      ultimoSegundo = segundos;
+      const eventos: EventoMundo[] = pendientes.splice(0, pendientes.length);
+
+      for (const e of elementos) {
+        if (estaSinEnergia(e)) {
+          const acumulado = (sinEnergia.get(e.id) ?? 0) + delta;
+          sinEnergia.set(e.id, acumulado);
+          const limiteSeg = MAX_MINUTOS_SIN_ENERGIA[e.type] * 60;
+          if (acumulado > limiteSeg && !plazoAvisado.has(e.id)) {
+            plazoAvisado.add(e.id);
+            eventos.push({
+              tipo: "plazo_superado",
+              elementId: e.id,
+              minutosSinEnergia: Math.floor(acumulado / 60),
+            });
+          }
+        } else {
+          // se restauró el suministro: el contador y el aviso se reinician
+          sinEnergia.set(e.id, 0);
+          plazoAvisado.delete(e.id);
+        }
+      }
+
+      for (const r of recursos.values()) {
+        if (r.status !== "en_transito" || r.salidaEn === null) continue;
+        const pos = posicionEnTrayecto(r, segundos);
+        r.lat = pos.lat;
+        r.lng = pos.lng;
+        if (segundos - r.salidaEn >= r.etaSegundos) {
+          r.status = "asignado";
+          r.origen = null;
+          r.destino = null;
+          r.salidaEn = null;
+          eventos.push({
+            tipo: "llegada",
+            recursoId: r.id,
+            elementId: r.assignedElementId ?? "",
+          });
+        }
+      }
+
+      return eventos;
+    },
+
+    asignar(recursoId: string, elementId: string, segundos: number): ResultadoAsignacion {
+      const r = recursos.get(recursoId);
+      if (!r) return { ok: false, razon: `recurso inexistente: ${recursoId}` };
+      if (r.status !== "disponible") {
+        return { ok: false, razon: `${recursoId} no está disponible (status ${r.status})` };
+      }
+      const destino = coords.get(elementId);
+      if (!destino) return { ok: false, razon: `elemento inexistente: ${elementId}` };
+
+      const km = distanciaKm({ lat: r.lat, lng: r.lng }, destino);
+      const eta = Math.max(Math.round((km / VELOCIDAD_KM_MIN) * 60), ETA_MINIMA_SEG);
+
+      r.status = "en_transito";
+      r.assignedElementId = elementId;
+      r.origen = { lat: r.lat, lng: r.lng };
+      r.destino = destino;
+      r.salidaEn = segundos;
+      r.etaSegundos = eta;
+      r.retrasoAvisado = false;
+
+      return { ok: true, etaSegundos: eta };
+    },
+
+    liberar(recursoId: string): void {
+      const r = recursos.get(recursoId);
+      if (!r) return;
+      r.status = "disponible";
+      r.assignedElementId = null;
+      r.origen = null;
+      r.destino = null;
+      r.salidaEn = null;
+      r.etaSegundos = 0;
+      r.retrasoAvisado = false;
+    },
+
+    retrasar(recursoId: string, segundosExtra: number): void {
+      const r = recursos.get(recursoId);
+      if (!r || r.status !== "en_transito" || r.retrasoAvisado) return;
+      r.etaSegundos += segundosExtra;
+      r.retrasoAvisado = true;
+      pendientes.push({
+        tipo: "eta_incumplida",
+        recursoId: r.id,
+        elementId: r.assignedElementId ?? "",
+        retrasoSeg: segundosExtra,
+      });
+    },
+
+    reiniciar(): void {
+      sembrar();
+    },
+
+    recursos(): ResourceView[] {
+      return [...recursos.values()].map((r) => ({
+        id: r.id,
+        type: r.type,
+        status: r.status,
+        assignedElementId: r.assignedElementId,
+        lat: r.lat,
+        lng: r.lng,
+      }));
+    },
+
+    sinEnergiaSegundos(elementId: string): number {
+      return sinEnergia.get(elementId) ?? 0;
+    },
+
+    contexto(elementos: ElementView[]): ContextoValidacion {
+      const vistaElementos: ElementoValidacion[] = elementos.map((e) => ({
+        id: e.id,
+        type: e.type,
+        status: e.status,
+        metricas: e.sensores,
+        sinEnergiaSegundos: sinEnergia.get(e.id) ?? 0,
+      }));
+      const vistaRecursos: RecursoValidacion[] = [...recursos.values()].map((r) => ({
+        id: r.id,
+        type: r.type,
+        status: r.status,
+        assignedElementId: r.assignedElementId,
+      }));
+      return { elementos: vistaElementos, recursos: vistaRecursos };
+    },
+
+    prioridades(elementos: ElementView[]): { elementId: string; score: number }[] {
+      return elementos
+        .map((e) => ({
+          elementId: e.id,
+          score: calcularPrioridad({
+            type: e.type,
+            status: e.status,
+            criticidad: criticidad.get(e.id) ?? 50,
+            sinEnergiaSegundos: sinEnergia.get(e.id) ?? 0,
+          }),
+        }))
+        .sort((a, b) => b.score - a.score);
+    },
+  };
+}

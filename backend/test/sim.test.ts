@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { FeedItem } from "@swarmup/shared";
 import { crearFeed, type Feed } from "../src/feed.js";
 import { cargarGuion, type Guion } from "../src/guion.js";
+import { crearMundo } from "../src/mundo.js";
 import { crearSimulacion, TICK_SEGUNDOS } from "../src/sim.js";
 
 const rutaGuion = fileURLToPath(new URL("../../data/scripts/apagon-madrid.json", import.meta.url));
@@ -61,7 +62,8 @@ function contenido(items: FeedItem[]): (AlarmaEsperada | SistemaEsperado)[] {
 
 function simNueva(): { sim: ReturnType<typeof crearSimulacion>; feed: Feed } {
   const feed = crearFeed();
-  const sim = crearSimulacion(cargarGuion(rutaGuion), INICIO_MS, feed);
+  const guion = cargarGuion(rutaGuion);
+  const sim = crearSimulacion(guion, INICIO_MS, feed, crearMundo(guion));
   return { sim, feed };
 }
 
