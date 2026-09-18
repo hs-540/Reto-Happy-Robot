@@ -180,7 +180,7 @@ Respuesta:
 `accion`: `iniciar` | `reiniciar` | `pausar` | `reanudar` | `confirmar` | `rechazar` | `inyectar`.
 La simulación **no arranca sola al boot**: `iniciar` arranca el guion cronometrado y `reiniciar` devuelve el mundo al estado inicial reproducible (reloj a 0, feed vacío, recursos y elementos re-sembrados) y lo deja detenido.
 `pausar` congela el reloj de simulación y detiene el tick del LLM.
-`confirmar`/`rechazar` requieren `id` (actionId); si no hay ninguna acción viva responden `409 {ok:false, error}`.
+`confirmar`/`rechazar` requieren `id` (actionId) y solo actúan sobre acciones en `propuesta`: responden `404 {ok:false, error}` si el actionId es desconocido y `409 {ok:false, error}` si ya no está `propuesta` (gate cerrado).
 `inyectar` requiere `payload` (sensor event sin `id`, que asigna el backend); un `elementId` desconocido responde `400 {ok:false, error}`.
 Cuerpo inválido responde `400 {ok:false, error}`.
 

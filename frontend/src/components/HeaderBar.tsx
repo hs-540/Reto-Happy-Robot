@@ -1,11 +1,13 @@
+import { useState } from 'react'
 import type { GuionMoment } from '@reto/shared'
+import { postControl } from '../api'
 
 interface HeaderBarProps {
   titulo: string
   tick: number
   reloj: string
   pausado: boolean
-  onTogglePause: () => void
+  onControlOk: () => void
   segundoActual: number
   duracionSegundos: number
   momentos: GuionMoment[]
@@ -28,12 +30,28 @@ export function HeaderBar({
   tick,
   reloj,
   pausado,
-  onTogglePause,
+  onControlOk,
   segundoActual,
   duracionSegundos,
   momentos,
   ultimoSeq,
 }: HeaderBarProps) {
+  const [pendiente, setPendiente] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function manejarPausa() {
+    setPendiente(true)
+    setError(null)
+    try {
+      await postControl({ accion: pausado ? 'reanudar' : 'pausar' })
+      onControlOk()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error de control')
+    } finally {
+      setPendiente(false)
+    }
+  }
+
   const progreso = Math.min(100, (segundoActual / duracionSegundos) * 100)
   const momentoActual = [...momentos]
     .reverse()
@@ -55,10 +73,12 @@ export function HeaderBar({
           {momentoActual && (
             <span className="header__moment">M{momentos.indexOf(momentoActual) + 1} · {momentoActual.titulo}</span>
           )}
+          {error && <span className="header__error">{error}</span>}
           <button
             type="button"
             className={`btn ${pausado ? 'btn--primary' : ''}`}
-            onClick={onTogglePause}
+            onClick={manejarPausa}
+            disabled={pendiente}
           >
             {pausado ? 'Reanudar' : 'Pausar'}
           </button>

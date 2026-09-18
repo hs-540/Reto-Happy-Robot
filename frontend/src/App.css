@@ -65,6 +65,11 @@
   white-space: nowrap;
 }
 
+.header__error {
+  font-size: 11px;
+  color: var(--critico);
+}
+
 .dot {
   width: 9px;
   height: 9px;
@@ -545,6 +550,22 @@
   padding: 4px 10px;
   font-size: 11px;
   margin-top: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.card__decision {
+  display: flex;
+  gap: 8px;
+}
+
+.agent__error {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--critico);
 }
 
 /* ---------- Resource bar ---------- */

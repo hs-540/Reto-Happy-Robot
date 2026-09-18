@@ -1,8 +1,7 @@
 import express from "express";
-import { z } from "zod";
-import { SensorEventSchema } from "@reto/shared";
 import type { ControlResponse, FeedResponse, HealthResponse, TopologyView } from "@reto/shared";
 import { config, redactSecrets } from "./config.js";
+import { crearRegistroAcciones, esquemaControl, type ResultadoGate } from "./control.js";
 import { crearFeed, parsearSince } from "./feed.js";
 import { aTopologia, cargarGuion } from "./guion.js";
 import { crearSimulacion } from "./sim.js";
@@ -10,20 +9,11 @@ import { crearSimulacion } from "./sim.js";
 const guion = cargarGuion(new URL("../../data/scripts/apagon-madrid.json", import.meta.url));
 const feed = crearFeed();
 const sim = crearSimulacion(guion, Date.now(), feed);
+const registroAcciones = crearRegistroAcciones(feed);
 const topologia: TopologyView = aTopologia(guion);
 
 const app = express();
 app.use(express.json());
-
-const ControlBodySchema = z.discriminatedUnion("accion", [
-  z.object({ accion: z.literal("iniciar") }),
-  z.object({ accion: z.literal("reiniciar") }),
-  z.object({ accion: z.literal("pausar") }),
-  z.object({ accion: z.literal("reanudar") }),
-  z.object({ accion: z.literal("confirmar"), id: z.string().min(1) }),
-  z.object({ accion: z.literal("rechazar"), id: z.string().min(1) }),
-  z.object({ accion: z.literal("inyectar"), payload: SensorEventSchema.omit({ id: true }) }),
-]);
 
 function respuestaError(error: string): ControlResponse {
   return { ok: false, error };
@@ -59,9 +49,22 @@ app.get("/api/health", (_req, res) => {
   res.json(health);
 });
 
+function responderGate(res: express.Response, resultado: ResultadoGate): void {
+  if (resultado.ok) {
+    res.json({ ok: true });
+    return;
+  }
+  const status = resultado.razon === "desconocida" ? 404 : 409;
+  const error =
+    resultado.razon === "desconocida"
+      ? "acción desconocida"
+      : "la acción ya no está propuesta, el gate está cerrado";
+  res.status(status).json(respuestaError(error));
+}
+
 app.post("/api/control", (req, res) => {
   sim.avanzar(Date.now());
-  const parsed = ControlBodySchema.safeParse(req.body);
+  const parsed = esquemaControl.safeParse(req.body);
   if (!parsed.success) {
     const detalles = parsed.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
@@ -83,6 +86,12 @@ app.post("/api/control", (req, res) => {
     case "reanudar":
       sim.reanudar();
       break;
+    case "confirmar":
+      responderGate(res, registroAcciones.confirmar(body.id));
+      return;
+    case "rechazar":
+      responderGate(res, registroAcciones.rechazar(body.id));
+      return;
     case "inyectar":
       try {
         sim.inyectar(body.payload);
@@ -91,13 +100,6 @@ app.post("/api/control", (req, res) => {
         return;
       }
       break;
-    case "confirmar":
-    case "rechazar":
-      // el motor de decisiones (issue del agente) aún no registra acciones vivas
-      res
-        .status(409)
-        .json(respuestaError(`no hay ninguna acción viva '${body.id}' que ${body.accion}`));
-      return;
   }
   res.json({ ok: true });
 });
