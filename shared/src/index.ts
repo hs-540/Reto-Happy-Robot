@@ -4,3 +4,4 @@ export * from "./feed.js";
 export * from "./rules.js";
 export * from "./guion.js";
 export * from "./historico.js";
+export * from "./loaders.js";
