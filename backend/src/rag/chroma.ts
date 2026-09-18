@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ChromaClient } from "chromadb";
-import { config } from "../config.js";
 
 /** El arranque del servidor local puede tardar: da margen a la primera indexación del disco */
 const ARRANQUE_TIMEOUT_MS = 15_000;
@@ -11,6 +10,11 @@ export interface ChromaLocal {
   cliente: ChromaClient;
   /** Detiene el servidor solo si lo arrancó este proceso; si reutilizó uno, no lo toca */
   parar(): Promise<void>;
+}
+
+export interface OpcionesChroma {
+  ruta: string;
+  puerto: number;
 }
 
 function dormir(ms: number): Promise<void> {
@@ -71,11 +75,8 @@ async function detener(hijo: ChildProcess): Promise<void> {
  * ejecuciones"): reutiliza uno ya presente en el puerto o arranca el CLI que
  * distribuye el propio paquete `chromadb`, con `--path` desde config.
  */
-export async function arrancarChroma(
-  opciones?: { ruta?: string; puerto?: number },
-): Promise<ChromaLocal> {
-  const ruta = opciones?.ruta ?? config.chroma.path;
-  const puerto = opciones?.puerto ?? config.chroma.port;
+export async function arrancarChroma(opciones: OpcionesChroma): Promise<ChromaLocal> {
+  const { ruta, puerto } = opciones;
 
   if (await latido(puerto)) {
     console.log(`[chroma] reutilizando el servidor ya presente en el puerto ${puerto}`);

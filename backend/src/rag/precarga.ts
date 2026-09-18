@@ -6,11 +6,11 @@ import { crearClienteLlm } from "../llm.js";
 import { arrancarChroma } from "./chroma.js";
 import { crearRagHistorico } from "./historico.js";
 
-const repoRoot = fileURLToPath(new URL("../../../..", import.meta.url));
+const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const TIPOS = ["datacenter", "hospital", "subestacion"] as const;
 
 async function main(): Promise<void> {
-  const chroma = await arrancarChroma();
+  const chroma = await arrancarChroma({ ruta: config.chroma.path, puerto: config.chroma.port });
   const rag = crearRagHistorico({ cliente: chroma.cliente, llm: crearClienteLlm(config.llm.gateways) });
   const raizHistorico = path.resolve(repoRoot, "data", "history");
   try {

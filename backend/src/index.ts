@@ -15,7 +15,10 @@ const feed = crearFeed();
 const topologia: TopologyView = aTopologia(guion);
 
 /** Chroma local (RAG): si no arranca, la demo sigue sin cierre del bucle */
-const ragListo: Promise<RagHistorico | null> = arrancarChroma()
+const ragListo: Promise<RagHistorico | null> = arrancarChroma({
+  ruta: config.chroma.path,
+  puerto: config.chroma.port,
+})
   .then((chroma) =>
     crearRagHistorico({ cliente: chroma.cliente, llm: crearClienteLlm(config.llm.gateways) }),
   )
