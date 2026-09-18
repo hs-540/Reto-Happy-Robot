@@ -69,7 +69,10 @@ export function crearClienteLlm(gateways: readonly GatewayLlm[]): ClienteLlm {
         ultimoError = err;
         const motivo = motivoFallo(err);
         if (motivo === null) throw err;
-        console.error(`[llm] gateway ${intento.gw.id} falló (${motivo}); failover al siguiente`);
+        const haySiguiente = intento !== intentos[intentos.length - 1];
+        console.error(
+          `[llm] gateway ${intento.gw.id} falló (${motivo})${haySiguiente ? "; failover al siguiente" : "; sin más gateways"}`,
+        );
       }
     }
     throw new Error(`todos los gateways fallaron (${gateways.map((g) => g.id).join(", ")})`, {
@@ -82,7 +85,7 @@ export function crearClienteLlm(gateways: readonly GatewayLlm[]): ClienteLlm {
       const { resultado, gw, latenciaMs } = await conFailover(({ cliente, gw }: IntentoGateway) =>
         cliente.chat.completions.create({ model: gw.modelo, messages: mensajes }),
       );
-      const texto = resultado.choices[0]?.message?.content ?? "";
+      const texto = resultado.choices?.[0]?.message?.content ?? "";
       if (!texto) throw new Error(`gateway ${gw.id} devolvió una respuesta vacía`);
       return { texto, gateway: gw.id, modelo: gw.modelo, latenciaMs };
     },
