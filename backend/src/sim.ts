@@ -1,6 +1,7 @@
 import type {
   ElementStatus,
   ElementView,
+  InyectarPayload,
   ResourceView,
   SensorMetric,
   StateView,
@@ -10,7 +11,7 @@ import {
   TENSION_ESTABLE_RESUELTO,
   derivarStatus,
 } from "@reto/shared";
-import type { Guion, GuionEvento } from "./guion.js";
+import type { Guion, GuionEvento, GuionEventoSensor } from "./guion.js";
 import type { Feed } from "./feed.js";
 
 /** Cadencia del motor de decisión (DESIGN.md): tick cada 5-10s */
@@ -32,6 +33,11 @@ export interface Simulacion {
   estado(): StateView;
   tick(): number;
   readonly pausado: boolean;
+  /** Congela el reloj de simulación: el mundo deja de avanzar y el motor no tickea */
+  pausar(): void;
+  reanudar(): void;
+  /** Modo híbrido: sensor event extra durante la demo, vigente en el instante actual */
+  inyectar(payload: InyectarPayload): void;
 }
 
 export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Simulacion {
@@ -51,6 +57,7 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
       actualizadoEn: 0,
     });
   }
+  let inyectadas = 0;
 
   function estadoDe(id: string): EstadoElemento {
     const estado = elementos.get(id);
@@ -155,6 +162,28 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
     },
     get pausado(): boolean {
       return pausado;
+    },
+    pausar(): void {
+      pausado = true;
+    },
+    reanudar(): void {
+      pausado = false;
+    },
+    inyectar(payload: InyectarPayload): void {
+      inyectadas += 1;
+      const evento: GuionEventoSensor = {
+        atSeconds: segundos,
+        kind: "sensor_event",
+        payload: {
+          id: `inyectada-${inyectadas}`,
+          elementId: payload.elementId,
+          metric: payload.metric,
+          value: payload.value,
+          severidad: payload.severidad,
+        },
+      };
+      timeline.push(evento);
+      timeline.sort((a, b) => a.atSeconds - b.atSeconds);
     },
   };
 }
