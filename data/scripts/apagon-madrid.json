@@ -1,0 +1,173 @@
+{
+  "titulo": "Apagón regional — Getafe, Comunidad de Madrid",
+  "duracionSegundos": 300,
+  "elements": [
+    {
+      "id": "sub-01",
+      "type": "subestacion",
+      "name": "Subestación Getafe-Sur",
+      "lat": 40.3057,
+      "lng": -3.7327,
+      "status": "normal",
+      "criticidad": 70
+    },
+    {
+      "id": "dc-01",
+      "type": "datacenter",
+      "name": "CPD Metropolitano Getafe",
+      "lat": 40.295,
+      "lng": -3.72,
+      "status": "normal",
+      "criticidad": 60
+    },
+    {
+      "id": "hosp-01",
+      "type": "hospital",
+      "name": "Hospital Regional Getafe-Sur",
+      "lat": 40.31,
+      "lng": -3.71,
+      "status": "normal",
+      "criticidad": 95
+    }
+  ],
+  "resources": [
+    {
+      "id": "cuadrilla-1",
+      "type": "cuadrilla",
+      "status": "disponible",
+      "assignedElementId": null,
+      "lat": 40.302,
+      "lng": -3.722
+    },
+    {
+      "id": "generador-1",
+      "type": "generador",
+      "status": "disponible",
+      "assignedElementId": null,
+      "lat": 40.302,
+      "lng": -3.722
+    },
+    {
+      "id": "generador-2",
+      "type": "generador",
+      "status": "disponible",
+      "assignedElementId": null,
+      "lat": 40.302,
+      "lng": -3.722
+    }
+  ],
+  "timeline": [
+    {
+      "atSeconds": 0,
+      "kind": "sensor_event",
+      "nota": "Momento 1 — apagón inicial en la subestación de origen.",
+      "payload": {
+        "id": "evt-001",
+        "elementId": "sub-01",
+        "metric": "tension_red",
+        "value": 12,
+        "severidad": 90
+      }
+    },
+    {
+      "atSeconds": 15,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-002",
+        "elementId": "dc-01",
+        "metric": "carga_ups",
+        "value": 35,
+        "severidad": 25
+      }
+    },
+    {
+      "atSeconds": 40,
+      "kind": "sensor_event",
+      "nota": "Momento 2 — el datacenter empieza a sobrecalentarse, UPS con batería limitada.",
+      "payload": {
+        "id": "evt-003",
+        "elementId": "dc-01",
+        "metric": "temperatura",
+        "value": 41,
+        "severidad": 55
+      }
+    },
+    {
+      "atSeconds": 60,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-004",
+        "elementId": "dc-01",
+        "metric": "carga_ups",
+        "value": 12,
+        "severidad": 75
+      }
+    },
+    {
+      "atSeconds": 90,
+      "kind": "sensor_event",
+      "nota": "Momento 3 — el hospital pierde el generador de respaldo: conflicto de recursos, llamada de voz en vivo.",
+      "payload": {
+        "id": "evt-005",
+        "elementId": "hosp-01",
+        "metric": "bateria_generador",
+        "value": 18,
+        "severidad": 85
+      }
+    },
+    {
+      "atSeconds": 150,
+      "kind": "narrative",
+      "nota": "Momento 4 — la cuadrilla enviada no cumple su ETA / el datacenter empeora: dispara replanteamiento completo.",
+      "payload": {
+        "resourceId": "cuadrilla-1",
+        "evento": "eta_incumplida"
+      }
+    },
+    {
+      "atSeconds": 170,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-006",
+        "elementId": "dc-01",
+        "metric": "temperatura",
+        "value": 48,
+        "severidad": 70
+      }
+    },
+    {
+      "atSeconds": 240,
+      "kind": "sensor_event",
+      "nota": "Momento 5 — la subestación se repara, vuelve la energía, se cierra el incidente.",
+      "payload": {
+        "id": "evt-007",
+        "elementId": "sub-01",
+        "metric": "tension_red",
+        "value": 98,
+        "severidad": 5
+      }
+    },
+    {
+      "atSeconds": 260,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-008",
+        "elementId": "dc-01",
+        "metric": "carga_ups",
+        "value": 90,
+        "severidad": 5
+      }
+    },
+    {
+      "atSeconds": 280,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-009",
+        "elementId": "hosp-01",
+        "metric": "bateria_generador",
+        "value": 95,
+        "severidad": 5
+      }
+    }
+  ]
+}
