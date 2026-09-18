@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { FeedItem } from "@reto/shared";
 import { crearFeed, type Feed } from "../src/feed.js";
 import { cargarGuion, type Guion } from "../src/guion.js";
-import { crearSimulacion, TICK_SEGUNDOS } from "../src/sim.js";
+import { crearSimulacion, TICK_SEGUNDOS, type CierreIncidente } from "../src/sim.js";
 
 const rutaGuion = fileURLToPath(new URL("../../data/scripts/apagon-madrid.json", import.meta.url));
 const INICIO_MS = Date.parse("2026-09-19T10:00:00.000Z");
@@ -158,6 +158,25 @@ test("reiniciar deja el estado inicial reproducible y una repetición idéntica"
   recorrer(sim);
   assert.deepEqual(contenido(feed.desde(seqFinal)), feedFinal);
   assert.deepEqual(sim.estado(), { ...estadoFinal, ultimoSeq: feed.ultimoSeq() });
+});
+
+test("al resolverse un incidente se entrega un cierre único por elemento", () => {
+  const cierres: CierreIncidente[] = [];
+  const feed = crearFeed();
+  const sim = crearSimulacion(cargarGuion(rutaGuion), INICIO_MS, feed, (cierre) =>
+    cierres.push(cierre),
+  );
+  sim.iniciar(INICIO_MS);
+  recorrer(sim);
+
+  // momento 5: solo la subestación alcanza `resuelto` dentro del guion (estable desde t=240)
+  assert.deepEqual(cierres.map((c) => c.elementoId), ["sub-01"]);
+  assert.equal(cierres[0].tipo, "subestacion");
+  assert.equal(cierres[0].severidadMaxima, 90);
+
+  // el datacenter cierra al cumplir su propia estabilidad; la subestación no se repite
+  sim.avanzar(INICIO_MS + 325 * 1000);
+  assert.deepEqual(cierres.map((c) => c.elementoId), ["sub-01", "dc-01"]);
 });
 
 test("inyectar aplica un sensor event inmediato y lo emite en el feed", () => {
