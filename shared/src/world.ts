@@ -1,34 +1,19 @@
-export type ElementType = "datacenter" | "hospital" | "subestacion";
+import type { ElementoGuion, RecursoGuion, SensorEvent } from "./guion.js";
 
-export type ElementStatus = "normal" | "degradado" | "critico" | "resuelto";
+/* Primitivas derivadas de los esquemas de data/ (fuente única en guion.ts) */
+export type ElementType = ElementoGuion["type"];
 
-export type SensorMetric =
-  | "temperatura"
-  | "carga_ups"
-  | "bateria_generador"
-  | "cobertura_red"
-  | "tension_red";
+export type ElementStatus = ElementoGuion["status"];
 
-export type ResourceType = "cuadrilla" | "generador";
+export type SensorMetric = SensorEvent["metric"];
 
-export type ResourceStatus = "disponible" | "en_transito" | "asignado";
+export type ResourceType = RecursoGuion["type"];
 
-export interface ElementTopology {
-  id: string;
-  type: ElementType;
-  name: string;
-  lat: number;
-  lng: number;
-  /** 0-100, cuanto más alto más crítico es perder este elemento */
-  criticidad: number;
-}
+export type ResourceStatus = RecursoGuion["status"];
 
-export interface ResourceTopology {
-  id: string;
-  type: ResourceType;
-  lat: number;
-  lng: number;
-}
+export type ElementTopology = Omit<ElementoGuion, "status">;
+
+export type ResourceTopology = Omit<RecursoGuion, "status" | "assignedElementId">;
 
 export interface GuionMoment {
   atSeconds: number;
