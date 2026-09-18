@@ -11,6 +11,7 @@ import {
   derivarStatus,
 } from "@reto/shared";
 import type { Guion, GuionEvento } from "./guion.js";
+import type { Feed } from "./feed.js";
 
 /** Cadencia del motor de decisión (DESIGN.md): tick cada 5-10s */
 export const TICK_SEGUNDOS = 5;
@@ -33,7 +34,7 @@ export interface Simulacion {
   readonly pausado: boolean;
 }
 
-export function crearSimulacion(guion: Guion, inicioMs: number): Simulacion {
+export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Simulacion {
   const timeline = [...guion.timeline].sort((a, b) => a.atSeconds - b.atSeconds);
   let siguiente = 0;
   let segundos = 0;
@@ -63,9 +64,9 @@ export function crearSimulacion(guion: Guion, inicioMs: number): Simulacion {
 
   function aplicarEvento(ev: GuionEvento): void {
     if (ev.kind === "narrative") {
-      console.log(
-        `[sim] narrativa ${ev.payload.evento}${ev.payload.resourceId ? ` recurso=${ev.payload.resourceId}` : ""}`,
-      );
+      if (ev.nota !== undefined) {
+        feed.publicar({ kind: "sistema", mensaje: ev.nota });
+      }
       return;
     }
     const estado = estadoDe(ev.payload.elementId);
@@ -77,6 +78,17 @@ export function crearSimulacion(guion: Guion, inicioMs: number): Simulacion {
     } else {
       estado.normalDesde = null;
       estado.tuvoIncidente = true;
+    }
+    feed.publicar({
+      kind: "alarma",
+      elementId: ev.payload.elementId,
+      metric: ev.payload.metric,
+      value: ev.payload.value,
+      severidad: ev.payload.severidad,
+    });
+    // los momentos clave del guion son el marco narrativo de la demo
+    if (ev.nota !== undefined) {
+      feed.publicar({ kind: "sistema", mensaje: ev.nota });
     }
   }
 
@@ -133,7 +145,7 @@ export function crearSimulacion(guion: Guion, inicioMs: number): Simulacion {
         tick: Math.floor(segundos / TICK_SEGUNDOS),
         pausado,
         relojSimulacion: relojIso(segundos),
-        ultimoSeq: 0,
+        ultimoSeq: feed.ultimoSeq(),
         elementos: vistas,
         recursos,
       };
