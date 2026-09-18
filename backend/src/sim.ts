@@ -1,5 +1,6 @@
 import type {
   ElementStatus,
+  ElementType,
   ElementView,
   InyectarPayload,
   ResourceStatus,
@@ -20,12 +21,25 @@ export const TICK_SEGUNDOS = 5;
 
 interface EstadoElemento {
   severidad: number;
+  /** máxima severidad alcanzada durante el incidente, para el registro histórico */
+  severidadMaxima: number;
   sensores: Partial<Record<SensorMetric, number>>;
   /** segundo simulado en el que el elemento entró en status normal (null si no está normal) */
   normalDesde: number | null;
   tuvoIncidente: boolean;
+  /** el cierre del incidente ya se entregó a `alResolver` */
+  registrado: boolean;
   /** segundo simulado del último evento recibido */
   actualizadoEn: number;
+}
+
+/** Datos observables del cierre de un incidente (momento en que el elemento queda `resuelto`) */
+export interface CierreIncidente {
+  elementoId: string;
+  tipo: ElementType;
+  nombre: string;
+  severidadMaxima: number;
+  reloj: string;
 }
 
 export interface Simulacion {
@@ -45,7 +59,12 @@ export interface Simulacion {
   readonly iniciado: boolean;
 }
 
-export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Simulacion {
+export function crearSimulacion(
+  guion: Guion,
+  inicioMs: number,
+  feed: Feed,
+  alResolver?: (cierre: CierreIncidente) => void,
+): Simulacion {
   const timeline = [...guion.timeline].sort((a, b) => a.atSeconds - b.atSeconds);
   let siguiente = 0;
   let segundos = 0;
@@ -61,9 +80,11 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
     for (const e of guion.elements) {
       elementos.set(e.id, {
         severidad: 0,
+        severidadMaxima: 0,
         sensores: {},
         normalDesde: 0,
         tuvoIncidente: false,
+        registrado: false,
         actualizadoEn: 0,
       });
     }
@@ -114,6 +135,9 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
     estado.severidad = ev.payload.severidad;
     estado.sensores[ev.payload.metric] = ev.payload.value;
     estado.actualizadoEn = ev.atSeconds;
+    if (ev.payload.severidad > estado.severidadMaxima) {
+      estado.severidadMaxima = ev.payload.severidad;
+    }
     if (derivarStatus(estado.severidad) === "normal") {
       if (estado.normalDesde === null) estado.normalDesde = ev.atSeconds;
     } else {
@@ -147,6 +171,23 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
     return derivarStatus(estado.severidad);
   }
 
+  /** Cierre del bucle (DESIGN.md): cada elemento que pasa a `resuelto` se entrega una sola vez */
+  function registrarResueltos(): void {
+    for (const e of guion.elements) {
+      const estado = estadoDe(e.id);
+      if (estado.registrado || !estado.tuvoIncidente || statusDe(estado) !== "resuelto") continue;
+      estado.registrado = true;
+      if (!alResolver) continue;
+      alResolver({
+        elementoId: e.id,
+        tipo: e.type,
+        nombre: e.name,
+        severidadMaxima: Math.round(estado.severidadMaxima),
+        reloj: relojIso(segundos),
+      });
+    }
+  }
+
   return {
     avanzar(ahoraMs: number): void {
       if (!iniciado) {
@@ -160,6 +201,7 @@ export function crearSimulacion(guion: Guion, inicioMs: number, feed: Feed): Sim
         aplicarEvento(timeline[siguiente]);
         siguiente++;
       }
+      registrarResueltos();
     },
     iniciar(ahoraMs: number): void {
       if (iniciado) return;
