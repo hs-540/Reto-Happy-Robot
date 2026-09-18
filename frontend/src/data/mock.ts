@@ -55,6 +55,7 @@ export const topology: TopologyView = {
 export const state: StateView = {
   tick: 30,
   pausado: false,
+  iniciado: true,
   relojSimulacion: '2026-09-18T10:02:30.000Z',
   ultimoSeq: 21,
   elementos: [

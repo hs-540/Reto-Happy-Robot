@@ -9,6 +9,8 @@ export interface Feed {
   /** ítems con `seq > since` (contrato CONTRACT.md: sin `since` → feed completo) */
   desde(since: number): FeedItem[];
   ultimoSeq(): number;
+  /** Vacía los ítems del run anterior; el contador sigue monotónico para no romper el acumulador por `seq` */
+  reiniciar(): void;
 }
 
 /**
@@ -28,6 +30,9 @@ export function crearFeed(): Feed {
     },
     ultimoSeq() {
       return ultimo;
+    },
+    reiniciar() {
+      items.length = 0;
     },
   };
 }

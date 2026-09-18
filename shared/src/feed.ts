@@ -47,6 +47,8 @@ export interface FeedResponse {
 }
 
 export type ControlAction =
+  | "iniciar"
+  | "reiniciar"
   | "pausar"
   | "reanudar"
   | "confirmar"
@@ -77,4 +79,6 @@ export interface HealthResponse {
   status: "ok" | "degradado";
   tick: number;
   pausado: boolean;
+  /** false hasta que POST /api/control {accion:"iniciar"} arranca el guion */
+  iniciado: boolean;
 }

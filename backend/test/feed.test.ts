@@ -46,6 +46,7 @@ test("la simulación publica los 5 momentos clave como sistema en orden", () => 
   );
   const feed = crearFeed();
   const sim = crearSimulacion(guion, Date.now(), feed);
+  sim.iniciar(Date.now());
 
   sim.avanzar(Date.now() + (guion.duracionSegundos + 1) * 1000);
 
@@ -64,6 +65,7 @@ test("polling por seq reconstruye el feed completo sin perder ni duplicar", () =
   );
   const feed = crearFeed();
   const sim = crearSimulacion(guion, Date.now(), feed);
+  sim.iniciar(Date.now());
 
   // primer poll a mitad de la demo, segundo al final (acumulador por seq)
   sim.avanzar(Date.now() + 60 * 1000);
