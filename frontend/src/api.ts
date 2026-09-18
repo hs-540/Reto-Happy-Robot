@@ -1,4 +1,4 @@
-import type { ControlBody, ControlResponse, StateView, TopologyView } from '@reto/shared'
+import type { ControlBody, ControlResponse, StateView, TopologyView } from '@swarmup/shared'
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path)

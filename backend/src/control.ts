@@ -1,5 +1,5 @@
-import { SensorEventSchema } from "@reto/shared";
-import type { Action } from "@reto/shared";
+import { SensorEventSchema } from "@swarmup/shared";
+import type { Action } from "@swarmup/shared";
 import { z } from "zod";
 import type { Feed } from "./feed.js";
 

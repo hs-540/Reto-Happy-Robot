@@ -3,7 +3,7 @@ import type {
   FeedItem,
   StateView,
   TopologyView,
-} from '@reto/shared'
+} from '@swarmup/shared'
 
 export const SEGUNDO_ACTUAL = 150
 

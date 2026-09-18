@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { StateView, TopologyView } from '@reto/shared'
+import type { StateView, TopologyView } from '@swarmup/shared'
 import { getState, getTopology } from '../api'
 import {
   agent as agentMock,

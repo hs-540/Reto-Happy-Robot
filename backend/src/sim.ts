@@ -6,12 +6,12 @@ import type {
   ResourceView,
   SensorMetric,
   StateView,
-} from "@reto/shared";
+} from "@swarmup/shared";
 import {
   SEGUNDOS_ESTABLE_RESUELTO,
   TENSION_ESTABLE_RESUELTO,
   derivarStatus,
-} from "@reto/shared";
+} from "@swarmup/shared";
 import type { Guion, GuionEvento } from "./guion.js";
 import type { Feed } from "./feed.js";
 
