@@ -1,51 +1,64 @@
-# Estado del despliegue
+# Deployment status
 
-**URL publica:** https://events-api.hs540events.workers.dev
+**Public URL:** https://events-api.hs540events.workers.dev
 
-| Recurso | Valor |
+| Resource | Value |
 |---|---|
 | Worker | `events-api` |
-| D1 | `eventos` — id `f4ef295f-53b2-459a-8f3f-41347a5c8e03`, region WEUR |
-| Subdominio | `hs540events.workers.dev` |
-| Secret | `API_KEY` (subido; valor en `.api-key` local) |
-| Token de despliegue | `.cf-token` — Workers:Edit, D1:Edit, Account:Read. **Caduca el 21/09/2026** |
+| D1 | `eventos`, region WEUR (the id is in your local `wrangler.jsonc`) |
+| Subdomain | `hs540events.workers.dev` |
+| Secret | `API_KEY` (uploaded; the value is in the local `.api-key`) |
+| Deploy token | `.cf-token` — Workers:Edit, D1:Edit, Account:Read. **Expires 2026-09-21** |
 
-## Redesplegar tras tocar el codigo
+## Redeploy after changing the code
 
 ```bash
 export CLOUDFLARE_API_TOKEN=$(cat .cf-token)
 npx wrangler deploy
 ```
 
-## Ver la API key
+## Read the API key
 
 ```bash
 cat .api-key
 ```
 
-## Rotar la API key
+## Rotate the API key
 
 ```bash
 export CLOUDFLARE_API_TOKEN=$(cat .cf-token)
 openssl rand -hex 32 > .api-key && cat .api-key | npx wrangler secret put API_KEY
 ```
 
-Efecto inmediato, sin redeploy.
+Takes effect immediately, no redeploy needed.
 
-## Logs en vivo
+## Live logs
 
 ```bash
 export CLOUDFLARE_API_TOKEN=$(cat .cf-token)
 npx wrangler tail
 ```
 
-## Consultar la BBDD de produccion
+## Query the production database
 
 ```bash
 export CLOUDFLARE_API_TOKEN=$(cat .cf-token)
-npx wrangler d1 execute eventos --remote --command "SELECT type, status, created_at FROM events ORDER BY created_at DESC LIMIT 10"
+npx wrangler d1 execute eventos --remote --command "SELECT id, mission_id, summary, created_at FROM events ORDER BY created_at DESC LIMIT 10"
 ```
 
-## Al acabar la hackathon
+## Migrations
 
-Revoca el token en https://dash.cloudflare.com/profile/api-tokens (o dejalo caducar el 21).
+Run them in order against production; each one says whether it drops data.
+
+```bash
+export CLOUDFLARE_API_TOKEN=$(cat .cf-token)
+npx wrangler d1 execute eventos --remote --file=./migrations/00X_name.sql
+```
+
+`schema.sql` is idempotent and safe to run against production; `reset-local.sql`
+drops the table and is meant for local use only.
+
+## When the hackathon is over
+
+Revoke the token at https://dash.cloudflare.com/profile/api-tokens (or let it
+expire on the 21st).
