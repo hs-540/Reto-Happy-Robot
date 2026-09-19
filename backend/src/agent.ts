@@ -224,6 +224,89 @@ export function resolveContact(
   return mostSpecific("id") ?? mostSpecific("name") ?? mostSpecific("role") ?? null;
 }
 
+/**
+ * Canonical shape of an id for comparison: case out, the lookalikes the model
+ * swaps when typing (O/0, I/L/1) folded, separators unified and zero-padding
+ * dropped. Applied to BOTH sides, so "sub-O2" ≡ "sub-02" and "crew-O1" ≡
+ * "crew-1" without either spelling being "correct".
+ */
+function canonId(text: string): string {
+  return text
+    .toUpperCase()
+    .replace(/O/g, "0")
+    .replace(/[IL]/g, "1")
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-0*(?=\d)/g, "-");
+}
+
+/**
+ * The model now and then mistypes the very id it was handed: "sub-O2" with a
+ * letter O, a dropped zero, a stray capital. The decision is sound; the label
+ * is what failed — and an assignment carrying "sub-O2" dies at `world.assign`
+ * as "nonexistent element" after the model already spent its reasoning on it.
+ * Recover the id rather than bounce the move, the way `resolveContact`
+ * recovers who a warning is really for. Exact match, canonical match, then a
+ * UNIQUE prefix in either direction; anything ambiguous ("tower-0", bare
+ * "sub") comes back unchanged rather than guessed.
+ */
+export function resolveElementId(
+  proposed: string,
+  candidates: readonly { id: string }[],
+): string {
+  if (candidates.some((c) => c.id === proposed)) return proposed;
+  const target = canonId(proposed);
+  if (target === "") return proposed;
+  const canonical = candidates.find((c) => canonId(c.id) === target);
+  if (canonical) return canonical.id;
+  const partial = candidates.filter(
+    (c) => canonId(c.id).startsWith(target) || target.startsWith(canonId(c.id)),
+  );
+  return partial.length === 1 ? partial[0].id : proposed;
+}
+
+/**
+ * The model's whole output with every id it had to type re-anchored to the
+ * world it was handed: decision and action elementIds against the sites,
+ * resourceIds against the fleet, history citations against the retrieved
+ * incidents. Runs BEFORE validation, so the retry loop, the sequential
+ * checks and `execute` all see the id that was meant — a proposal is judged
+ * on its merits, not on its typos.
+ */
+export function reanchorOutput(
+  output: AgentOutput,
+  state: StateView,
+  history: readonly { incident: { id: string } }[],
+): AgentOutput {
+  // `resolveElementId` passes "" through unchanged, so the non-nullable
+  // fields (everything but plan steps) need no null handling
+  const resolveSite = (id: string): string => resolveElementId(id, state.elements);
+  const resolveUnit = (id: string): string => resolveElementId(id, state.resources);
+  const resolveNullable = (id: string | null): string | null =>
+    id === null ? null : resolveElementId(id, state.elements);
+  return {
+    ...output,
+    steps: output.steps.map((s) => ({ ...s, elementId: resolveNullable(s.elementId) })),
+    communications: output.communications.map((c) => ({
+      ...c,
+      elementId: resolveSite(c.elementId),
+    })),
+    decisions: output.decisions.map((d) => ({
+      ...d,
+      elementId: resolveSite(d.elementId),
+      historyCitation:
+        d.historyCitation === null
+          ? null
+          : resolveElementId(d.historyCitation, history.map((h) => ({ id: h.incident.id }))),
+      actions: d.actions.map((a) => ({
+        ...a,
+        elementId: resolveSite(a.elementId),
+        resourceId: a.resourceId === null ? null : resolveUnit(a.resourceId),
+      })),
+    })),
+  };
+}
+
 /* ─── Mechanical pairing and sequential validation ───────────────────── */
 
 export interface GreedyAssignment {
@@ -715,7 +798,9 @@ export function createAgent(options: AgentOptions): Agent {
         AgentOutputSchema,
         "agent_decision",
       );
-      last = response.data;
+      // The model mistypes the ids it was handed ("sub-O2" for "sub-02");
+      // recover them before anything judges or executes the proposal.
+      last = reanchorOutput(response.data, state, ctx.history);
       // each action judged against the state its predecessors leave behind
       rejections = validateSequentially(last, world.context(state.elements));
       if (rejections.length === 0) return last;
