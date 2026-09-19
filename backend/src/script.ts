@@ -219,13 +219,12 @@ export function loadScript(url: URL): Script {
 }
 
 export function toTopology(script: Script): TopologyView {
+  // No moments here on purpose: the plot travels only through the live feed,
+  // revealed as each note fires — the topology never announces the script.
   return {
     crisis: {
       title: script.title,
       durationSeconds: script.durationSeconds,
-      moments: script.timeline.flatMap((e) =>
-        e.note === undefined ? [] : [{ atSeconds: e.atSeconds, title: e.note }],
-      ),
     },
     elements: script.elements.map(({ id, type, name, lat, lng, criticality }) => ({
       id,

@@ -231,7 +231,7 @@ export function drawScenario(seed: number): ScenarioDraft {
   const startOfSub = new Map(incidents.map((i) => [i.siteId, i.startSeconds]));
   const timeline: ScriptEvent[] = [];
   for (const incident of incidents) {
-    timeline.push(...incidentEvents(incident));
+    timeline.push(...incidentEvents(incident, true));
   }
   for (const sub of downedSubs) {
     const subStart = startOfSub.get(sub) ?? 0;
@@ -240,7 +240,7 @@ export function drawScenario(seed: number): ScenarioDraft {
       const templates = TEMPLATES.filter(
         (t) => t.appliesTo === siteTypeOf(dependent) && t.kind === "grid",
       );
-      timeline.push(...incidentEvents({ startSeconds: subStart, siteId: dependent, template: rng.pick(templates) }));
+      timeline.push(...incidentEvents({ startSeconds: subStart, siteId: dependent, template: rng.pick(templates) }, false));
     }
   }
 
@@ -262,6 +262,7 @@ export function drawScenario(seed: number): ScenarioDraft {
   timeline.push({
     atSeconds: rng.int(NEEDLE_WINDOW[0], NEEDLE_WINDOW[1]),
     kind: "report",
+    note: NEEDLE_REPORT.text,
     payload: { id: "", source: NEEDLE_REPORT.source, text: NEEDLE_REPORT.text, elementId: needleHospitalId },
   });
 
@@ -313,7 +314,12 @@ export function drawScenario(seed: number): ScenarioDraft {
   };
 }
 
-function incidentEvents(incident: PlannedIncident): ScriptEvent[] {
+/**
+ * Events of one arc, offset from its start. When `withMoment` is set, the
+ * arc's opening event carries the narrative note that the feed reveals the
+ * moment it fires; dependent cascades stay silent (the root speaks for them).
+ */
+function incidentEvents(incident: PlannedIncident, withMoment: boolean): ScriptEvent[] {
   const events: ScriptEvent[] = [];
   for (const step of incident.template.steps) {
     events.push({
@@ -339,6 +345,10 @@ function incidentEvents(incident: PlannedIncident): ScriptEvent[] {
         elementId: report.bound ? incident.siteId : null,
       },
     });
+  }
+  if (withMoment && incident.template.moment !== undefined) {
+    const opening = events[0];
+    if (opening) opening.note = fillText(incident.template.moment, incident.siteId);
   }
   return events;
 }
