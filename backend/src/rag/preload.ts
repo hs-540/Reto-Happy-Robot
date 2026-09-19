@@ -13,7 +13,7 @@ import { createHistoryRag } from "./history.js";
  */
 
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const TYPES = ["datacenter", "hospital", "substation"] as const;
+const TYPES = ["datacenter", "hospital", "substation", "tower", "fuel_station", "junction"] as const;
 
 async function main(): Promise<void> {
   const chroma = await startChroma({ path: config.chroma.path, port: config.chroma.port });

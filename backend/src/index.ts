@@ -51,9 +51,14 @@ let resolvedClosures = 0;
 let summaryPublished = false;
 
 /** History shipped with the repo, per site type: the seed of the incident memory */
-const history: HistoricalIncident[] = ["hospital", "datacenter", "substation"].flatMap((type) =>
-  loadHistory(new URL(`data/history/${type}/incidents.json`, repoRoot).pathname),
-);
+const history: HistoricalIncident[] = [
+  "datacenter",
+  "hospital",
+  "substation",
+  "tower",
+  "fuel_station",
+  "junction",
+].flatMap((type) => loadHistory(new URL(`data/history/${type}/incidents.json`, repoRoot).pathname));
 
 /** Local Chroma (RAG): if it does not start, the demo goes on without loop closure */
 const ragReady: Promise<HistoryRag | null> = startChroma({
