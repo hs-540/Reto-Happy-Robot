@@ -139,6 +139,11 @@ CÓMO RAZONAS
   declara un requisito, sin cumplirlo no sirve de nada gastarlo.
 - Usa las dependencias para calcular cobertura: arreglar un nodo del que cuelgan cuatro
   sitios vale más que atender uno solo, aunque ese uno puntúe más alto.
+- Cada sitio te dice si está YA CUBIERTO. Un recurso en ruta cuenta como cubierto: no
+  mandes un segundo recurso a lo mismo ni retengas nada "por si acaso" sobre un sitio que
+  ya tiene respuesta en camino. Ese recurso retenido le hace falta al siguiente en caer.
+- Un rechazo de las reglas NO es permanente: describe el estado de AHORA. En cuanto cambie
+  la condición que lo causó, reevalúa. No arrastres un veto viejo como si siguiera vigente.
 - Los recursos tienen coste temporal: desplazarlos tarda, y mientras van no están en otro sitio.
 - Piensa en acoplamientos, no solo en rankings. Reparar la subestación de origen puede
   restaurar a varios sitios a la vez; moverla a mitad de trabajo puede perderlo todo.
@@ -155,13 +160,23 @@ de umbrales, pesos y reglas bloqueantes va abajo en JSON.
 CATÁLOGO DE REGLAS
 ${resumirReglas()}`;
 
+const ATENCION: Record<string, string> = {
+  sin_atencion: "SIN CUBRIR",
+  analizando: "en análisis, sin recurso comprometido",
+  recurso_en_camino: "YA CUBIERTO: recurso en ruta",
+  recurso_asignado: "YA CUBIERTO: recurso desplegado",
+  resuelto: "resuelto",
+};
+
 function lineaElemento(e: ElementView, sinEnergiaSeg: number, prioridad: number): string {
   const sensores = Object.entries(e.sensores)
     .map(([k, v]) => `${k}=${v}`)
     .join(" ");
   const energia =
     sinEnergiaSeg > 0 ? ` SIN ENERGÍA desde hace ${Math.floor(sinEnergiaSeg / 60)}m${Math.floor(sinEnergiaSeg % 60)}s` : "";
-  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severidad=${e.severidad} prioridad=${prioridad}${energia}\n    sensores: ${sensores || "sin lecturas"}`;
+  const recurso = e.atencion.recursoId ? ` (${e.atencion.recursoId})` : "";
+  const atencion = `${ATENCION[e.atencion.estado] ?? e.atencion.estado}${recurso}`;
+  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severidad=${e.severidad} prioridad=${prioridad}${energia}\n    ${atencion}\n    sensores: ${sensores || "sin lecturas"}`;
 }
 
 function lineaRecurso(r: ResourceView): string {

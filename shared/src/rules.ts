@@ -318,7 +318,7 @@ export function validarAccion(
         return {
           permitido: false,
           regla: "hospital-prioridad-energia",
-          razon: `${hospitalAlQueSirve.id} está critico sin respaldo de energía: los generadores solo pueden ir a él`,
+          razon: `${hospitalAlQueSirve.id} está critico y sin ningún generador comprometido: los generadores solo pueden ir a él. Se desbloquea en cuanto ${hospitalAlQueSirve.id} tenga un generador asignado, aunque siga en ruta`,
         };
       }
     }
@@ -341,7 +341,7 @@ export function validarAccion(
         return {
           permitido: false,
           regla: "hospital-plazo-energia",
-          razon: `${hospitalEnPlazo.id} lleva ${Math.floor(hospitalEnPlazo.sinEnergiaSegundos / 60)} min sin energía (límite ${MAX_MINUTOS_SIN_ENERGIA.hospital}): solo se permite actuar sobre él o sobre la subestación de origen`,
+          razon: `${hospitalEnPlazo.id} lleva ${Math.floor(hospitalEnPlazo.sinEnergiaSegundos / 60)} min sin energía (límite ${MAX_MINUTOS_SIN_ENERGIA.hospital}): ${recurso.type} solo puede ir a él o a la subestación de origen. Se desbloquea cuando ${hospitalEnPlazo.id} recupere energía. Brigada y policía no están sujetas a esta regla`,
         };
       }
     }

@@ -32,7 +32,11 @@ export interface TopologyView {
 
 export type AttentionState =
   | "sin_atencion"
+  /** hay una decisión viva sobre el sitio, pero ningún recurso comprometido */
   | "analizando"
+  /** recurso comprometido y en ruta: el sitio YA está cubierto, no hace falta otro */
+  | "recurso_en_camino"
+  /** recurso desplegado y trabajando en el sitio */
   | "recurso_asignado"
   | "resuelto";
 

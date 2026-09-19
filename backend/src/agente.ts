@@ -425,7 +425,9 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
       const recurso = mundo.recursos().find((r) => r.assignedElementId === elementId);
       const decision = decisiones.find((d) => d.elementId === elementId);
       let estado: AttentionState = "sin_atencion";
-      if (recurso) estado = "recurso_asignado";
+      // un recurso en ruta ya cubre el sitio: distinguirlo evita que el agente
+      // retenga recursos "por si acaso" sobre algo que ya tiene respuesta
+      if (recurso) estado = recurso.status === "en_transito" ? "recurso_en_camino" : "recurso_asignado";
       else if (decision) estado = "analizando";
       return {
         estado,

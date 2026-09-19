@@ -70,3 +70,17 @@ test("el combustible NO se recupera solo: hace falta la cisterna", () => {
   }
   assert.equal(pasos, 0, "un depósito no se llena porque vuelva la luz");
 });
+
+test("un recurso en ruta ya cubre el sitio: se distingue de uno desplegado", () => {
+  const mundo = crearMundo(guion, remedios, topologia);
+  assert.equal(mundo.asignar("generador-1", "hosp-01", 0).ok, true);
+
+  const enRuta = mundo.recursos().find((r) => r.id === "generador-1");
+  assert.equal(enRuta?.status, "en_transito");
+  assert.equal(enRuta?.assignedElementId, "hosp-01");
+
+  // tras el trayecto pasa a desplegado, no antes
+  const elementos = [torre({ tension_red: 8 })];
+  for (let t = 60; t <= 1200; t += 60) mundo.avanzar(t, elementos);
+  assert.equal(mundo.recursos().find((r) => r.id === "generador-1")?.status, "asignado");
+});
