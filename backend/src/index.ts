@@ -299,7 +299,7 @@ function advance(): void {
     } else if (ev.type === "eta_missed") {
       feed.publish({
         kind: "system",
-        message: `${ev.resourceId} misses its ETA to ${ev.elementId} (+${ev.delaySeconds}s)`,
+        message: `${ev.resourceId} is running late to ${ev.elementId} (+${ev.delaySeconds}s)`,
       });
     } else if (ev.type === "deadline_exceeded") {
       feed.publish({

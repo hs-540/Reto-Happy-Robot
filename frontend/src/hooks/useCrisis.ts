@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { AgentView, FeedItem, FeedSystem, RunSummaryView, StateView, TopologyView } from '@swarmup/shared'
 import { getAgent, getFeed, getState, getSummary, getTopology } from '../api'
 
-/* The map moves fast (TIME_SCALE = 15): half-second polling keeps marker
-   motion smooth instead of teleporting between jumps. Each poll also calls
-   advance() server-side, so while the UI is open this — not TICK_MS — is the
-   engine's effective cadence. */
+/* The map moves fast (TIME_SCALE, configurable in the backend .env):
+   half-second polling keeps marker motion smooth instead of teleporting
+   between jumps. Each poll also calls advance() server-side, so while the UI
+   is open this — not TICK_MS — is the engine's effective cadence. */
 const POLL_MS = 500
 
 export const TICK_SECONDS = 5

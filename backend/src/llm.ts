@@ -16,12 +16,15 @@ import type { LlmUsage, RunStats } from "./stats.js";
  * provider has already cached (repeat calls came back in 0.7-0.9s).
  *
  * At 45s this timeout was itself the main source of fallbacks — it cut off 7 of
- * 23 calls that were still answering. 60s covers 18 of 23 and still lands
- * inside the staleness ceiling `agent.ts` derives from the hospital deadline.
- * Past 60s the answer describes a world that has already moved on, so the extra
- * wait buys a stale decision rather than a better one.
+ * 23 calls that were still answering. 60s still cut off 5 of 23 (59.1 / 62.4 /
+ * 65.3 / 68.7 / 101.4 / 112.5), and with a single gateway there is no failover:
+ * every cutoff was a whole deliberation thrown away for "Contingency mode".
+ * 90s covers 21 of 23. The agent's budget (`DELIBERATION_BUDGET_MS`) follows
+ * from this constant, so one attempt always fits; the cost is an answer that
+ * describes a world several crisis-minutes older — cheaper than the
+ * deterministic playbook taking over every other turn.
  */
-export const ATTEMPT_TIMEOUT_MS = 60_000;
+export const ATTEMPT_TIMEOUT_MS = 90_000;
 
 /**
  * Requested ceiling on the answer. It is sent, but on this gateway it is NOT

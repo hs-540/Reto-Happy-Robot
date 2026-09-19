@@ -35,6 +35,22 @@ export interface CallClosure {
   summary: string;
 }
 
+/**
+ * A resource the agent committed — or tried to commit — during a decision.
+ * Communications have `Action`; this is the fleet counterpart, so the panel
+ * can show what was actually sent, not only what was said.
+ */
+export interface ResourceAssignment {
+  resourceId: string;
+  resourceType: string;
+  elementId: string;
+  /** simulated seconds until arrival; null when the assignment failed */
+  etaSeconds: number | null;
+  ok: boolean;
+  /** why the assignment failed; null when it succeeded */
+  reason: string | null;
+}
+
 export interface Decision {
   id: string;
   timestamp: string;
@@ -43,6 +59,7 @@ export interface Decision {
   reasoning: string;
   provokesReplan: boolean;
   actions: Action[];
+  assignments: ResourceAssignment[];
 }
 
 export interface PlanStep {

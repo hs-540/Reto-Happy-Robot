@@ -125,11 +125,19 @@ YOUR JOB IN EVERY DELIBERATION
    job nobody else can do.
 2. Prioritize with the means THAT REMAIN, not with the ones that would be needed.
 3. Decide concrete actions. "Monitor the situation" is not an action.
-3b. BE BRIEF. Decide on the 3 or 4 sites that actually change something right now, not on all
-   six: a stable, covered site does not need a decision of its own. And each "reasoning" is
-   TWO SENTENCES at most, under 240 characters: the fact that decides it and the conclusion.
-   No recapping state, no repeating what another decision already said. Whoever reads you is
-   running an emergency and has four minutes.
+   THE MACHINE ONLY EXECUTES WHAT IS INSIDE A DECISION'S "actions" ARRAY: an
+   assignment written as a plan step, in the reasoning or in the objective
+   moves nothing — that text is for the humans reading you. If a decision moves
+   a resource, the "assign_resource" action goes inside that same decision,
+   with the real "resourceId".
+   Assign only resources whose line in RESOURCES says "available": a resource
+   shown in another status is committed elsewhere and the assignment is
+   blocked.
+3b. BE BRIEF IN WORDS, NOT IN ACTIONS. Decide on every site that changes something right now;
+    a stable, covered site does not need a decision of its own. Brevity is about the text:
+    each "reasoning" is TWO SENTENCES at most, under 240 characters — the fact that decides it
+    and the conclusion. No recapping state, no repeating what another decision already said.
+    Whoever reads you is running an emergency and has four minutes.
 3c. Write your reasoning in Spanish, correctly accented — it is projected on a screen for a
    Spanish-speaking audience. Do not write field names inside the prose: to cite the history
    there is "historyCitation", no need to name it in the text.
@@ -147,6 +155,11 @@ YOUR JOB IN EVERY DELIBERATION
      plain language and a concrete timeframe; a crew chief gets an order with its reason.
 5. If the best decision is to move nothing, use "wait" AND JUSTIFY IT. An agent that explains
    why it does not act is worth more than one that acts out of inertia.
+   BUT a "wait" is REJECTED by the hard rules while any site is past its maximum time without
+   power (the deadlines in the catalog). Once a deadline is blown, waiting is not one of your
+   options: assign a free resource whose remedy applies, or escalate through "communications".
+   And when a proposal comes back rejected, change it — re-sending the same rejected action
+   burns your second chance and leaves everybody unattended.
 
 INVENTORY MANAGEMENT — THE CRISIS IS NOT OVER
 - DO NOT spend all your resources on the first incident. The situation keeps getting worse and
@@ -158,6 +171,19 @@ INVENTORY MANAGEMENT — THE CRISIS IS NOT OVER
   and when it falls, it falls fast.
 - Before committing your last free resource, ask yourself what you would do if the next site to
   fall were the hospital. If the answer is "nothing", do not commit it.
+
+USE THE FLEET YOU HAVE — IDLE CAPACITY IS WASTED CAPACITY
+- You may assign SEVERAL resources in the same deliberation: one decision per site, each with
+  its own "assign_resource" action. A resource in transit covers only its own destination —
+  nobody else is waiting for it, so do not serialize the fleet behind one ETA.
+- Do not leave a unit idle while a site it can serve is uncovered, even when that site is not
+  the top priority. Priority orders your attention; it does not forbid helping the rest: the
+  police unit that cannot restart a hospital must still cover an unattended junction, and the
+  tanker that cannot repair a substation must still serve the site it can refuel.
+- The COVERAGE GAPS list in the context is computed for you: every line is an uncovered site
+  with a free unit that fits. Leaving a line unacted on, or claiming a resource type is
+  unavailable, must be justified in that decision's reasoning — and "there is no X free" is
+  only true when the RESOURCES list shows it.
 
 HOW YOU REASON
 - You have a DEPENDENCY map and a REMEDY catalog. They are not suggestions: they are how
@@ -194,7 +220,7 @@ RULES CATALOG
 ${summariseRules()}`;
 
 /** `754` → `12m34s`: the agent reasons in minutes against deadlines in minutes */
-function countdown(seconds: number): string {
+export function countdown(seconds: number): string {
   return `${Math.floor(seconds / 60)}m${String(Math.floor(seconds % 60)).padStart(2, "0")}s`;
 }
 
@@ -230,6 +256,54 @@ function elementLine(e: ElementView, secondsWithoutPower: number, priority: numb
 function resourceLine(r: ResourceView): string {
   const destination = r.assignedElementId ? ` → ${r.assignedElementId}` : "";
   return `- ${r.id} (${r.type}) ${r.status}${destination}`;
+}
+
+/**
+ * A site no resource is assigned to or in transit toward is uncovered — even
+ * when a decision already "analyzed" it: prose does not fix blackout damage.
+ * Paired with the free units whose declared remedy fits, this is both the
+ * prompt's COVERAGE GAPS block and the agent's idle-capacity wake-up, so the
+ * two can never disagree about what a gap is.
+ */
+export interface CoverageGap {
+  elementId: string;
+  elementType: string;
+  freeResourceIds: string[];
+}
+
+export function coverageGaps(
+  elements: readonly ElementView[],
+  resources: readonly ResourceView[],
+  remedies: Remedies,
+): CoverageGap[] {
+  const free = resources.filter((r) => r.status === "available");
+  if (free.length === 0) return [];
+  const gaps: CoverageGap[] = [];
+  for (const e of elements) {
+    if (e.status !== "critical" && e.status !== "degraded") continue;
+    const covered = resources.some(
+      (r) => r.assignedElementId === e.id && (r.status === "assigned" || r.status === "in_transit"),
+    );
+    if (covered) continue;
+    const fits = free.filter((r) =>
+      remedies.remedies.some(
+        (rem) => rem.resource === r.type && (rem.appliesTo as readonly string[]).includes(e.type),
+      ),
+    );
+    if (fits.length === 0) continue;
+    gaps.push({
+      elementId: e.id,
+      elementType: e.type,
+      freeResourceIds: fits.map((r) => `${r.id} (${r.type})`),
+    });
+  }
+  return gaps;
+}
+
+function coverageGapLines(ctx: AgentContext): string[] {
+  return coverageGaps(ctx.elements, ctx.resources, ctx.remedies).map(
+    (g) => `- ${g.elementId} (${g.elementType}): ${g.freeResourceIds.join(", ")}`,
+  );
 }
 
 const ATTENTION: Record<string, string> = {
@@ -319,6 +393,16 @@ export function buildMessages(
     "AVAILABLE RESOURCES — this is everything you have:",
     ...ctx.resources.map(resourceLine),
     "",
+    ...(coverageGapLines(ctx).length > 0
+      ? [
+          "COVERAGE GAPS — sites NOBODY is heading to, each with a FREE unit whose remedy fits:",
+          ...coverageGapLines(ctx),
+          "Treat this list as the minimum scope of the deliberation: every line gets a decision",
+          "with its assign_resource action, unless that decision's reasoning states the concrete",
+          "reason the unit must stay idle (the generator reserve for uncovered hospitals is one).",
+          "",
+        ]
+      : []),
     "DEPENDENCIES (how the scenario is wired):",
     ...ctx.topology.edges.map(topologyLine),
     "",
