@@ -3,6 +3,7 @@ import type {
   AgentPlan,
   AgentView,
   AttentionState,
+  Contact,
   Decision,
   ElementStatus,
   ElementView,
@@ -92,9 +93,54 @@ export interface AgentOptions {
   seconds: () => number;
 }
 
-function timeoutAfter(ms: number): Promise<never> {
-  return new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("deliberation budget exhausted")), ms),
+/**
+ * Runs `work` against the budget and CLEARS the timer either way. Racing a bare
+ * `setTimeout` leaked one pending timer per deliberation: harmless in a
+ * long-lived server, but it kept the event loop alive for the full budget after
+ * every answer, which is 75 s of dead wait at the end of any test run.
+ */
+function withBudget<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const budget = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("deliberation budget exhausted")), ms);
+  });
+  return Promise.race([work, budget]).finally(() => clearTimeout(timer));
+}
+
+/** Accents and punctuation out, so "Dr. Elena Duarte" and "hospital-lead" compare alike */
+function normalise(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * The model is asked for a bare id from the CONTACTS list and now and then hands
+ * back the person instead: "Dr. Elena Duarte (hospital-lead)". Measured over a
+ * full run, an exact `===` dropped FOUR warnings that way, in the tick that
+ * mattered most — the agent had written them, decided who needed them, and
+ * nobody was called. The id is right there in the text: recover it rather than
+ * throw the warning away. Tried in order of how much it proves: the id itself,
+ * then the person's name, then their role.
+ */
+export function resolveContact(
+  contacts: readonly Contact[],
+  recipient: string,
+): Contact | null {
+  const exact = contacts.find((c) => c.id === recipient);
+  if (exact) return exact;
+
+  const written = normalise(recipient);
+  if (written === "") return null;
+
+  return (
+    contacts.find((c) => written.includes(normalise(c.id))) ??
+    contacts.find((c) => written.includes(normalise(c.name))) ??
+    contacts.find((c) => written.includes(normalise(c.role))) ??
+    null
   );
 }
 
@@ -369,6 +415,14 @@ export function createAgent(options: AgentOptions): Agent {
     return world.priorities(state.elements)[0]?.elementId ?? id;
   }
 
+  function contactFor(recipient: string): Contact | null {
+    const match = resolveContact(remedies.contacts, recipient);
+    if (match && match.id !== recipient) {
+      console.log(`[agent] recipient "${recipient}" resolved to ${match.id}`);
+    }
+    return match;
+  }
+
   function execute(output: AgentOutput, state: StateView, provokesReplan: boolean): void {
     const now = state.simulationClock;
 
@@ -394,9 +448,7 @@ export function createAgent(options: AgentOptions): Agent {
     // Communications are a field of their own: they execute every time, even if
     // the model put no `contact` action inside a decision.
     for (const c of output.communications) {
-      const fingerprint = `${c.recipient}|${c.message.trim()}`;
-      if (warningsSent.has(fingerprint)) continue;
-      const contact = remedies.contacts.find((x) => x.id === c.recipient);
+      const contact = contactFor(c.recipient);
       if (!contact) {
         feed.publish({
           kind: "system",
@@ -404,6 +456,10 @@ export function createAgent(options: AgentOptions): Agent {
         });
         continue;
       }
+      // fingerprinted by the RESOLVED id: the same text addressed once as
+      // `hospital-lead` and once as "Dr. Elena Duarte" is one phone call, not two
+      const fingerprint = `${contact.id}|${c.message.trim()}`;
+      if (warningsSent.has(fingerprint)) continue;
       warningsSent.add(fingerprint);
       const action = actionRegistry.record({
         type: c.channel,
@@ -449,7 +505,9 @@ export function createAgent(options: AgentOptions): Agent {
           const action = actionRegistry.record({
             type: a.channel,
             targetElementId: a.elementId,
-            recipient: a.recipient ?? undefined,
+            // same recovery as the communications field: the panel shows the id
+            // of whoever it really is, not whatever prose the model wrote
+            recipient: (a.recipient ? contactFor(a.recipient)?.id : undefined) ?? undefined,
             message: a.message,
           });
           actions = [action, ...actions].slice(0, MAX_DECISIONS);
@@ -482,7 +540,7 @@ export function createAgent(options: AgentOptions): Agent {
       try {
         let output: AgentOutput;
         try {
-          output = await Promise.race([deliberate(state, reasons), timeoutAfter(DELIBERATION_BUDGET_MS)]);
+          output = await withBudget(deliberate(state, reasons), DELIBERATION_BUDGET_MS);
         } catch (err) {
           const cause = err instanceof Error ? err.message : String(err);
           console.error(`[agent] deliberation failed (${cause}); fallback to rules`);
