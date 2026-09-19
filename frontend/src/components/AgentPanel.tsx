@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import type { AgentView, FeedItem } from '@swarmup/shared'
 import { Icon } from './icons'
 import { formatTimeOfDay } from '../lib/format'
@@ -113,12 +114,86 @@ function feedDetail(item: FeedItem, names: Record<string, string>): string {
   }
 }
 
+/** Structured key/value rows shown when a feed entry is expanded */
+function feedDetails(
+  item: FeedItem,
+  names: Record<string, string>,
+): Array<{ label: string; value: string }> {
+  switch (item.kind) {
+    case 'alarm':
+      return [
+        { label: 'Site', value: names[item.elementId] ?? item.elementId },
+        { label: 'Metric', value: item.metric.replace(/_/g, ' ') },
+        { label: 'Value', value: String(item.value) },
+        { label: 'Severity', value: String(item.severity) },
+      ]
+    case 'report':
+      return [
+        { label: 'Source', value: SOURCE_LABEL[item.source] ?? item.source },
+        { label: 'Site', value: item.elementId ? names[item.elementId] ?? item.elementId : '—' },
+        { label: 'Message', value: item.text },
+      ]
+    case 'decision':
+      return [
+        { label: 'Decision', value: item.decisionId },
+        { label: 'Priority', value: `P${item.priority}` },
+        { label: 'Replan', value: item.provokesReplan ? 'yes' : 'no' },
+        { label: 'Reasoning', value: item.reasoning },
+      ]
+    case 'action':
+      return [
+        { label: 'Action', value: item.actionId },
+        { label: 'Type', value: ACTION_LABEL[item.type] ?? item.type },
+        { label: 'Status', value: item.status },
+        { label: 'Message', value: item.message },
+      ]
+    case 'outcome': {
+      const rows = [
+        { label: 'Action', value: item.actionId },
+        { label: 'Outcome', value: OUTCOME_LABEL[item.outcome] ?? item.outcome },
+        { label: 'Summary', value: item.summary },
+      ]
+      if (item.delayMinutes !== null) {
+        rows.splice(2, 0, { label: 'Delay', value: `+${item.delayMinutes} min` })
+      }
+      return rows
+    }
+    case 'system':
+      return [{ label: 'Message', value: item.message }]
+  }
+}
+
 function EmptyState({ icon, text }: { icon: string; text: string }) {
   return (
     <div className="empty">
       <Icon name={icon} size={22} />
       <span>{text}</span>
     </div>
+  )
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="detail__row">
+      <span className="detail__label">{label}</span>
+      <span className="detail__value">{children}</span>
+    </div>
+  )
+}
+
+function LocateButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="detail__locate"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+    >
+      <Icon name="pin" size={11} />
+      Show on map
+    </button>
   )
 }
 
@@ -139,10 +214,20 @@ export function AgentPanel({
 }: AgentPanelProps) {
   const [tab, setTab] = useState<Tab>('stream')
   const [planOpen, setPlanOpen] = useState(true)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const plan = agent.currentPlan
   const stream = [...feed].sort((a, b) => b.seq - a.seq)
   const decisions = agent.decisions
   const actions = [...agent.actions].reverse()
+
+  function toggle(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   return (
     <aside className="agent glass panel">
@@ -240,13 +325,15 @@ export function AgentPanel({
             <ul className="stream">
               {stream.map((item) => {
                 const elementId = 'elementId' in item ? item.elementId : null
+                const key = `event:${item.seq}`
+                const isOpen = expanded.has(key)
                 return (
                   <li
                     key={item.seq}
-                    className={`sitem sitem--${feedTone(item)} ${
+                    className={`sitem sitem--${feedTone(item)} ${isOpen ? 'is-open' : ''} ${
                       elementId && elementId === selectedElementId ? 'is-selected' : ''
                     }`}
-                    onClick={() => elementId && onSelectElement(elementId)}
+                    onClick={() => toggle(key)}
                   >
                     <span className="sitem__icon">
                       <Icon name={feedIcon(item)} size={13} />
@@ -255,8 +342,24 @@ export function AgentPanel({
                       <div className="sitem__top">
                         <span className="sitem__title">{feedTitle(item)}</span>
                         <time>{formatTimeOfDay(item.ts)}</time>
+                        <span className={`sitem__chev ${isOpen ? 'is-open' : ''}`}>
+                          <Icon name="chevron" size={12} />
+                        </span>
                       </div>
-                      <p>{feedDetail(item, elementNames)}</p>
+                      {isOpen ? (
+                        <div className="detail">
+                          {feedDetails(item, elementNames).map((d) => (
+                            <DetailRow key={d.label} label={d.label}>
+                              {d.value}
+                            </DetailRow>
+                          ))}
+                          {elementId && (
+                            <LocateButton onClick={() => onSelectElement(elementId)} />
+                          )}
+                        </div>
+                      ) : (
+                        <p>{feedDetail(item, elementNames)}</p>
+                      )}
                     </div>
                   </li>
                 )
@@ -269,28 +372,66 @@ export function AgentPanel({
             <EmptyState icon="decision" text="No decisions yet — they appear when the LLM deliberates." />
           ) : (
             <ul className="cards">
-              {decisions.map((d) => (
-                <li
-                  key={d.id}
-                  className={`card ${d.elementId === selectedElementId ? 'is-selected' : ''}`}
-                  onClick={() => onSelectElement(d.elementId)}
-                >
-                  <div className="card__top">
-                    <span className="badge badge--priority">P{d.priority}</span>
-                    <span className="card__element">{elementNames[d.elementId] ?? d.elementId}</span>
-                    {d.provokesReplan && <span className="badge badge--replan">Replan</span>}
-                    <time className="card__time">{formatTimeOfDay(d.timestamp)}</time>
-                  </div>
-                  <p className="card__reasoning">{d.reasoning}</p>
-                  {d.assignments.map((a) => (
-                    <p key={a.resourceId} className={`card__assign ${a.ok ? '' : 'is-failed'}`}>
-                      {a.ok
-                        ? `→ ${a.resourceId} to ${elementNames[a.elementId] ?? a.elementId} · arrives in ${etaLabel(a.etaSeconds)}`
-                        : `✕ ${a.resourceId} not assigned: ${a.reason}`}
-                    </p>
-                  ))}
-                </li>
-              ))}
+              {decisions.map((d) => {
+                const key = `decision:${d.id}`
+                const isOpen = expanded.has(key)
+                return (
+                  <li
+                    key={d.id}
+                    className={`card ${isOpen ? 'is-open' : ''} ${
+                      d.elementId === selectedElementId ? 'is-selected' : ''
+                    }`}
+                    onClick={() => toggle(key)}
+                  >
+                    <div className="card__top">
+                      <span className="badge badge--priority">P{d.priority}</span>
+                      <span className="card__element">{elementNames[d.elementId] ?? d.elementId}</span>
+                      {d.provokesReplan && <span className="badge badge--replan">Replan</span>}
+                      <time className="card__time">{formatTimeOfDay(d.timestamp)}</time>
+                      <span className={`card__chev ${isOpen ? 'is-open' : ''}`}>
+                        <Icon name="chevron" size={13} />
+                      </span>
+                    </div>
+                    <p className={`card__reasoning ${isOpen ? '' : 'is-clamped'}`}>{d.reasoning}</p>
+                    {isOpen && (
+                      <div className="detail">
+                        <DetailRow label="Decision">{d.id}</DetailRow>
+                        <DetailRow label="Replan">{d.provokesReplan ? 'yes' : 'no'}</DetailRow>
+                        <DetailRow label="Assignments">
+                          {d.assignments.length === 0 ? (
+                            <span className="muted">none</span>
+                          ) : (
+                            d.assignments.map((a) => (
+                              <span
+                                key={a.resourceId}
+                                className={`detail__line ${a.ok ? '' : 'is-failed'}`}
+                              >
+                                {a.ok
+                                  ? `→ ${a.resourceId} to ${
+                                      elementNames[a.elementId] ?? a.elementId
+                                    } · arrives in ${etaLabel(a.etaSeconds)}`
+                                  : `✕ ${a.resourceId} not assigned: ${a.reason}`}
+                              </span>
+                            ))
+                          )}
+                        </DetailRow>
+                        {d.actions.length > 0 && (
+                          <DetailRow label="Actions">
+                            {d.actions.map((a) => (
+                              <span key={a.id} className="detail__line">
+                                {ACTION_LABEL[a.type] ?? a.type} →{' '}
+                                {a.recipient ?? elementNames[a.targetElementId] ?? a.targetElementId} ·{' '}
+                                {a.status}
+                              </span>
+                            ))}
+                          </DetailRow>
+                        )}
+                        <LocateButton onClick={() => onSelectElement(d.elementId)} />
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           ))}
 
@@ -299,17 +440,42 @@ export function AgentPanel({
             <EmptyState icon="send" text="No actions yet — the agent will contact stakeholders here." />
           ) : (
             <ul className="cards">
-              {actions.map((a) => (
-                <li key={a.id} className="card">
-                  <div className="card__top">
-                    <span className="card__element">{ACTION_LABEL[a.type] ?? a.type}</span>
-                    <span className="badge badge--executed">{a.status}</span>
-                    <time className="card__time">{formatTimeOfDay(a.timestamp)}</time>
-                  </div>
-                  <p className="card__reasoning">{a.message}</p>
-                  {a.recipient && <span className="card__target">→ {a.recipient}</span>}
-                </li>
-              ))}
+              {actions.map((a) => {
+                const key = `action:${a.id}`
+                const isOpen = expanded.has(key)
+                const isSelected = a.targetElementId === selectedElementId
+                return (
+                  <li
+                    key={a.id}
+                    className={`card ${isOpen ? 'is-open' : ''} ${isSelected ? 'is-selected' : ''}`}
+                    onClick={() => toggle(key)}
+                  >
+                    <div className="card__top">
+                      <span className="card__element">{ACTION_LABEL[a.type] ?? a.type}</span>
+                      <span className="badge badge--executed">{a.status}</span>
+                      <time className="card__time">{formatTimeOfDay(a.timestamp)}</time>
+                      <span className={`card__chev ${isOpen ? 'is-open' : ''}`}>
+                        <Icon name="chevron" size={13} />
+                      </span>
+                    </div>
+                    <p className={`card__reasoning ${isOpen ? '' : 'is-clamped'}`}>{a.message}</p>
+                    {isOpen && (
+                      <div className="detail">
+                        <DetailRow label="Action">{a.id}</DetailRow>
+                        <DetailRow label="Type">{ACTION_LABEL[a.type] ?? a.type}</DetailRow>
+                        <DetailRow label="Status">{a.status}</DetailRow>
+                        <DetailRow label="Target">
+                          {elementNames[a.targetElementId] ?? a.targetElementId}
+                        </DetailRow>
+                        <DetailRow label="Recipient">
+                          {a.recipient ?? <span className="muted">—</span>}
+                        </DetailRow>
+                        <LocateButton onClick={() => onSelectElement(a.targetElementId)} />
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           ))}
       </div>
