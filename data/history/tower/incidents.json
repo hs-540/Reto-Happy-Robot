@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hist-tow-001",
+    "type": "tower",
+    "title": "Battery autonomy miscalculated and coordination was lost — February 2026",
+    "summary": "The tower battery was estimated to hold 4 more hours, but the estimate ignored the extra radio traffic the blackout itself produced. The tower went off the network before the generator arrived and every crew lost voice and data coordination for 14 minutes.",
+    "outcome": "Service was restored 14 minutes after the failure, once the generator reached the site. Lesson: tower battery autonomy must be recalculated with the radio traffic of the crisis included, and a generator dispatched before the battery falls below 30%.",
+    "date": "2026-02-14"
+  },
+  {
+    "id": "hist-tow-002",
+    "type": "tower",
+    "title": "Crew reached the site but could not get in — March 2026",
+    "summary": "A generator was dispatched promptly to a tower whose battery was draining, but the site sits inside a locked compound and the crew arrived without the access credentials. The generator stood idle at the gate for 20 minutes while the battery kept falling.",
+    "outcome": "The compound caretaker was located and access granted; the battery held on with 9% left. Lesson: for towers, site access must be confirmed before dispatch — a generator that cannot reach the equipment is no response at all.",
+    "date": "2026-03-09"
+  },
+  {
+    "id": "hist-tow-003",
+    "type": "tower",
+    "title": "Preventive dispatch on a battery trend kept the network up — May 2026",
+    "summary": "The tower battery showed a steady decline for 25 minutes without ever crossing the critical threshold. A generator was dispatched on the trend alone and was already recharging the battery when it would otherwise have run out.",
+    "outcome": "The tower never dropped off the network and every dependent crew kept coordinating. Lesson: act on the battery degradation trend, not only on the threshold already reached — a tower offline costs the ability to coordinate everything else.",
+    "date": "2026-05-16"
+  }
+]

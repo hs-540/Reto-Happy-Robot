@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hist-fst-001",
+    "type": "fuel_station",
+    "title": "Tanker sent to a station that was already dry — January 2026",
+    "summary": "A tanker was dispatched to the nearest service station to refuel generators, without confirming the station still had stock: its underground tank had not been resupplied that week. The tanker arrived to dry pumps and had to double back to another district.",
+    "outcome": "Two generators idled an extra 25 minutes waiting for fuel. Lesson: confirm a station's stock before dispatching a tanker to it — the nearest station is not a refuel point if it cannot pump.",
+    "date": "2026-01-24"
+  },
+  {
+    "id": "hist-fst-002",
+    "type": "fuel_station",
+    "title": "Every generator sent to the same station drained it dry — April 2026",
+    "summary": "With the blackout on, all generators in the area were routed to a single station, which pumped itself empty halfway through the crisis. The queue of waiting tankers and generators then blocked the forecourt and no vehicle could get in or out.",
+    "outcome": "A second station 6 minutes further away was opened as an alternate refuel point and the flow was split. Lesson: when one station's stock falls low, split the refuel traffic to an alternate before the pumps run dry, not after.",
+    "date": "2026-04-11"
+  },
+  {
+    "id": "hist-fst-003",
+    "type": "fuel_station",
+    "title": "Traffic around the station blocked the refuel point itself — June 2026",
+    "summary": "Congestion around the A-42 service station grew as the blackout dragged on, until tankers could no longer reach the forecourt. The station had stock and working pumps, yet no vehicle could get to them for 18 minutes.",
+    "outcome": "A police unit was sent to keep the approach clear and transit recovered within 8 minutes. Lesson: when congestion rises around a refuel station, send police to hold the approach before sending more vehicles into the jam.",
+    "date": "2026-06-20"
+  }
+]

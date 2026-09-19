@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hist-jct-001",
+    "type": "junction",
+    "title": "Generator convoy stuck at an unregulated junction — March 2026",
+    "summary": "A generator dispatched to a critical hospital was held 16 minutes at a junction with broken signals and no police, while transit times across the whole corridor kept growing behind it. The dispatch decision had been right; the route was never guaranteed.",
+    "outcome": "A police unit arrived and the convoy completed the last stretch in 6 minutes. Lesson: key junctions must be regulated before the convoy passes — an unregulated junction can cost more than the entire drive.",
+    "date": "2026-03-27"
+  },
+  {
+    "id": "hist-jct-002",
+    "type": "junction",
+    "title": "Police pulled from a junction and the corridor seized up — May 2026",
+    "summary": "The police unit regulating the busiest junction was diverted to a hospital emergency. Within minutes congestion climbed along every route that crossed the junction, delaying three crews that were already en route elsewhere.",
+    "outcome": "The unit returned 35 minutes later and the corridor recovered. Lesson: lifting regulation from a junction has a cost that shows up minutes later on every route through it — only divert if the new destination outweighs holding the corridor.",
+    "date": "2026-05-08"
+  },
+  {
+    "id": "hist-jct-003",
+    "type": "junction",
+    "title": "Congestion trend detected and regulated before the first convoy — July 2026",
+    "summary": "As the blackout began, congestion at the junction started climbing minutes before any convoy was dispatched. A police unit was sent on the trend alone and the junction was already being directed when the first generator came through.",
+    "outcome": "No convoy lost time at the junction for the rest of the crisis. Lesson: send police on the congestion trend, not once crews are already blocked — a junction held in advance is cheaper than one unblocked in a hurry.",
+    "date": "2026-07-04"
+  }
+]
