@@ -12,11 +12,12 @@ import type {
 } from "@swarmup/shared";
 import { loadHistory, loadRemedies, loadRoads, loadTopology } from "@swarmup/shared";
 import { createAgent } from "./agent.js";
+import { createCallQueue } from "./call-queue.js";
 import { config, redactSecrets } from "./config.js";
 import { createActionRegistry, controlSchema } from "./control.js";
 import { createFeed, parseSince } from "./feed.js";
 import { toTopology, loadScript } from "./script.js";
-import { createHappyRobotClient } from "./happyrobot.js";
+import { createHappyRobotClient, type ContactRequest } from "./happyrobot.js";
 import { createLlmClient } from "./llm.js";
 import { createRunStats } from "./stats.js";
 import { createWorld } from "./world.js";
@@ -111,15 +112,37 @@ const actionRegistry = createActionRegistry(feed);
 const topology: TopologyView = toTopology(script);
 
 /**
+ * Staleness gate for the call queue, evaluated when a queued call is about to
+ * be dialled: the site it was worth calling may have resolved while the call
+ * waited for a line.
+ */
+function isStillRelevant(request: ContactRequest): boolean {
+  const element = sim.state().elements.find((e) => e.id === request.context.elementId);
+  return element !== undefined && element.status !== "resolved";
+}
+
+/**
  * The channel to the real world. Created before the agent and receiving the
  * closure by callback: a call takes a minute to resolve and the engine does not
- * wait for it.
+ * wait for it. The call queue sits between the agent and the client: one phone
+ * line by default, so a deliberation returning eight calls does not dial eight
+ * people at once.
  */
-const happyrobot = createHappyRobotClient({
-  apiKey: config.happyrobot.apiKey,
-  baseUrl: config.happyrobot.baseUrl,
-  onClosed: (closure) => agent.closeCall(closure),
-});
+const happyrobot = createCallQueue(
+  createHappyRobotClient({
+    apiKey: config.happyrobot.apiKey,
+    baseUrl: config.happyrobot.baseUrl,
+    onClosed: (closure) => happyrobot.onClosed(closure),
+  }),
+  {
+    feed,
+    maxInFlight: config.happyrobot.maxConcurrentCalls,
+    maxQueued: config.happyrobot.maxQueuedCalls,
+    slotTimeoutMs: config.happyrobot.callSlotTimeoutMs,
+    onClosed: (closure) => agent.closeCall(closure),
+    isStillRelevant,
+  },
+);
 
 const agent = createAgent({
   world,
@@ -146,6 +169,9 @@ function buildRunSummary(): RunSummaryView {
   for (const item of items) {
     byKind.set(item.kind, (byKind.get(item.kind) ?? 0) + 1);
   }
+  // A queued call carries one action entry at birth and one when it is dialled
+  // or discarded: count actions, not action entries
+  const actionIds = new Set(items.flatMap((i) => (i.kind === "action" ? [i.actionId] : [])));
   const state = sim.state();
   const open = state.elements.filter((e) => e.status === "critical" || e.status === "degraded");
   const snapshot = stats.snapshot();
@@ -156,7 +182,7 @@ function buildRunSummary(): RunSummaryView {
       alarms: byKind.get("alarm") ?? 0,
       reports: byKind.get("report") ?? 0,
       decisions: byKind.get("decision") ?? 0,
-      actions: byKind.get("action") ?? 0,
+      actions: actionIds.size,
       outcomes: byKind.get("outcome") ?? 0,
       system: byKind.get("system") ?? 0,
     },
@@ -341,7 +367,8 @@ app.post("/api/call/outcome", (req, res) => {
     res.status(400).json(errorResponse(`invalid body: ${details}`));
     return;
   }
-  agent.closeCall(parsed.data);
+  // Through the queue: the closure frees the call's slot before it reaches the agent
+  happyrobot.onClosed(parsed.data);
   res.json({ ok: true });
 });
 

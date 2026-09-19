@@ -663,12 +663,16 @@ export function createAgent(options: AgentOptions): Agent {
       const fingerprint = `${contact.id}|${c.message.trim()}`;
       if (warningsSent.has(fingerprint)) continue;
       warningsSent.add(fingerprint);
-      const action = actionRegistry.record({
-        type: c.channel,
-        targetElementId: anchorToSite(c.elementId, state),
-        recipient: contact.id,
-        message: c.message,
-      });
+      const action = actionRegistry.record(
+        {
+          type: c.channel,
+          targetElementId: anchorToSite(c.elementId, state),
+          recipient: contact.id,
+          message: c.message,
+        },
+        // a voice call waits on a line in the call queue; a message goes out now
+        c.channel === "voice_call" ? "queued" : "executed",
+      );
       actions = [action, ...actions].slice(0, MAX_DECISIONS);
       // Here the system leaves the laptop: a real phone rings.
       happyrobot.contact({
@@ -704,15 +708,18 @@ export function createAgent(options: AgentOptions): Agent {
               : `Could not assign ${a.resourceId}: ${result.reason}`,
           });
         } else if (a.type === "contact" && a.channel) {
-          // No human gate (#43): the registry stamps it as executed and publishes it
-          const action = actionRegistry.record({
-            type: a.channel,
-            targetElementId: a.elementId,
-            // same recovery as the communications field: the panel shows the id
-            // of whoever it really is, not whatever prose the model wrote
-            recipient: (a.recipient ? contactFor(a.recipient)?.id : undefined) ?? undefined,
-            message: a.message,
-          });
+          // No human gate (#43): recorded as executed and published
+          const action = actionRegistry.record(
+            {
+              type: a.channel,
+              targetElementId: a.elementId,
+              // same recovery as the communications field: the panel shows the id
+              // of whoever it really is, not whatever prose the model wrote
+              recipient: (a.recipient ? contactFor(a.recipient)?.id : undefined) ?? undefined,
+              message: a.message,
+            },
+            "executed",
+          );
           actions = [action, ...actions].slice(0, MAX_DECISIONS);
           decision.actions.push(action);
         }
@@ -805,6 +812,8 @@ export function createAgent(options: AgentOptions): Agent {
 
     closeCall(closure): void {
       const action = actions.find((a) => a.id === closure.actionId);
+      // a closure can only arrive for a call that went out
+      if (action && action.status === "queued") action.status = "executed";
       feed.publish({
         kind: "outcome",
         elementId: action?.targetElementId ?? null,
