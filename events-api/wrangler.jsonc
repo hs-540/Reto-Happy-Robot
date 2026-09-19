@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "events-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "eventos",
+      // Lo rellena `wrangler d1 create eventos` — pega aqui el uuid que te devuelva.
+      "database_id": "f4ef295f-53b2-459a-8f3f-41347a5c8e03"
+    }
+  ]
+}
