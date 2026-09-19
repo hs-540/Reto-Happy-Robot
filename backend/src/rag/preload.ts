@@ -6,6 +6,12 @@ import { createLlmClient } from "../llm.js";
 import { startChroma } from "./chroma.js";
 import { createHistoryRag } from "./history.js";
 
+/*
+ * Standalone seeding utility. The backend also seeds on boot (see `index.ts`),
+ * so the collections are never empty on a fresh machine; this stays for filling
+ * or inspecting the memory without starting the whole system.
+ */
+
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const TYPES = ["datacenter", "hospital", "substation"] as const;
 
