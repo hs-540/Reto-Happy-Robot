@@ -161,7 +161,7 @@ test("the agent's answer is recorded and published, orders are one-shot", async 
       {
         directiveId: "dir-001",
         decision: "acknowledged",
-        reasoning: "El tanker va primero al hospital.",
+        reasoning: "The tanker goes to the hospital first.",
       },
     ],
   };
@@ -195,7 +195,7 @@ test("a rejected pin stays visible, overruled, until the operator withdraws it",
       {
         directiveId: "dir-001",
         decision: "rejected",
-        reasoning: "El hospital tiene 18% de batería y su límite es de 8 minutos.",
+        reasoning: "The hospital has 18% battery and its limit is 8 minutes.",
       },
     ],
   };
@@ -277,7 +277,7 @@ test("a directive landed mid-deliberation waits for the next one instead of bein
     communications: [],
     decisions: [],
     directiveResponses: [
-      { directiveId: "dir-001", decision: "acknowledged", reasoning: "Recibido." },
+      { directiveId: "dir-001", decision: "acknowledged", reasoning: "Acknowledged." },
     ],
   };
   await agent.observe(crisis([element("dc-01", "datacenter", "Datacenter", "degraded", 55)]), []);
