@@ -24,8 +24,8 @@
       "id": "dc-01",
       "type": "datacenter",
       "name": "Getafe Metropolitan Datacenter",
-      "lat": 40.295,
-      "lng": -3.72,
+      "lat": 40.2957,
+      "lng": -3.7136,
       "status": "normal",
       "criticality": 60
     },

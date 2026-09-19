@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ScriptSchema, type Script } from "./script.js";
 import { HistoricalIncidentSchema, type HistoricalIncident } from "./history.js";
 import { RemediesSchema, TopologySchema, type Remedies, type Topology } from "./graphs.js";
+import { RoadNetworkSchema, type RoadNetwork } from "./roads.js";
 
 /* ─── Pure parsing: unknown → validated type, with actionable errors ─── */
 
@@ -47,6 +48,10 @@ export function parseRemedies(input: unknown): Remedies {
   return parseWith(RemediesSchema, input);
 }
 
+export function parseRoads(input: unknown): RoadNetwork {
+  return parseWith(RoadNetworkSchema, input);
+}
+
 /* ─── File loading: read + JSON.parse + validation ─── */
 
 function errorMessage(error: unknown): string {
@@ -87,4 +92,8 @@ export function loadTopology(path: string): Topology {
 
 export function loadRemedies(path: string): Remedies {
   return loadJson(path, parseRemedies);
+}
+
+export function loadRoads(path: string): RoadNetwork {
+  return loadJson(path, parseRoads);
 }

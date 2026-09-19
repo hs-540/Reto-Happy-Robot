@@ -10,6 +10,7 @@ the JSON, leaving the agent decorative.
 | `scripts/madrid-blackout.json` | The timed event script | `loadScript` (`backend/src/script.ts`) |
 | `topology.json` | Dependency graph of the scenario | `loadTopology` (`shared/src/loaders.ts`) |
 | `remedies.json` | What fixes what, and who to call | `loadRemedies` |
+| `roads.json` | Routable graph of the real Getafe street network (© OpenStreetMap contributors): `nodes` are `[lat, lng]` pairs, `edges` are directed node pairs (oneway streets only allow their real direction). Regenerate with the Overpass API; keep the largest connected component. | `loadRoads` (`shared/src/loaders.ts`) |
 | `history/<type>/incidents.json` | Past incidents for the RAG | `loadHistory` |
 
 ## `topology.json` — what depends on what

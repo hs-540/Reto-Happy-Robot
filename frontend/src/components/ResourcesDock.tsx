@@ -1,6 +1,8 @@
+import type { CSSProperties } from 'react'
 import type { ResourceView } from '@swarmup/shared'
 import { Icon } from './icons'
 import { RESOURCE_ICON } from './iconPaths'
+import { resourceColor } from '../lib/palette'
 
 const STATUS_LABEL: Record<string, string> = {
   available: 'Available',
@@ -11,16 +13,31 @@ const STATUS_LABEL: Record<string, string> = {
 interface ResourcesDockProps {
   resources: ResourceView[]
   elementNames: Record<string, string>
+  selectedResourceId: string | null
+  onSelectResource: (id: string | null) => void
 }
 
-export function ResourcesDock({ resources, elementNames }: ResourcesDockProps) {
+export function ResourcesDock({
+  resources,
+  elementNames,
+  selectedResourceId,
+  onSelectResource,
+}: ResourcesDockProps) {
   if (resources.length === 0) return null
 
   return (
     <footer className="dock">
       <span className="dock__label">Units</span>
       {resources.map((r) => (
-        <div key={r.id} className={`unit unit--${r.status}`} title={STATUS_LABEL[r.status] ?? r.status}>
+        <button
+          key={r.id}
+          type="button"
+          className={`unit unit--${r.status} ${r.id === selectedResourceId ? 'is-selected' : ''}`}
+          title={STATUS_LABEL[r.status] ?? r.status}
+          style={{ '--uc': resourceColor(r.id) } as CSSProperties}
+          onClick={() => onSelectResource(r.id === selectedResourceId ? null : r.id)}
+        >
+          <span className="unit__swatch" />
           <span className="unit__icon">
             <Icon name={RESOURCE_ICON[r.type] ?? 'generator'} size={15} />
           </span>
@@ -31,7 +48,7 @@ export function ResourcesDock({ resources, elementNames }: ResourcesDockProps) {
               → {elementNames[r.assignedElementId] ?? r.assignedElementId}
             </span>
           )}
-        </div>
+        </button>
       ))}
     </footer>
   )

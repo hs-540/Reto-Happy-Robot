@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadRemedies, loadTopology, type ElementView } from "@swarmup/shared";
+import { loadRemedies, loadRoads, loadTopology, type ElementView } from "@swarmup/shared";
 import { createWorld } from "../src/world.js";
 import { loadScript } from "../src/script.js";
 
@@ -9,6 +9,7 @@ const root = new URL("../../", import.meta.url);
 const script = loadScript(new URL("data/scripts/madrid-blackout.json", root));
 const remedies = loadRemedies(fileURLToPath(new URL("data/remedies.json", root)));
 const topology = loadTopology(fileURLToPath(new URL("data/topology.json", root)));
+const roads = loadRoads(fileURLToPath(new URL("data/roads.json", root)));
 
 function tower(sensors: ElementView["sensors"]): ElementView {
   return {
@@ -26,7 +27,7 @@ function tower(sensors: ElementView["sensors"]): ElementView {
 }
 
 test("with the grid restored, the tower battery recharges on its own", () => {
-  const world = createWorld(script, remedies, topology);
+  const world = createWorld(script, remedies, topology, roads);
   const sensors = { grid_voltage: 96, tower_battery: 21 };
   const seen: number[] = [];
 
@@ -48,7 +49,7 @@ test("with the grid restored, the tower battery recharges on its own", () => {
 });
 
 test("without grid power nothing recovers: a fault stays a fault", () => {
-  const world = createWorld(script, remedies, topology);
+  const world = createWorld(script, remedies, topology, roads);
   const sensors = { grid_voltage: 8, tower_battery: 21 };
   let steps = 0;
   for (let t = 60; t <= 600; t += 60) {
@@ -60,7 +61,7 @@ test("without grid power nothing recovers: a fault stays a fault", () => {
 });
 
 test("fuel does NOT recover on its own: that needs the tanker", () => {
-  const world = createWorld(script, remedies, topology);
+  const world = createWorld(script, remedies, topology, roads);
   const sensors = { grid_voltage: 96, fuel: 22 };
   let steps = 0;
   for (let t = 60; t <= 600; t += 60) {
@@ -72,7 +73,7 @@ test("fuel does NOT recover on its own: that needs the tanker", () => {
 });
 
 test("a resource en route already covers the site: distinct from deployed", () => {
-  const world = createWorld(script, remedies, topology);
+  const world = createWorld(script, remedies, topology, roads);
   assert.equal(world.assign("generator-1", "hosp-01", 0).ok, true);
 
   const enRoute = world.resources().find((r) => r.id === "generator-1");

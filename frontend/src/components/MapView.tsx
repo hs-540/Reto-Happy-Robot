@@ -4,6 +4,7 @@ import type { StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { ElementView, RepairEstimate, ResourceView } from '@swarmup/shared'
 import { ICON_PATHS, ELEMENT_ICON, RESOURCE_ICON } from './iconPaths'
+import { resourceColor } from '../lib/palette'
 import { formatCountdown } from '../lib/format'
 
 const TILES: Record<'dark' | 'light', string[]> = {
@@ -21,6 +22,17 @@ const TILES: Record<'dark' | 'light', string[]> = {
   ],
 }
 
+interface RouteCollection {
+  type: 'FeatureCollection'
+  features: {
+    type: 'Feature'
+    properties: { color: string }
+    geometry: { type: 'LineString'; coordinates: [number, number][] }
+  }[]
+}
+
+const EMPTY_ROUTES: RouteCollection = { type: 'FeatureCollection', features: [] }
+
 const STYLE: StyleSpecification = {
   version: 8,
   sources: {
@@ -30,8 +42,26 @@ const STYLE: StyleSpecification = {
       tileSize: 256,
       attribution: '© OpenStreetMap contributors © CARTO',
     },
+    routes: {
+      type: 'geojson',
+      data: EMPTY_ROUTES,
+    },
   },
-  layers: [{ id: 'carto', type: 'raster', source: 'carto' }],
+  layers: [
+    { id: 'carto', type: 'raster', source: 'carto' },
+    {
+      id: 'route-line',
+      type: 'line',
+      source: 'routes',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ['to-color', ['get', 'color']],
+        'line-width': 2.5,
+        'line-opacity': 0.9,
+        'line-dasharray': [0.1, 2],
+      },
+    },
+  ],
 }
 
 interface MarkerSpec {
@@ -84,6 +114,42 @@ function applyVariant(entry: MarkerEntry, variant: string) {
   entry.variant = variant
 }
 
+/** Clip the polyline to the part ahead of the resource's current position */
+function remainingRoute(
+  coords: [number, number][],
+  pos: [number, number],
+): [number, number][] {
+  let idx = 0
+  let t = 0
+  let best = Infinity
+  for (let i = 0; i < coords.length - 1; i++) {
+    const [ax, ay] = coords[i]
+    const [bx, by] = coords[i + 1]
+    const vx = bx - ax
+    const vy = by - ay
+    const len2 = vx * vx + vy * vy
+    const s =
+      len2 === 0
+        ? 0
+        : Math.max(0, Math.min(1, ((pos[0] - ax) * vx + (pos[1] - ay) * vy) / len2))
+    const qx = ax + vx * s - pos[0]
+    const qy = ay + vy * s - pos[1]
+    const d = qx * qx + qy * qy
+    if (d < best) {
+      best = d
+      idx = i
+      t = s
+    }
+  }
+  const rest = coords.slice(idx + 1)
+  if (t >= 1) return rest
+  const head: [number, number] = [
+    coords[idx][0] + (coords[idx + 1][0] - coords[idx][0]) * t,
+    coords[idx][1] + (coords[idx + 1][1] - coords[idx][1]) * t,
+  ]
+  return [head, ...rest]
+}
+
 /**
  * The marker's label is written once and never touched again — a site's name
  * does not change. The countdown does, every poll, so it gets its own update
@@ -110,16 +176,20 @@ interface MapViewProps {
   elements: ElementView[]
   resources: ResourceView[]
   selectedElementId: string | null
+  selectedResourceId: string | null
   theme: 'dark' | 'light'
   onSelectElement: (id: string | null) => void
+  onSelectResource: (id: string | null) => void
 }
 
 export function MapView({
   elements,
   resources,
   selectedElementId,
+  selectedResourceId,
   theme,
   onSelectElement,
+  onSelectResource,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -169,11 +239,42 @@ export function MapView({
     const store = markersRef.current
     const alive = new Set<string>()
 
+    /** Selected resource or the target site of the selection draw their route */
+    const source = map.getSource('routes')
+    if (source && 'setData' in source) {
+      const features = resources
+        .filter(
+          (r) =>
+            r.route &&
+            r.route.length >= 2 &&
+            (r.id === selectedResourceId ||
+              (r.assignedElementId !== null && r.assignedElementId === selectedElementId)),
+        )
+        .map((r) => ({
+          type: 'Feature' as const,
+          properties: { color: resourceColor(r.id) },
+          geometry: {
+            type: 'LineString' as const,
+            coordinates: remainingRoute(
+              r.route!.map((p) => [p.lng, p.lat] as [number, number]),
+              [r.lng, r.lat],
+            ),
+          },
+        }))
+        .filter((f) => f.geometry.coordinates.length >= 2)
+      ;(source as { setData: (data: RouteCollection) => void }).setData({
+        type: 'FeatureCollection',
+        features,
+      })
+    }
+
     resources.forEach((r) => {
       alive.add(r.id)
+      const selected = r.id === selectedResourceId
       const entry = store.get(r.id)
       if (entry) {
         applyVariant(entry, r.status)
+        entry.node.classList.toggle('is-selected', selected)
         entry.marker.setLngLat([r.lng, r.lat])
       } else {
         const node = createMarkerNode(
@@ -183,8 +284,10 @@ export function MapView({
             icon: ICON_PATHS[RESOURCE_ICON[r.type] ?? 'generator'] ?? '',
             label: r.id,
           },
-          false,
+          selected,
+          () => onSelectResource(r.id),
         )
+        node.style.setProperty('--uc', resourceColor(r.id))
         store.set(r.id, {
           marker: new Marker({ element: node, anchor: 'center' })
             .setLngLat([r.lng, r.lat])
@@ -235,7 +338,7 @@ export function MapView({
         store.delete(id)
       }
     }
-  }, [elements, resources, selectedElementId, onSelectElement, ready])
+  }, [elements, resources, selectedElementId, selectedResourceId, onSelectElement, onSelectResource, ready])
 
   useEffect(() => {
     const map = mapRef.current
