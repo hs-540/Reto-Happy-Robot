@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS events (
   id         TEXT PRIMARY KEY,
   summary    TEXT NOT NULL,
   mission_id TEXT,
+  context    TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

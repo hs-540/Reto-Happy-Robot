@@ -7,7 +7,7 @@ del build del monorepo ni de sus workspaces.
 
 Solo existe **un tipo de evento**: el resumen de una llamada de voz. Por eso un
 evento no tiene ni `type` ni `payload` — es su `summary`, la mision a la que
-pertenece y las marcas de tiempo.
+pertenece, el prompt con el que se lanzo la llamada y las marcas de tiempo.
 
 ## Primeros pasos tras clonar
 
@@ -43,6 +43,7 @@ como health check, util para comprobar que el deploy vive sin repartir la key.
   "id": "3ed7d553-a4f0-4fcd-8ac3-2eec740be0c5",
   "summary": "El transportista acepta la carga Madrid-Valencia a 420 EUR, recoge manana a las 8.",
   "missionId": "mis-042",
+  "context": "Eres un operador de emergencias. Llama al proveedor y solicita 40 concentradores.",
   "created_at": "2026-09-19T11:45:13.289Z",
   "updated_at": "2026-09-19T11:45:13.289Z"
 }
@@ -52,6 +53,7 @@ como health check, util para comprobar que el deploy vive sin repartir la key.
 |---|---|---|---|
 | `summary` | string | **Si** | No vacio |
 | `missionId` | string \| null | No | Si no viene, se guarda `null` |
+| `context` | string \| null | No | El prompt de entrada del hook. Si no viene, `null` |
 | `id` | string | No | Si no lo pasas se genera un UUID |
 
 Las fechas son automaticas. Cualquier otra clave del body se ignora en silencio.
@@ -59,22 +61,25 @@ Las fechas son automaticas. Cualquier otra clave del body se ignora en silencio.
 En la base de datos la columna se llama `mission_id`; la API habla `missionId`,
 que es como lo manda el cliente.
 
+`context` se guarda tal cual, sin limite practico de longitud, y **no tiene
+indice**: es texto largo y libre, no tiene sentido filtrar por el.
+
 ## Endpoints
 
 | Metodo | Ruta | Body / query |
 |---|---|---|
-| POST | `/api/post-event` | `{ "summary": "...", "missionId": "..." }` — `missionId` e `id` opcionales |
+| POST | `/api/post-event` | `{ "summary": "...", "missionId": "...", "context": "..." }` — solo `summary` es obligatorio |
 | GET | `/api/get-events` | `?missionId=<id>&since=<ISO>&limit=<n>&offset=<n>` |
-| POST/PATCH | `/api/update-event` | `{ "id": "...", "summary": "...", "missionId": "..." }` |
+| POST/PATCH | `/api/update-event` | `{ "id": "...", "summary": "...", "missionId": "...", "context": "..." }` |
 
 `summary` tiene que ser un string no vacio: si falta, viene en blanco o no es
-string, responde `400`. `missionId`, si viene, tambien tiene que ser un string
-no vacio. `limit` por defecto 50, tope 200. Los eventos salen ordenados por
-`created_at` descendente, el mas reciente primero.
+string, responde `400`. `missionId` y `context`, si vienen, tambien tienen que
+ser un string no vacio. `limit` por defecto 50, tope 200. Los eventos salen
+ordenados por `created_at` descendente, el mas reciente primero.
 
-En `update-event` manda `summary`, `missionId` o los dos — lo que no mandes se
-queda como estaba, y al menos uno es obligatorio. Para desatar un evento de su
-mision, manda `"missionId": null`.
+En `update-event` manda `summary`, `missionId`, `context` o los que quieras —
+lo que no mandes se queda como estaba, y al menos uno es obligatorio. Para
+vaciar uno de los dos opcionales, mandalo como `null`.
 
 Todos los eventos de una mision:
 
@@ -89,7 +94,7 @@ API=https://events-api.hs540events.workers.dev
 KEY=$(cat .api-key)
 
 curl -X POST $API/api/post-event -H "x-api-key: $KEY" -H 'content-type: application/json' \
-  -d '{"summary":"El transportista acepta la carga, recoge manana a las 8.","missionId":"mis-042"}'
+  -d '{"summary":"El transportista acepta la carga.","missionId":"mis-042","context":"Eres un operador..."}'
 
 curl "$API/api/get-events?limit=10" -H "x-api-key: $KEY"
 

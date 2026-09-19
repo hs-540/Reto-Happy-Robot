@@ -10,6 +10,7 @@ type EventRow = {
   id: string
   summary: string
   mission_id: string | null
+  context: string | null
   created_at: string
   updated_at: string
 }
@@ -51,19 +52,20 @@ app.use('/api/*', async (c, next) => {
 
 /* ------------------------------------------------------------ helpers --- */
 
-// La columna es `mission_id` (convencion de SQLite) pero la API habla
-// `missionId`, que es como lo manda el cliente.
+// Las columnas van en snake_case (convencion de SQLite) pero la API habla
+// camelCase, que es como lo manda el cliente.
 const toEvent = (row: EventRow) => ({
   id: row.id,
   summary: row.summary,
   missionId: row.mission_id,
+  context: row.context,
   created_at: row.created_at,
   updated_at: row.updated_at,
 })
 
-// `missionId` es opcional: si no viene se guarda null. Si viene, tiene que ser
-// un string no vacio.
-function leerMissionId(valor: unknown): { ok: true; valor: string | null } | { ok: false } {
+// `missionId` y `context` son opcionales: si no vienen se guardan null. Si
+// vienen, tienen que ser un string no vacio.
+function leerOpcional(valor: unknown): { ok: true; valor: string | null } | { ok: false } {
   if (valor === undefined || valor === null) return { ok: true, valor: null }
   if (typeof valor !== 'string' || !valor.trim()) return { ok: false }
   return { ok: true, valor }
@@ -83,9 +85,14 @@ app.post('/api/post-event', async (c) => {
     return c.json({ error: '`summary` es obligatorio y debe ser un string no vacio' }, 400)
   }
 
-  const mission = leerMissionId(body.missionId)
+  const mission = leerOpcional(body.missionId)
   if (!mission.ok) {
     return c.json({ error: '`missionId`, si viene, debe ser un string no vacio' }, 400)
+  }
+
+  const context = leerOpcional(body.context)
+  if (!context.ok) {
+    return c.json({ error: '`context`, si viene, debe ser un string no vacio' }, 400)
   }
 
   const now = new Date().toISOString()
@@ -93,15 +100,16 @@ app.post('/api/post-event', async (c) => {
     id: body.id ?? crypto.randomUUID(),
     summary: body.summary,
     mission_id: mission.valor,
+    context: context.valor,
     created_at: now,
     updated_at: now,
   }
 
   await c.env.DB.prepare(
-    `INSERT INTO events (id, summary, mission_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO events (id, summary, mission_id, context, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(event.id, event.summary, event.mission_id, now, now)
+    .bind(event.id, event.summary, event.mission_id, event.context, now, now)
     .run()
 
   return c.json(toEvent(event), 201)
@@ -146,16 +154,18 @@ app.on(['POST', 'PATCH'], '/api/update-event', async (c) => {
     sets.push('summary = ?'); params.push(body.summary)
   }
 
-  if (body.missionId !== undefined) {
-    // Aqui null si vale: es como se desata un evento de su mision.
-    if (body.missionId !== null && (typeof body.missionId !== 'string' || !body.missionId.trim())) {
-      return c.json({ error: '`missionId` debe ser un string no vacio o null' }, 400)
+  // Aqui null si vale: es como se vacia uno de los dos campos opcionales.
+  for (const [campo, columna] of [['missionId', 'mission_id'], ['context', 'context']] as const) {
+    const valor = body[campo]
+    if (valor === undefined) continue
+    if (valor !== null && (typeof valor !== 'string' || !valor.trim())) {
+      return c.json({ error: `\`${campo}\` debe ser un string no vacio o null` }, 400)
     }
-    sets.push('mission_id = ?'); params.push(body.missionId)
+    sets.push(`${columna} = ?`); params.push(valor)
   }
 
   if (!sets.length) {
-    return c.json({ error: 'nada que actualizar: manda summary y/o missionId' }, 400)
+    return c.json({ error: 'nada que actualizar: manda summary, missionId y/o context' }, 400)
   }
 
   sets.push('updated_at = ?')
