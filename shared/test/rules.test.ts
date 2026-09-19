@@ -1,227 +1,227 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  CAPACIDAD_RECURSOS,
-  MAX_MINUTOS_SIN_ENERGIA,
-  REGLAS_PARA_AGENTE,
-  calcularPrioridad,
-  derivarStatus,
-  derivarStatusElemento,
-  derivarStatusMetrica,
-  validarAccion,
-  type ContextoValidacion,
-  type ElementoValidacion,
-  type RecursoValidacion,
+  RESOURCE_CAPACITY,
+  MAX_MINUTES_WITHOUT_POWER,
+  AGENT_RULES,
+  calculatePriority,
+  deriveStatus,
+  deriveElementStatus,
+  deriveMetricStatus,
+  validateAction,
+  type ValidationContext,
+  type ValidatableElement,
+  type ValidatableResource,
 } from "../src/rules.js";
 
-function elemento(
+function element(
   id: string,
-  type: ElementoValidacion["type"],
-  overrides: Partial<Omit<ElementoValidacion, "id" | "type">> = {},
-): ElementoValidacion {
+  type: ValidatableElement["type"],
+  overrides: Partial<Omit<ValidatableElement, "id" | "type">> = {},
+): ValidatableElement {
   return {
     id,
     type,
     status: "normal",
-    metricas: {},
-    sinEnergiaSegundos: 0,
+    metrics: {},
+    secondsWithoutPower: 0,
     ...overrides,
   };
 }
 
-function recurso(
+function resource(
   id: string,
-  type: RecursoValidacion["type"],
-  overrides: Partial<Omit<RecursoValidacion, "id" | "type">> = {},
-): RecursoValidacion {
+  type: ValidatableResource["type"],
+  overrides: Partial<Omit<ValidatableResource, "id" | "type">> = {},
+): ValidatableResource {
   return {
     id,
     type,
-    status: "disponible",
+    status: "available",
     assignedElementId: null,
     ...overrides,
   };
 }
 
-function reglaDe(r: ReturnType<typeof validarAccion>) {
-  return r.permitido === false ? r.regla : null;
+function ruleOf(r: ReturnType<typeof validateAction>) {
+  return r.allowed === false ? r.rule : null;
 }
 
-test("capacidades y límites del catálogo", () => {
-  assert.equal(CAPACIDAD_RECURSOS.cuadrilla, 1);
-  assert.equal(CAPACIDAD_RECURSOS.generador, 2);
-  assert.equal(MAX_MINUTOS_SIN_ENERGIA.hospital, 8);
-  assert.equal(MAX_MINUTOS_SIN_ENERGIA.datacenter, 12);
-  assert.equal(MAX_MINUTOS_SIN_ENERGIA.subestacion, 20);
+test("catalog capacities and limits", () => {
+  assert.equal(RESOURCE_CAPACITY.crew, 1);
+  assert.equal(RESOURCE_CAPACITY.generator, 2);
+  assert.equal(MAX_MINUTES_WITHOUT_POWER.hospital, 8);
+  assert.equal(MAX_MINUTES_WITHOUT_POWER.datacenter, 12);
+  assert.equal(MAX_MINUTES_WITHOUT_POWER.substation, 20);
 });
 
-test("cortes de severidad → status", () => {
-  assert.equal(derivarStatus(29), "normal");
-  assert.equal(derivarStatus(30), "degradado");
-  assert.equal(derivarStatus(59), "degradado");
-  assert.equal(derivarStatus(60), "critico");
+test("severity cuts → status", () => {
+  assert.equal(deriveStatus(29), "normal");
+  assert.equal(deriveStatus(30), "degraded");
+  assert.equal(deriveStatus(59), "degraded");
+  assert.equal(deriveStatus(60), "critical");
 });
 
-test("umbrales por métrica (eventos del guion)", () => {
-  assert.equal(derivarStatusMetrica("tension_red", 12), "critico");
-  assert.equal(derivarStatusMetrica("temperatura", 41), "degradado");
-  assert.equal(derivarStatusMetrica("temperatura", 45), "critico");
-  assert.equal(derivarStatusMetrica("carga_ups", 12), "critico");
-  assert.equal(derivarStatusMetrica("carga_ups", 90), "normal");
+test("per-metric thresholds (script events)", () => {
+  assert.equal(deriveMetricStatus("grid_voltage", 12), "critical");
+  assert.equal(deriveMetricStatus("temperature", 41), "degraded");
+  assert.equal(deriveMetricStatus("temperature", 45), "critical");
+  assert.equal(deriveMetricStatus("ups_load", 12), "critical");
+  assert.equal(deriveMetricStatus("ups_load", 90), "normal");
 });
 
-test("status final: el peor entre severidad y métricas", () => {
-  assert.equal(derivarStatusElemento(10, { temperatura: 46 }), "critico");
-  assert.equal(derivarStatusElemento(35, { carga_ups: 90 }), "degradado");
+test("final status: the worst between severity and metrics", () => {
+  assert.equal(deriveElementStatus(10, { temperature: 46 }), "critical");
+  assert.equal(deriveElementStatus(35, { ups_load: 90 }), "degraded");
 });
 
-test("sin-doble-asignacion: rechaza recurso ocupado o inexistente", () => {
-  const ctx: ContextoValidacion = {
-    elementos: [elemento("hosp-01", "hospital"), elemento("dc-01", "datacenter")],
-    recursos: [
-      recurso("cuadrilla-1", "cuadrilla", { status: "asignado", assignedElementId: "hosp-01" }),
+test("no-double-assignment: rejects a busy or nonexistent resource", () => {
+  const ctx: ValidationContext = {
+    elements: [element("hosp-01", "hospital"), element("dc-01", "datacenter")],
+    resources: [
+      resource("crew-1", "crew", { status: "assigned", assignedElementId: "hosp-01" }),
     ],
   };
-  const ocupada = validarAccion(
-    { tipo: "asignar_recurso", elementId: "dc-01", recursoId: "cuadrilla-1" },
+  const busy = validateAction(
+    { type: "assign_resource", elementId: "dc-01", resourceId: "crew-1" },
     ctx,
   );
-  assert.equal(ocupada.permitido, false);
-  assert.equal(reglaDe(ocupada), "sin-doble-asignacion");
+  assert.equal(busy.allowed, false);
+  assert.equal(ruleOf(busy), "no-double-assignment");
 
-  const inexistente = validarAccion(
-    { tipo: "asignar_recurso", elementId: "dc-01", recursoId: "cuadrilla-9" },
+  const nonexistent = validateAction(
+    { type: "assign_resource", elementId: "dc-01", resourceId: "crew-9" },
     ctx,
   );
-  assert.equal(inexistente.permitido, false);
-  assert.equal(reglaDe(inexistente), "sin-doble-asignacion");
+  assert.equal(nonexistent.allowed, false);
+  assert.equal(ruleOf(nonexistent), "no-double-assignment");
 
-  const ctxLiberada: ContextoValidacion = {
-    elementos: [elemento("hosp-01", "hospital"), elemento("dc-01", "datacenter")],
-    recursos: [recurso("cuadrilla-1", "cuadrilla")],
+  const ctxReleased: ValidationContext = {
+    elements: [element("hosp-01", "hospital"), element("dc-01", "datacenter")],
+    resources: [resource("crew-1", "crew")],
   };
   assert.deepEqual(
-    validarAccion(
-      { tipo: "asignar_recurso", elementId: "dc-01", recursoId: "cuadrilla-1" },
-      ctxLiberada,
+    validateAction(
+      { type: "assign_resource", elementId: "dc-01", resourceId: "crew-1" },
+      ctxReleased,
     ),
-    { permitido: true },
+    { allowed: true },
   );
 });
 
-test("hospital-prioridad-energia: generadores solo al hospital crítico sin respaldo", () => {
-  const ctx: ContextoValidacion = {
-    elementos: [
-      elemento("hosp-01", "hospital", { status: "critico", sinEnergiaSegundos: 120 }),
-      elemento("dc-01", "datacenter", { status: "degradado" }),
+test("hospital-power-priority: generators only to the critical hospital without backup", () => {
+  const ctx: ValidationContext = {
+    elements: [
+      element("hosp-01", "hospital", { status: "critical", secondsWithoutPower: 120 }),
+      element("dc-01", "datacenter", { status: "degraded" }),
     ],
-    recursos: [recurso("generador-1", "generador")],
+    resources: [resource("generator-1", "generator")],
   };
-  const alDatacenter = validarAccion(
-    { tipo: "asignar_recurso", elementId: "dc-01", recursoId: "generador-1" },
+  const toDatacenter = validateAction(
+    { type: "assign_resource", elementId: "dc-01", resourceId: "generator-1" },
     ctx,
   );
-  assert.equal(alDatacenter.permitido, false);
-  assert.equal(reglaDe(alDatacenter), "hospital-prioridad-energia");
+  assert.equal(toDatacenter.allowed, false);
+  assert.equal(ruleOf(toDatacenter), "hospital-power-priority");
 
   assert.deepEqual(
-    validarAccion({ tipo: "asignar_recurso", elementId: "hosp-01", recursoId: "generador-1" }, ctx),
-    { permitido: true },
+    validateAction({ type: "assign_resource", elementId: "hosp-01", resourceId: "generator-1" }, ctx),
+    { allowed: true },
   );
 });
 
-test("hospital-plazo-energia: superado el límite solo se actúa en el hospital o la subestación crítica", () => {
-  const ctx: ContextoValidacion = {
-    elementos: [
-      elemento("hosp-01", "hospital", {
-        status: "critico",
-        sinEnergiaSegundos: (MAX_MINUTOS_SIN_ENERGIA.hospital + 1) * 60,
+test("hospital-power-deadline: past the limit only the hospital or the critical substation may be acted on", () => {
+  const ctx: ValidationContext = {
+    elements: [
+      element("hosp-01", "hospital", {
+        status: "critical",
+        secondsWithoutPower: (MAX_MINUTES_WITHOUT_POWER.hospital + 1) * 60,
       }),
-      elemento("dc-01", "datacenter", { status: "degradado" }),
-      elemento("sub-01", "subestacion", { status: "critico" }),
+      element("dc-01", "datacenter", { status: "degraded" }),
+      element("sub-01", "substation", { status: "critical" }),
     ],
-    recursos: [recurso("cuadrilla-1", "cuadrilla"), recurso("generador-1", "generador")],
+    resources: [resource("crew-1", "crew"), resource("generator-1", "generator")],
   };
-  const esperarDatacenter = validarAccion({ tipo: "esperar", elementId: "dc-01" }, ctx);
-  assert.equal(esperarDatacenter.permitido, false);
-  assert.equal(reglaDe(esperarDatacenter), "hospital-plazo-energia");
+  const waitDatacenter = validateAction({ type: "wait", elementId: "dc-01" }, ctx);
+  assert.equal(waitDatacenter.allowed, false);
+  assert.equal(ruleOf(waitDatacenter), "hospital-power-deadline");
 
-  const alDatacenter = validarAccion(
-    { tipo: "asignar_recurso", elementId: "dc-01", recursoId: "cuadrilla-1" },
+  const toDatacenter = validateAction(
+    { type: "assign_resource", elementId: "dc-01", resourceId: "crew-1" },
     ctx,
   );
-  assert.equal(alDatacenter.permitido, false);
-  assert.equal(reglaDe(alDatacenter), "hospital-plazo-energia");
+  assert.equal(toDatacenter.allowed, false);
+  assert.equal(ruleOf(toDatacenter), "hospital-power-deadline");
 
   assert.deepEqual(
-    validarAccion({ tipo: "asignar_recurso", elementId: "hosp-01", recursoId: "cuadrilla-1" }, ctx),
-    { permitido: true },
+    validateAction({ type: "assign_resource", elementId: "hosp-01", resourceId: "crew-1" }, ctx),
+    { allowed: true },
   );
   assert.deepEqual(
-    validarAccion({ tipo: "asignar_recurso", elementId: "sub-01", recursoId: "cuadrilla-1" }, ctx),
-    { permitido: true },
+    validateAction({ type: "assign_resource", elementId: "sub-01", resourceId: "crew-1" }, ctx),
+    { allowed: true },
   );
-  const generadorALaSubestacion = validarAccion(
-    { tipo: "asignar_recurso", elementId: "sub-01", recursoId: "generador-1" },
+  const generatorToSubstation = validateAction(
+    { type: "assign_resource", elementId: "sub-01", resourceId: "generator-1" },
     ctx,
   );
-  assert.equal(generadorALaSubestacion.permitido, false);
-  assert.equal(reglaDe(generadorALaSubestacion), "hospital-prioridad-energia");
-  assert.deepEqual(validarAccion({ tipo: "esperar", elementId: "hosp-01" }, ctx), {
-    permitido: true,
+  assert.equal(generatorToSubstation.allowed, false);
+  assert.equal(ruleOf(generatorToSubstation), "hospital-power-priority");
+  assert.deepEqual(validateAction({ type: "wait", elementId: "hosp-01" }, ctx), {
+    allowed: true,
   });
 });
 
-test("ups-critica-actuar: esperar prohibido con carga_ups baja", () => {
-  const ctx: ContextoValidacion = {
-    elementos: [
-      elemento("hosp-01", "hospital"),
-      elemento("dc-01", "datacenter", { status: "critico", metricas: { carga_ups: 10 } }),
+test("critical-ups-act: waiting forbidden with low ups_load", () => {
+  const ctx: ValidationContext = {
+    elements: [
+      element("hosp-01", "hospital"),
+      element("dc-01", "datacenter", { status: "critical", metrics: { ups_load: 10 } }),
     ],
-    recursos: [recurso("generador-1", "generador")],
+    resources: [resource("generator-1", "generator")],
   };
-  const esperar = validarAccion({ tipo: "esperar", elementId: "dc-01" }, ctx);
-  assert.equal(esperar.permitido, false);
-  assert.equal(reglaDe(esperar), "ups-critica-actuar");
+  const wait = validateAction({ type: "wait", elementId: "dc-01" }, ctx);
+  assert.equal(wait.allowed, false);
+  assert.equal(ruleOf(wait), "critical-ups-act");
 
   assert.deepEqual(
-    validarAccion({ tipo: "asignar_recurso", elementId: "dc-01", recursoId: "generador-1" }, ctx),
-    { permitido: true },
+    validateAction({ type: "assign_resource", elementId: "dc-01", resourceId: "generator-1" }, ctx),
+    { allowed: true },
   );
-  assert.deepEqual(validarAccion({ tipo: "contactar", elementId: "dc-01" }, ctx), {
-    permitido: true,
+  assert.deepEqual(validateAction({ type: "contact", elementId: "dc-01" }, ctx), {
+    allowed: true,
   });
 });
 
-test("calcularPrioridad: hospital crítico sin energía gana al datacenter degradado", () => {
-  const hospital = calcularPrioridad({
+test("calculatePriority: critical hospital without power beats degraded datacenter", () => {
+  const hospital = calculatePriority({
     type: "hospital",
-    status: "critico",
-    criticidad: 95,
-    sinEnergiaSegundos: 10 * 60,
+    status: "critical",
+    criticality: 95,
+    secondsWithoutPower: 10 * 60,
   });
-  const datacenter = calcularPrioridad({
+  const datacenter = calculatePriority({
     type: "datacenter",
-    status: "degradado",
-    criticidad: 60,
-    sinEnergiaSegundos: 0,
+    status: "degraded",
+    criticality: 60,
+    secondsWithoutPower: 0,
   });
-  const subestacion = calcularPrioridad({
-    type: "subestacion",
+  const substation = calculatePriority({
+    type: "substation",
     status: "normal",
-    criticidad: 70,
-    sinEnergiaSegundos: 0,
+    criticality: 70,
+    secondsWithoutPower: 0,
   });
 
   assert.equal(hospital, 0.5 * 95 + 60 + 30 + 2 * 10);
   assert.equal(datacenter, 0.5 * 60 + 20 + 10);
   assert.ok(hospital > datacenter);
-  assert.ok(datacenter > subestacion);
+  assert.ok(datacenter > substation);
 });
 
-test("REGLAS_PARA_AGENTE es serializable para inyectar en el prompt del LLM", () => {
-  const json = JSON.parse(JSON.stringify(REGLAS_PARA_AGENTE));
-  assert.equal(json.reglasBloqueantes.length, 4);
-  assert.equal(json.prioridad.ordenTipos[0], "hospital");
-  assert.equal(json.limitesSinEnergiaMin.hospital, MAX_MINUTOS_SIN_ENERGIA.hospital);
+test("AGENT_RULES is serializable to be injected into the LLM prompt", () => {
+  const json = JSON.parse(JSON.stringify(AGENT_RULES));
+  assert.equal(json.blockingRules.length, 4);
+  assert.equal(json.priority.typeOrder[0], "hospital");
+  assert.equal(json.maxMinutesWithoutPower.hospital, MAX_MINUTES_WITHOUT_POWER.hospital);
 });

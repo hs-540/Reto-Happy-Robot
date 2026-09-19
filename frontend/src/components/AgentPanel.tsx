@@ -5,40 +5,40 @@ interface AgentPanelProps {
   feed: FeedItem[]
   selectedElementId: string | null
   onSelectElement: (id: string) => void
-  nombresElemento: Record<string, string>
+  elementNames: Record<string, string>
 }
 
-const ETIQUETA_ACCION: Record<string, string> = {
-  llamada_voz: 'Llamada de voz',
-  mensaje_chat: 'Mensaje',
+const ACTION_LABEL: Record<string, string> = {
+  voice_call: 'Voice call',
+  chat_message: 'Message',
 }
 
-function EtiquetaEstadoAccion({ estado }: { estado: string }) {
-  return <span className={`badge badge--${estado}`}>{estado}</span>
+function ActionStatusLabel({ status }: { status: string }) {
+  return <span className={`badge badge--${status}`}>{status}</span>
 }
 
-function descripcionFeed(
+function feedDescription(
   item: FeedItem,
-  nombres: Record<string, string>,
-): { titulo: string; detalle: string } {
+  names: Record<string, string>,
+): { title: string; detail: string } {
   switch (item.kind) {
-    case 'alarma':
+    case 'alarm':
       return {
-        titulo: `Alarma · ${nombres[item.elementId] ?? item.elementId}`,
-        detalle: `${item.metric} = ${item.value} · severidad ${item.severidad}`,
+        title: `Alarm · ${names[item.elementId] ?? item.elementId}`,
+        detail: `${item.metric} = ${item.value} · severity ${item.severity}`,
       }
     case 'decision':
       return {
-        titulo: `Decisión P${item.prioridad}${item.provocaReplan ? ' · REPLAN' : ''}`,
-        detalle: item.razonamiento,
+        title: `Decision P${item.priority}${item.provokesReplan ? ' · REPLAN' : ''}`,
+        detail: item.reasoning,
       }
-    case 'accion':
+    case 'action':
       return {
-        titulo: `${ETIQUETA_ACCION[item.tipo] ?? item.tipo} · ${item.estado}`,
-        detalle: item.mensaje,
+        title: `${ACTION_LABEL[item.type] ?? item.type} · ${item.status}`,
+        detail: item.message,
       }
-    case 'sistema':
-      return { titulo: 'Sistema', detalle: item.mensaje }
+    case 'system':
+      return { title: 'System', detail: item.message }
   }
 }
 
@@ -47,62 +47,62 @@ export function AgentPanel({
   feed,
   selectedElementId,
   onSelectElement,
-  nombresElemento,
+  elementNames,
 }: AgentPanelProps) {
   const items = [...feed].sort((a, b) => b.seq - a.seq)
 
   return (
     <aside className="agent">
       <section className="agent__section">
-        <h2 className="agent__heading">Plan actual</h2>
-        {agent.planActual ? (
+        <h2 className="agent__heading">Current plan</h2>
+        {agent.currentPlan ? (
           <div className="plan">
-            <p className="plan__objetivo">{agent.planActual.objetivo}</p>
-            <ul className="plan__pasos">
-              {agent.planActual.pasos.map((paso) => (
+            <p className="plan__objective">{agent.currentPlan.objective}</p>
+            <ul className="plan__steps">
+              {agent.currentPlan.steps.map((step) => (
                 <li
-                  key={paso.id}
-                  className={`plan__paso ${paso.completado ? 'is-done' : ''} ${
-                    paso.elementId === selectedElementId ? 'is-selected' : ''
+                  key={step.id}
+                  className={`plan__step ${step.completed ? 'is-done' : ''} ${
+                    step.elementId === selectedElementId ? 'is-selected' : ''
                   }`}
-                  onClick={() => paso.elementId && onSelectElement(paso.elementId)}
+                  onClick={() => step.elementId && onSelectElement(step.elementId)}
                 >
-                  <span className="plan__check">{paso.completado ? '✓' : ''}</span>
-                  {paso.descripcion}
+                  <span className="plan__check">{step.completed ? '✓' : ''}</span>
+                  {step.description}
                 </li>
               ))}
             </ul>
-            {agent.planActual.replanDe && (
+            {agent.currentPlan.replanOf && (
               <span className="plan__replan">
-                replanificado sobre {agent.planActual.replanDe}
+                replanned from {agent.currentPlan.replanOf}
               </span>
             )}
           </div>
         ) : (
-          <p className="muted">Sin plan activo.</p>
+          <p className="muted">No active plan.</p>
         )}
       </section>
 
       <section className="agent__section">
-        <h2 className="agent__heading">Decisiones</h2>
-        {agent.decisiones.length === 0 ? (
-          <p className="muted">Sin decisiones todavía.</p>
+        <h2 className="agent__heading">Decisions</h2>
+        {agent.decisions.length === 0 ? (
+          <p className="muted">No decisions yet.</p>
         ) : (
           <ul className="cards">
-            {agent.decisiones.map((d) => (
+            {agent.decisions.map((d) => (
               <li
                 key={d.id}
                 className={`card ${d.elementId === selectedElementId ? 'is-selected' : ''}`}
                 onClick={() => onSelectElement(d.elementId)}
               >
                 <div className="card__top">
-                  <span className="badge badge--prioridad">P{d.prioridad}</span>
-                  <span className="card__elemento">
-                    {nombresElemento[d.elementId] ?? d.elementId}
+                  <span className="badge badge--priority">P{d.priority}</span>
+                  <span className="card__element">
+                    {elementNames[d.elementId] ?? d.elementId}
                   </span>
-                  {d.provocaReplan && <span className="badge badge--replan">REPLAN</span>}
+                  {d.provokesReplan && <span className="badge badge--replan">REPLAN</span>}
                 </div>
-                <p className="card__razonamiento">{d.razonamiento}</p>
+                <p className="card__reasoning">{d.reasoning}</p>
               </li>
             ))}
           </ul>
@@ -110,22 +110,22 @@ export function AgentPanel({
       </section>
 
       <section className="agent__section">
-        <h2 className="agent__heading">Acciones</h2>
-        {agent.acciones.length === 0 ? (
-          <p className="muted">Sin acciones todavía.</p>
+        <h2 className="agent__heading">Actions</h2>
+        {agent.actions.length === 0 ? (
+          <p className="muted">No actions yet.</p>
         ) : (
           <ul className="cards">
-            {agent.acciones.map((a) => (
+            {agent.actions.map((a) => (
               <li key={a.id} className="card">
                 <div className="card__top">
-                  <span className="card__elemento">
-                    {ETIQUETA_ACCION[a.type] ?? a.type}
+                  <span className="card__element">
+                    {ACTION_LABEL[a.type] ?? a.type}
                   </span>
-                  <EtiquetaEstadoAccion estado={a.status} />
+                  <ActionStatusLabel status={a.status} />
                 </div>
-                <p className="card__razonamiento">{a.mensaje}</p>
-                {a.destinatario && (
-                  <span className="card__destino">→ {a.destinatario}</span>
+                <p className="card__reasoning">{a.message}</p>
+                {a.recipient && (
+                  <span className="card__target">→ {a.recipient}</span>
                 )}
               </li>
             ))}
@@ -134,13 +134,13 @@ export function AgentPanel({
       </section>
 
       <section className="agent__section">
-        <h2 className="agent__heading">Actividad</h2>
+        <h2 className="agent__heading">Activity</h2>
         {items.length === 0 ? (
-          <p className="muted">Sin actividad todavía.</p>
+          <p className="muted">No activity yet.</p>
         ) : (
           <ul className="feed">
             {items.map((item) => {
-              const { titulo, detalle } = descripcionFeed(item, nombresElemento)
+              const { title, detail } = feedDescription(item, elementNames)
               const elementId = 'elementId' in item ? item.elementId : null
               return (
                 <li
@@ -152,8 +152,8 @@ export function AgentPanel({
                 >
                   <span className="feed__seq">{item.seq}</span>
                   <div>
-                    <span className="feed__titulo">{titulo}</span>
-                    <p className="feed__detalle">{detalle}</p>
+                    <span className="feed__title">{title}</span>
+                    <p className="feed__detail">{detail}</p>
                   </div>
                 </li>
               )

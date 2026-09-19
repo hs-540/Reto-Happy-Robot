@@ -4,105 +4,105 @@ import type { ElementView, SensorMetric } from '@swarmup/shared'
 import { postControl } from '../api'
 
 interface InjectionPanelProps {
-  elementos: ElementView[]
-  iniciado: boolean
+  elements: ElementView[]
+  started: boolean
   onControlOk: () => void
 }
 
-const METRICAS: SensorMetric[] = [
-  'temperatura',
-  'carga_ups',
-  'bateria_generador',
-  'cobertura_red',
-  'tension_red',
+const METRICS: SensorMetric[] = [
+  'temperature',
+  'ups_load',
+  'generator_battery',
+  'network_coverage',
+  'grid_voltage',
 ]
 
-/** Modo híbrido: sólo para el presentador, se abre con la tecla i (Esc cierra) */
-export function InjectionPanel({ elementos, iniciado, onControlOk }: InjectionPanelProps) {
-  const [abierta, setAbierta] = useState(false)
+/** Hybrid mode: presenter only, opens with the i key (Esc closes) */
+export function InjectionPanel({ elements, started, onControlOk }: InjectionPanelProps) {
+  const [open, setOpen] = useState(false)
   const [elementId, setElementId] = useState('')
-  const [metric, setMetric] = useState<SensorMetric>('temperatura')
-  const [valor, setValor] = useState('')
-  const [severidad, setSeveridad] = useState('')
-  const [pendiente, setPendiente] = useState(false)
+  const [metric, setMetric] = useState<SensorMetric>('temperature')
+  const [value, setValue] = useState('')
+  const [severity, setSeverity] = useState('')
+  const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
 
   useEffect(() => {
-    function manejarTecla(e: KeyboardEvent) {
+    function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        setAbierta(false)
+        setOpen(false)
         return
       }
       if (e.key !== 'i' && e.key !== 'I') return
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      const destino = e.target
+      const target = e.target
       if (
-        destino instanceof HTMLElement &&
-        (destino.tagName === 'INPUT' ||
-          destino.tagName === 'SELECT' ||
-          destino.tagName === 'TEXTAREA' ||
-          destino.isContentEditable)
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'SELECT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
       ) {
         return
       }
-      setAbierta((a) => !a)
+      setOpen((o) => !o)
     }
-    window.addEventListener('keydown', manejarTecla)
-    return () => window.removeEventListener('keydown', manejarTecla)
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
   }, [])
 
-  if (!abierta) return null
+  if (!open) return null
 
-  function limpiarResultado() {
+  function clearResult() {
     setOk(false)
     setError(null)
   }
 
-  async function manejarInyeccion(e: FormEvent) {
+  async function handleInjection(e: FormEvent) {
     e.preventDefault()
-    setPendiente(true)
-    limpiarResultado()
+    setPending(true)
+    clearResult()
     try {
       await postControl({
-        accion: 'inyectar',
+        action: 'inject',
         payload: {
           elementId,
           metric,
-          value: Number(valor),
-          severidad: Number(severidad),
+          value: Number(value),
+          severity: Number(severity),
         },
       })
       onControlOk()
       setOk(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error de inyección')
+      setError(err instanceof Error ? err.message : 'Injection error')
     } finally {
-      setPendiente(false)
+      setPending(false)
     }
   }
 
   return (
-    <form className="inject" onSubmit={manejarInyeccion}>
-      <span className="inject__titulo">
-        Inyección manual <kbd>i</kbd>
+    <form className="inject" onSubmit={handleInjection}>
+      <span className="inject__title">
+        Manual injection <kbd>i</kbd>
       </span>
-      <fieldset className="inject__campos" disabled={!iniciado || pendiente}>
+      <fieldset className="inject__fields" disabled={!started || pending}>
         <label className="inject__field">
-          Elemento
+          Element
           <select
             className="inject__control"
             value={elementId}
             onChange={(e) => {
               setElementId(e.target.value)
-              limpiarResultado()
+              clearResult()
             }}
             required
           >
             <option value="" disabled>
-              Elige elemento…
+              Choose element…
             </option>
-            {elementos.map((el) => (
+            {elements.map((el) => (
               <option key={el.id} value={el.id}>
                 {el.name} ({el.id})
               </option>
@@ -110,19 +110,19 @@ export function InjectionPanel({ elementos, iniciado, onControlOk }: InjectionPa
           </select>
         </label>
         <label className="inject__field">
-          Métrica
+          Metric
           <select
             className="inject__control"
             value={metric}
             onChange={(e) => {
-              const metrica = METRICAS.find((m) => m === e.target.value)
-              if (metrica) {
-                setMetric(metrica)
-                limpiarResultado()
+              const selected = METRICS.find((m) => m === e.target.value)
+              if (selected) {
+                setMetric(selected)
+                clearResult()
               }
             }}
           >
-            {METRICAS.map((m) => (
+            {METRICS.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
@@ -130,42 +130,42 @@ export function InjectionPanel({ elementos, iniciado, onControlOk }: InjectionPa
           </select>
         </label>
         <label className="inject__field">
-          Valor
+          Value
           <input
             className="inject__control"
             type="number"
             step="any"
-            value={valor}
+            value={value}
             onChange={(e) => {
-              setValor(e.target.value)
-              limpiarResultado()
+              setValue(e.target.value)
+              clearResult()
             }}
             required
           />
         </label>
         <label className="inject__field">
-          Severidad
+          Severity
           <input
             className="inject__control"
             type="number"
             min={0}
             max={100}
             step="1"
-            value={severidad}
+            value={severity}
             onChange={(e) => {
-              setSeveridad(e.target.value)
-              limpiarResultado()
+              setSeverity(e.target.value)
+              clearResult()
             }}
             required
           />
         </label>
         <button type="submit" className="btn btn--primary">
-          Inyectar
+          Inject
         </button>
       </fieldset>
-      {!iniciado && <span className="inject__hint">inicia la sim para inyectar</span>}
+      {!started && <span className="inject__hint">start the sim to inject</span>}
       {error && <span className="inject__error">{error}</span>}
-      {ok && <span className="inject__ok">✓ inyectado</span>}
+      {ok && <span className="inject__ok">✓ injected</span>}
     </form>
   )
 }

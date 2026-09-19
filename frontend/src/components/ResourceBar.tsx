@@ -1,37 +1,37 @@
 import type { ElementView, ResourceView } from '@swarmup/shared'
 
 interface ResourceBarProps {
-  recursos: ResourceView[]
-  elementos: ElementView[]
-  nombresElemento: Record<string, string>
+  resources: ResourceView[]
+  elements: ElementView[]
+  elementNames: Record<string, string>
   selectedElementId: string | null
   onSelectElement: (id: string) => void
 }
 
-const ETIQUETA_ESTADO: Record<string, string> = {
-  disponible: 'disponible',
-  en_transito: 'en tránsito',
-  asignado: 'asignado',
+const STATUS_LABEL: Record<string, string> = {
+  available: 'available',
+  in_transit: 'in transit',
+  assigned: 'assigned',
 }
 
 export function ResourceBar({
-  recursos,
-  elementos,
-  nombresElemento,
+  resources,
+  elements,
+  elementNames,
   selectedElementId,
   onSelectElement,
 }: ResourceBarProps) {
   return (
     <footer className="resources">
       <div className="resources__group">
-        <span className="resources__label">Recursos</span>
-        {recursos.map((r) => (
+        <span className="resources__label">Resources</span>
+        {resources.map((r) => (
           <div key={r.id} className={`resource resource--${r.status}`}>
             <span className="resource__id">{r.id}</span>
-            <span className="resource__estado">{ETIQUETA_ESTADO[r.status] ?? r.status}</span>
+            <span className="resource__status">{STATUS_LABEL[r.status] ?? r.status}</span>
             {r.assignedElementId && (
-              <span className="resource__destino">
-                → {nombresElemento[r.assignedElementId] ?? r.assignedElementId}
+              <span className="resource__target">
+                → {elementNames[r.assignedElementId] ?? r.assignedElementId}
               </span>
             )}
           </div>
@@ -39,8 +39,8 @@ export function ResourceBar({
       </div>
 
       <div className="resources__group">
-        <span className="resources__label">Sensores</span>
-        {elementos.map((el) => (
+        <span className="resources__label">Sensors</span>
+        {elements.map((el) => (
           <button
             key={el.id}
             type="button"
@@ -49,9 +49,9 @@ export function ResourceBar({
             }`}
             onClick={() => onSelectElement(el.id)}
           >
-            <span className="sensor__nombre">{nombresElemento[el.id] ?? el.id}</span>
-            <span className="sensor__valores">
-              {Object.entries(el.sensores).map(([k, v]) => (
+            <span className="sensor__name">{elementNames[el.id] ?? el.id}</span>
+            <span className="sensor__values">
+              {Object.entries(el.sensors).map(([k, v]) => (
                 <span key={k}>
                   {k} <b>{v}</b>
                 </span>

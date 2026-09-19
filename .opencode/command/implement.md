@@ -68,7 +68,7 @@ Non-negotiable, in every area:
 - **Comments only for the non-obvious "why"** — a business threshold, a scripted-demo constraint, a workaround. Never comment what the code already says, never leave a commented-out block.
 - **No dead code, no TODOs, no `console.log` debris.** A log that must stay is a deliberate, structured one.
 - **Errors are handled where they can be answered**: validate input at the boundary, return a proper HTTP status from the backend, render a visible state in the frontend. Never swallow an error into an empty `catch`.
-- **Naming**: code identifiers in English; business/domain terms stay in their original language (`subestacion`, `apagon-madrid`, `severidad` when it is the contract's field name) — match whatever `shared` and the issue already use, don't translate one side of the contract.
+- **Naming**: everything in English (identifiers, enum values, file names, strings) — match whatever `shared` and the issue already use, don't invent a second name for the same concept.
 - **No new dependency** unless the issue names it or it is plainly unavoidable; if you add one, say why in the PR body.
 - **Match the surrounding style** (file layout, naming, import order, module type) rather than importing a personal one.
 

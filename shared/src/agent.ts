@@ -1,15 +1,15 @@
-export type ActionType = "llamada_voz" | "mensaje_chat";
+export type ActionType = "voice_call" | "chat_message";
 
-export type ActionStatus = "ejecutada";
+export type ActionStatus = "executed";
 
 export interface Action {
   id: string;
   type: ActionType;
   targetElementId: string;
-  /** Persona/rol destinatario de la acción real (ej. "responsable_hospital") */
-  destinatario?: string;
+  /** Person/role the real action is addressed to (e.g. "hospital_manager") */
+  recipient?: string;
   status: ActionStatus;
-  mensaje: string;
+  message: string;
   timestamp: string;
 }
 
@@ -17,31 +17,31 @@ export interface Decision {
   id: string;
   timestamp: string;
   elementId: string;
-  prioridad: number;
-  razonamiento: string;
-  provocaReplan: boolean;
-  acciones: Action[];
+  priority: number;
+  reasoning: string;
+  provokesReplan: boolean;
+  actions: Action[];
 }
 
 export interface PlanStep {
   id: string;
-  descripcion: string;
+  description: string;
   elementId: string | null;
-  completado: boolean;
+  completed: boolean;
 }
 
 export interface AgentPlan {
-  objetivo: string;
-  pasos: PlanStep[];
-  generadoEn: string;
-  /** decisionId que provocó este replan; null si es el plan inicial */
-  replanDe: string | null;
+  objective: string;
+  steps: PlanStep[];
+  generatedAt: string;
+  /** decisionId that triggered this replan; null for the initial plan */
+  replanOf: string | null;
 }
 
 export interface AgentView {
   tick: number;
-  pausado: boolean;
-  planActual: AgentPlan | null;
-  decisiones: Decision[];
-  acciones: Action[];
+  paused: boolean;
+  currentPlan: AgentPlan | null;
+  decisions: Decision[];
+  actions: Action[];
 }

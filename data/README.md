@@ -1,4 +1,4 @@
 # /data
 
-- `scripts/` — guion de eventos (JSON) del apagón regional de Madrid.
-- `history/<tipo>/` — incidentes sintéticos pre-cargados para el RAG, segmentados por tipo de elemento (`hospital`, `datacenter`, `subestacion`). Se vectorizan en Chroma con `npm run rag:precarga` (idempotente) desde la raíz del repo.
+- `scripts/` — event script (JSON) for the Madrid regional blackout.
+- `history/<type>/` — synthetic incidents pre-loaded for the RAG, segmented by element type (`hospital`, `datacenter`, `substation`). They are vectorized into Chroma with `npm run rag:preload` (idempotent) from the repo root.

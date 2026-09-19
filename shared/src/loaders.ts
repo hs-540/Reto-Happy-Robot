@@ -1,73 +1,73 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
-import { GuionSchema, type Guion } from "./guion.js";
-import { HistoricoIncidenteSchema, type HistoricoIncidente } from "./historico.js";
+import { ScriptSchema, type Script } from "./script.js";
+import { HistoricalIncidentSchema, type HistoricalIncident } from "./history.js";
 
-/* ─── Parseo puro: unknown → tipo validado, con errores accionables ─── */
+/* ─── Pure parsing: unknown → validated type, with actionable errors ─── */
 
-function valorEn(input: unknown, path: readonly PropertyKey[]): unknown {
-  let actual: unknown = input;
-  for (const clave of path) {
-    if (actual === null || typeof actual !== "object") {
+function valueAt(input: unknown, path: readonly PropertyKey[]): unknown {
+  let current: unknown = input;
+  for (const key of path) {
+    if (current === null || typeof current !== "object") {
       return undefined;
     }
-    actual = (actual as Record<PropertyKey, unknown>)[clave];
+    current = (current as Record<PropertyKey, unknown>)[key];
   }
-  return actual;
+  return current;
 }
 
-function parsear<T>(schema: z.ZodType<T>, input: unknown): T {
+function parseWith<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
   if (!result.success) {
-    const detalles = result.error.issues
+    const details = result.error.issues
       .map((issue) => {
-        const campo = issue.path.length > 0 ? issue.path.join(".") : "(raíz)";
-        return `campo '${campo}': ${issue.message} (recibido: ${JSON.stringify(valorEn(input, issue.path))})`;
+        const field = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+        return `field '${field}': ${issue.message} (received: ${JSON.stringify(valueAt(input, issue.path))})`;
       })
       .join("\n");
-    throw new Error(`Datos inválidos:\n${detalles}`);
+    throw new Error(`Invalid data:\n${details}`);
   }
   return result.data;
 }
 
-export function parseGuion(input: unknown): Guion {
-  return parsear(GuionSchema, input);
+export function parseScript(input: unknown): Script {
+  return parseWith(ScriptSchema, input);
 }
 
-export function parseHistorico(input: unknown): HistoricoIncidente[] {
-  return parsear(z.array(HistoricoIncidenteSchema), input);
+export function parseHistory(input: unknown): HistoricalIncident[] {
+  return parseWith(z.array(HistoricalIncidentSchema), input);
 }
 
-/* ─── Carga desde fichero: lectura + JSON.parse + validación ─── */
+/* ─── File loading: read + JSON.parse + validation ─── */
 
-function mensajeDe(error: unknown): string {
+function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function cargarJson<T>(ruta: string, parse: (input: unknown) => T): T {
-  let texto: string;
+function loadJson<T>(path: string, parse: (input: unknown) => T): T {
+  let text: string;
   try {
-    texto = readFileSync(ruta, "utf8");
+    text = readFileSync(path, "utf8");
   } catch (error) {
-    throw new Error(`No se pudo leer '${ruta}': ${mensajeDe(error)}`);
+    throw new Error(`Could not read '${path}': ${errorMessage(error)}`);
   }
-  let datos: unknown;
+  let data: unknown;
   try {
-    datos = JSON.parse(texto);
+    data = JSON.parse(text);
   } catch (error) {
-    throw new Error(`'${ruta}' no es JSON válido: ${mensajeDe(error)}`);
+    throw new Error(`'${path}' is not valid JSON: ${errorMessage(error)}`);
   }
   try {
-    return parse(datos);
+    return parse(data);
   } catch (error) {
-    throw new Error(`'${ruta}': ${mensajeDe(error)}`);
+    throw new Error(`'${path}': ${errorMessage(error)}`);
   }
 }
 
-export function cargarGuion(ruta: string): Guion {
-  return cargarJson(ruta, parseGuion);
+export function loadScript(path: string): Script {
+  return loadJson(path, parseScript);
 }
 
-export function cargarHistorico(ruta: string): HistoricoIncidente[] {
-  return cargarJson(ruta, parseHistorico);
+export function loadHistory(path: string): HistoricalIncident[] {
+  return loadJson(path, parseHistory);
 }

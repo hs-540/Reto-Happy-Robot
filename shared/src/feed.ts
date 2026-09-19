@@ -1,69 +1,69 @@
 import type { SensorMetric } from "./world.js";
 import type { ActionStatus, ActionType } from "./agent.js";
 
-export type FeedItemKind = "alarma" | "decision" | "accion" | "sistema";
+export type FeedItemKind = "alarm" | "decision" | "action" | "system";
 
 interface FeedBase {
   seq: number;
   ts: string;
 }
 
-export interface FeedAlarma extends FeedBase {
-  kind: "alarma";
+export interface FeedAlarm extends FeedBase {
+  kind: "alarm";
   elementId: string;
   metric: SensorMetric;
   value: number;
-  severidad: number;
+  severity: number;
 }
 
 export interface FeedDecision extends FeedBase {
   kind: "decision";
   elementId: string;
   decisionId: string;
-  prioridad: number;
-  razonamiento: string;
-  provocaReplan: boolean;
+  priority: number;
+  reasoning: string;
+  provokesReplan: boolean;
 }
 
-export interface FeedAccion extends FeedBase {
-  kind: "accion";
+export interface FeedAction extends FeedBase {
+  kind: "action";
   elementId: string;
   actionId: string;
-  tipo: ActionType;
-  estado: ActionStatus;
-  mensaje: string;
+  type: ActionType;
+  status: ActionStatus;
+  message: string;
 }
 
-export interface FeedSistema extends FeedBase {
-  kind: "sistema";
-  mensaje: string;
+export interface FeedSystem extends FeedBase {
+  kind: "system";
+  message: string;
 }
 
-export type FeedItem = FeedAlarma | FeedDecision | FeedAccion | FeedSistema;
+export type FeedItem = FeedAlarm | FeedDecision | FeedAction | FeedSystem;
 
 export interface FeedResponse {
   items: FeedItem[];
-  ultimoSeq: number;
+  lastSeq: number;
 }
 
 export type ControlAction =
-  | "iniciar"
-  | "reiniciar"
-  | "pausar"
-  | "reanudar"
-  | "inyectar";
+  | "start"
+  | "reset"
+  | "pause"
+  | "resume"
+  | "inject";
 
-export interface InyectarPayload {
+export interface InjectPayload {
   elementId: string;
   metric: SensorMetric;
   value: number;
-  severidad: number;
+  severity: number;
 }
 
 export interface ControlBody {
-  accion: ControlAction;
-  /** Evento a inyectar (solo acción "inyectar") */
-  payload?: InyectarPayload;
+  action: ControlAction;
+  /** Event to inject (only for the "inject" action) */
+  payload?: InjectPayload;
 }
 
 export interface ControlResponse {
@@ -72,9 +72,9 @@ export interface ControlResponse {
 }
 
 export interface HealthResponse {
-  status: "ok" | "degradado";
+  status: "ok" | "degraded";
   tick: number;
-  pausado: boolean;
-  /** false hasta que POST /api/control {accion:"iniciar"} arranca el guion */
-  iniciado: boolean;
+  paused: boolean;
+  /** false until POST /api/control {action:"start"} starts the script */
+  started: boolean;
 }

@@ -12,7 +12,7 @@
   background: var(--bg);
 }
 
-.conectando {
+.connecting {
   height: 100svh;
   display: grid;
   place-items: center;
@@ -73,7 +73,7 @@
 
 .header__error {
   font-size: 11px;
-  color: var(--critico);
+  color: var(--critical);
 }
 
 .dot {
@@ -90,7 +90,7 @@
 }
 
 .dot--paused {
-  background: var(--degradado);
+  background: var(--degraded);
 }
 
 @keyframes pulse {
@@ -119,7 +119,7 @@
   padding: 8px 10px;
 }
 
-.inject__titulo {
+.inject__title {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -127,7 +127,7 @@
   color: var(--muted);
 }
 
-.inject__titulo kbd {
+.inject__title kbd {
   font-family: var(--mono);
   font-size: 9px;
   border: 1px solid var(--border);
@@ -136,7 +136,7 @@
   margin-left: 4px;
 }
 
-.inject__campos {
+.inject__fields {
   display: flex;
   align-items: flex-end;
   gap: 10px;
@@ -180,7 +180,7 @@
 
 .inject__error {
   font-size: 11px;
-  color: var(--critico);
+  color: var(--critical);
 }
 
 .inject__ok {
@@ -271,23 +271,23 @@
 .marker--normal {
   --c: var(--normal);
 }
-.marker--degradado {
-  --c: var(--degradado);
+.marker--degraded {
+  --c: var(--degraded);
 }
-.marker--critico {
-  --c: var(--critico);
+.marker--critical {
+  --c: var(--critical);
 }
-.marker--resuelto {
-  --c: var(--resuelto);
+.marker--resolved {
+  --c: var(--resolved);
 }
-.marker--disponible {
+.marker--available {
   --c: var(--normal);
 }
-.marker--en_transito {
+.marker--in_transit {
   --c: var(--accent);
 }
-.marker--asignado {
-  --c: var(--degradado);
+.marker--assigned {
+  --c: var(--degraded);
 }
 
 .marker--resource {
@@ -391,13 +391,13 @@
 
 /* Plan */
 
-.plan__objetivo {
+.plan__objective {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: 500;
 }
 
-.plan__pasos {
+.plan__steps {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -405,7 +405,7 @@
   gap: 5px;
 }
 
-.plan__paso {
+.plan__step {
   display: flex;
   gap: 8px;
   align-items: flex-start;
@@ -417,11 +417,11 @@
   margin-left: -5px;
 }
 
-.plan__paso.is-done {
+.plan__step.is-done {
   color: var(--text);
 }
 
-.plan__paso.is-selected {
+.plan__step.is-selected {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
@@ -443,7 +443,7 @@
   margin-top: 10px;
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--degradado);
+  color: var(--degraded);
 }
 
 /* Cards */
@@ -481,7 +481,7 @@
   margin-bottom: 5px;
 }
 
-.card__elemento {
+.card__element {
   font-size: 12px;
   font-weight: 600;
   flex: 1;
@@ -491,13 +491,13 @@
   white-space: nowrap;
 }
 
-.card__razonamiento {
+.card__reasoning {
   margin: 0;
   font-size: 12px;
   color: var(--muted);
 }
 
-.card__destino {
+.card__target {
   display: inline-block;
   margin-top: 6px;
   font-family: var(--mono);
@@ -516,19 +516,19 @@
   white-space: nowrap;
 }
 
-.badge--prioridad {
+.badge--priority {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .badge--replan {
-  color: var(--degradado);
-  background: color-mix(in srgb, var(--degradado) 14%, transparent);
-  border-color: color-mix(in srgb, var(--degradado) 40%, transparent);
+  color: var(--degraded);
+  background: color-mix(in srgb, var(--degraded) 14%, transparent);
+  border-color: color-mix(in srgb, var(--degraded) 40%, transparent);
 }
 
-.badge--ejecutada {
+.badge--executed {
   color: var(--normal);
   background: color-mix(in srgb, var(--normal) 14%, transparent);
   border-color: color-mix(in srgb, var(--normal) 40%, transparent);
@@ -568,25 +568,25 @@
   min-width: 20px;
 }
 
-.feed__titulo {
+.feed__title {
   font-size: 11px;
   font-weight: 600;
 }
 
-.feed__item--alarma .feed__titulo {
-  color: var(--critico);
+.feed__item--alarm .feed__title {
+  color: var(--critical);
 }
-.feed__item--decision .feed__titulo {
+.feed__item--decision .feed__title {
   color: var(--accent);
 }
-.feed__item--accion .feed__titulo {
+.feed__item--action .feed__title {
   color: var(--normal);
 }
-.feed__item--sistema .feed__titulo {
-  color: var(--degradado);
+.feed__item--system .feed__title {
+  color: var(--degraded);
 }
 
-.feed__detalle {
+.feed__detail {
   margin: 2px 0 0;
   font-size: 11px;
   color: var(--muted);
@@ -668,14 +668,14 @@
   --c: var(--muted);
 }
 
-.resource--disponible {
+.resource--available {
   --c: var(--normal);
 }
-.resource--en_transito {
+.resource--in_transit {
   --c: var(--accent);
 }
-.resource--asignado {
-  --c: var(--degradado);
+.resource--assigned {
+  --c: var(--degraded);
 }
 
 .resource__id {
@@ -683,14 +683,14 @@
   font-weight: 600;
 }
 
-.resource__estado {
+.resource__status {
   color: var(--c);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
 
-.resource__destino {
+.resource__target {
   color: var(--muted);
   font-family: var(--mono);
   font-size: 10px;
@@ -712,11 +712,11 @@
   border-color: var(--accent);
 }
 
-.sensor__nombre {
+.sensor__name {
   font-weight: 600;
 }
 
-.sensor__valores {
+.sensor__values {
   display: flex;
   gap: 8px;
   font-family: var(--mono);
@@ -724,7 +724,7 @@
   color: var(--muted);
 }
 
-.sensor__valores b {
+.sensor__values b {
   color: var(--text);
 }
 

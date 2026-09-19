@@ -1,90 +1,90 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parsearSince, crearFeed, type PublicacionFeed } from "../src/feed.js";
-import { cargarGuion } from "../src/guion.js";
-import { crearMundo } from "../src/mundo.js";
-import { crearSimulacion } from "../src/sim.js";
+import { parseSince, createFeed, type FeedPublication } from "../src/feed.js";
+import { loadScript } from "../src/script.js";
+import { createWorld } from "../src/world.js";
+import { createSimulation } from "../src/sim.js";
 
-test("parsearSince acepta entero no negativo y ausencia, rechaza el resto", () => {
-  assert.equal(parsearSince(undefined), 0);
-  assert.equal(parsearSince("0"), 0);
-  assert.equal(parsearSince("7"), 7);
-  assert.equal(parsearSince("-1"), null);
-  assert.equal(parsearSince("abc"), null);
-  assert.equal(parsearSince("1.5"), null);
-  assert.equal(parsearSince(""), null);
-  assert.equal(parsearSince(["1"]), null);
+test("parseSince accepts a non-negative integer and absence, rejects the rest", () => {
+  assert.equal(parseSince(undefined), 0);
+  assert.equal(parseSince("0"), 0);
+  assert.equal(parseSince("7"), 7);
+  assert.equal(parseSince("-1"), null);
+  assert.equal(parseSince("abc"), null);
+  assert.equal(parseSince("1.5"), null);
+  assert.equal(parseSince(""), null);
+  assert.equal(parseSince(["1"]), null);
 });
 
-test("el feed asigna seq monotónico y ts, y desde(since) corta sin huecos", () => {
-  const feed = crearFeed();
-  assert.equal(feed.ultimoSeq(), 0);
-  assert.deepEqual(feed.desde(0), []);
+test("the feed assigns a monotonic seq and ts, and since(since) cuts with no gaps", () => {
+  const feed = createFeed();
+  assert.equal(feed.lastSeq(), 0);
+  assert.deepEqual(feed.since(0), []);
 
-  const publicar = (mensaje: string) =>
-    feed.publicar({ kind: "sistema", mensaje } satisfies PublicacionFeed);
-  publicar("uno");
-  publicar("dos");
-  publicar("tres");
+  const publish = (message: string) =>
+    feed.publish({ kind: "system", message } satisfies FeedPublication);
+  publish("one");
+  publish("two");
+  publish("three");
 
-  const items = feed.desde(0);
+  const items = feed.since(0);
   assert.deepEqual(
     items.map((i) => i.seq),
     [1, 2, 3],
   );
   assert.ok(items.every((i) => !Number.isNaN(Date.parse(i.ts))));
   assert.deepEqual(
-    feed.desde(1).map((i) => i.seq),
+    feed.since(1).map((i) => i.seq),
     [2, 3],
   );
-  assert.deepEqual(feed.desde(3), []);
-  assert.equal(feed.ultimoSeq(), 3);
+  assert.deepEqual(feed.since(3), []);
+  assert.equal(feed.lastSeq(), 3);
 });
 
-test("la simulación publica los 5 momentos clave como sistema en orden", () => {
-  const guion = cargarGuion(
-    new URL("../../data/scripts/apagon-madrid.json", import.meta.url),
+test("the simulation publishes the 5 key moments as system items in order", () => {
+  const script = loadScript(
+    new URL("../../data/scripts/madrid-blackout.json", import.meta.url),
   );
-  const feed = crearFeed();
-  const sim = crearSimulacion(guion, Date.now(), feed, crearMundo(guion));
-  sim.iniciar(Date.now());
+  const feed = createFeed();
+  const sim = createSimulation(script, Date.now(), feed, createWorld(script));
+  sim.start(Date.now());
 
-  sim.avanzar(Date.now() + (guion.duracionSegundos + 1) * 1000);
+  sim.advance(Date.now() + (script.durationSeconds + 1) * 1000);
 
-  const notas = guion.timeline.flatMap((e) => (e.nota === undefined ? [] : [e.nota]));
-  const sistemas = feed.desde(0).filter((i) => i.kind === "sistema");
-  assert.equal(sistemas.length, 5);
+  const notes = script.timeline.flatMap((e) => (e.note === undefined ? [] : [e.note]));
+  const systemItems = feed.since(0).filter((i) => i.kind === "system");
+  assert.equal(systemItems.length, 5);
   assert.deepEqual(
-    sistemas.map((i) => (i.kind === "sistema" ? i.mensaje : "")),
-    notas,
+    systemItems.map((i) => (i.kind === "system" ? i.message : "")),
+    notes,
   );
 });
 
-test("polling por seq reconstruye el feed completo sin perder ni duplicar", () => {
-  const guion = cargarGuion(
-    new URL("../../data/scripts/apagon-madrid.json", import.meta.url),
+test("polling by seq reconstructs the whole feed without losing or duplicating", () => {
+  const script = loadScript(
+    new URL("../../data/scripts/madrid-blackout.json", import.meta.url),
   );
-  const feed = crearFeed();
-  const sim = crearSimulacion(guion, Date.now(), feed, crearMundo(guion));
-  sim.iniciar(Date.now());
+  const feed = createFeed();
+  const sim = createSimulation(script, Date.now(), feed, createWorld(script));
+  sim.start(Date.now());
 
-  // primer poll a mitad de la demo, segundo al final (acumulador por seq)
-  sim.avanzar(Date.now() + 60 * 1000);
-  const primerPoll = feed.desde(0);
-  const cursor = feed.ultimoSeq();
-  sim.avanzar(Date.now() + (guion.duracionSegundos + 1) * 1000);
-  const segundoPoll = feed.desde(cursor);
+  // first poll mid-demo, second at the end (accumulator keyed by seq)
+  sim.advance(Date.now() + 60 * 1000);
+  const firstPoll = feed.since(0);
+  const cursor = feed.lastSeq();
+  sim.advance(Date.now() + (script.durationSeconds + 1) * 1000);
+  const secondPoll = feed.since(cursor);
 
-  const seqs = [...primerPoll, ...segundoPoll].map((i) => i.seq);
-  assert.equal(feed.ultimoSeq(), seqs.length);
+  const seqs = [...firstPoll, ...secondPoll].map((i) => i.seq);
+  assert.equal(feed.lastSeq(), seqs.length);
   assert.deepEqual(seqs, Array.from({ length: seqs.length }, (_, k) => k + 1));
 
-  // toda alarma apunta a un elemento con elementId y métrica del guion
-  for (const item of feed.desde(0)) {
-    if (item.kind === "alarma") {
-      assert.ok(guion.elements.some((e) => e.id === item.elementId));
+  // every alarm points to an element with an elementId and metric from the script
+  for (const item of feed.since(0)) {
+    if (item.kind === "alarm") {
+      assert.ok(script.elements.some((e) => e.id === item.elementId));
     }
   }
-  // /api/state correlaciona con el feed vía ultimoSeq
-  assert.equal(sim.estado().ultimoSeq, feed.ultimoSeq());
+  // /api/state correlates with the feed via lastSeq
+  assert.equal(sim.state().lastSeq, feed.lastSeq());
 });

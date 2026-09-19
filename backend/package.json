@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "node --import tsx --test test/*.test.ts",
-    "rag:precarga": "tsx src/rag/precarga.ts"
+    "rag:preload": "tsx src/rag/preload.ts"
   },
   "dependencies": {
     "@swarmup/shared": "*",

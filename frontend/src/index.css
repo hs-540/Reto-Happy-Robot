@@ -8,9 +8,9 @@
   --muted: #8892a6;
   --accent: #4f9cf9;
   --normal: #22c55e;
-  --degradado: #f59e0b;
-  --critico: #ef4444;
-  --resuelto: #3b82f6;
+  --degraded: #f59e0b;
+  --critical: #ef4444;
+  --resolved: #3b82f6;
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 

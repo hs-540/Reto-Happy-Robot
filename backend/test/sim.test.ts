@@ -2,215 +2,215 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import type { FeedItem } from "@swarmup/shared";
-import { crearFeed, type Feed } from "../src/feed.js";
-import { cargarGuion, type Guion } from "../src/guion.js";
-import { crearMundo } from "../src/mundo.js";
-import { crearSimulacion, TICK_SEGUNDOS, type CierreIncidente } from "../src/sim.js";
+import { createFeed, type Feed } from "../src/feed.js";
+import { loadScript, type Script } from "../src/script.js";
+import { createWorld } from "../src/world.js";
+import { createSimulation, TICK_SECONDS, type IncidentClosure } from "../src/sim.js";
 
-const rutaGuion = fileURLToPath(new URL("../../data/scripts/apagon-madrid.json", import.meta.url));
-const INICIO_MS = Date.parse("2026-09-19T10:00:00.000Z");
-const DURACION = 300;
+const scriptPath = fileURLToPath(new URL("../../data/scripts/madrid-blackout.json", import.meta.url));
+const START_MS = Date.parse("2026-09-19T10:00:00.000Z");
+const DURATION = 300;
 
-function relojIso(seg: number): string {
-  return new Date(INICIO_MS + seg * 1000).toISOString();
+function isoClock(sec: number): string {
+  return new Date(START_MS + sec * 1000).toISOString();
 }
 
-type AlarmaEsperada = {
-  kind: "alarma";
+type ExpectedAlarm = {
+  kind: "alarm";
   elementId: string;
   metric: string;
   value: number;
-  severidad: number;
+  severity: number;
 };
-type SistemaEsperado = { kind: "sistema"; mensaje: string };
+type ExpectedSystem = { kind: "system"; message: string };
 
-function itemsEsperados(guion: Guion): (AlarmaEsperada | SistemaEsperado)[] {
-  return [...guion.timeline]
+function expectedItems(script: Script): (ExpectedAlarm | ExpectedSystem)[] {
+  return [...script.timeline]
     .sort((a, b) => a.atSeconds - b.atSeconds)
     .flatMap((ev) => {
       if (ev.kind === "narrative") {
-        return ev.nota === undefined ? [] : [{ kind: "sistema" as const, mensaje: ev.nota }];
+        return ev.note === undefined ? [] : [{ kind: "system" as const, message: ev.note }];
       }
-      const items: (AlarmaEsperada | SistemaEsperado)[] = [
+      const items: (ExpectedAlarm | ExpectedSystem)[] = [
         {
-          kind: "alarma" as const,
+          kind: "alarm" as const,
           elementId: ev.payload.elementId,
           metric: ev.payload.metric,
           value: ev.payload.value,
-          severidad: ev.payload.severidad,
+          severity: ev.payload.severity,
         },
       ];
-      if (ev.nota !== undefined) items.push({ kind: "sistema" as const, mensaje: ev.nota });
+      if (ev.note !== undefined) items.push({ kind: "system" as const, message: ev.note });
       return items;
     });
 }
 
-/** feed sin el sello del log (seq/ts): el contenido es lo reproducible */
-function contenido(items: FeedItem[]): (AlarmaEsperada | SistemaEsperado)[] {
+/** feed without the log stamp (seq/ts): the content is the reproducible part */
+function content(items: FeedItem[]): (ExpectedAlarm | ExpectedSystem)[] {
   return items.map((i) =>
-    i.kind === "alarma"
+    i.kind === "alarm"
       ? {
           kind: i.kind,
           elementId: i.elementId,
           metric: i.metric,
           value: i.value,
-          severidad: i.severidad,
+          severity: i.severity,
         }
-      : { kind: i.kind, mensaje: i.mensaje },
+      : { kind: i.kind, message: i.message },
   );
 }
 
-function simNueva(): { sim: ReturnType<typeof crearSimulacion>; feed: Feed } {
-  const feed = crearFeed();
-  const guion = cargarGuion(rutaGuion);
-  const sim = crearSimulacion(guion, INICIO_MS, feed, crearMundo(guion));
+function freshSim(): { sim: ReturnType<typeof createSimulation>; feed: Feed } {
+  const feed = createFeed();
+  const script = loadScript(scriptPath);
+  const sim = createSimulation(script, START_MS, feed, createWorld(script));
   return { sim, feed };
 }
 
-function recorrer(sim: ReturnType<typeof crearSimulacion>, hasta: number = DURACION): void {
-  for (let seg = TICK_SEGUNDOS; seg <= hasta; seg += TICK_SEGUNDOS) {
-    sim.avanzar(INICIO_MS + seg * 1000);
+function runThrough(sim: ReturnType<typeof createSimulation>, until: number = DURATION): void {
+  for (let sec = TICK_SECONDS; sec <= until; sec += TICK_SECONDS) {
+    sim.advance(START_MS + sec * 1000);
   }
 }
 
-test("sin iniciar, la simulación no avanza ni emite feed", () => {
-  const { sim, feed } = simNueva();
-  sim.avanzar(INICIO_MS + 60_000);
-  sim.avanzar(INICIO_MS + 120_000);
-  const estado = sim.estado();
-  assert.equal(estado.iniciado, false);
-  assert.equal(estado.tick, 0);
-  assert.equal(estado.relojSimulacion, relojIso(0));
-  assert.deepEqual(feed.desde(0), []);
-  assert.equal(feed.ultimoSeq(), 0);
+test("without starting, the simulation does not advance nor emit feed", () => {
+  const { sim, feed } = freshSim();
+  sim.advance(START_MS + 60_000);
+  sim.advance(START_MS + 120_000);
+  const state = sim.state();
+  assert.equal(state.started, false);
+  assert.equal(state.tick, 0);
+  assert.equal(state.simulationClock, isoClock(0));
+  assert.deepEqual(feed.since(0), []);
+  assert.equal(feed.lastSeq(), 0);
 });
 
-test("el guion de 300s genera la timeline completa en orden", () => {
-  const guion = cargarGuion(rutaGuion);
-  const { sim, feed } = simNueva();
-  sim.iniciar(INICIO_MS);
-  recorrer(sim);
+test("the 300s script generates the full timeline in order", () => {
+  const script = loadScript(scriptPath);
+  const { sim, feed } = freshSim();
+  sim.start(START_MS);
+  runThrough(sim);
 
-  const items = feed.desde(0);
-  assert.deepEqual(contenido(items), itemsEsperados(guion));
-  items.forEach((item, i) => assert.equal(item.seq, i + 1, `seq del item ${i}`));
-  assert.equal(sim.estado().ultimoSeq, items.length);
+  const items = feed.since(0);
+  assert.deepEqual(content(items), expectedItems(script));
+  items.forEach((item, i) => assert.equal(item.seq, i + 1, `seq of item ${i}`));
+  assert.equal(sim.state().lastSeq, items.length);
 });
 
-test("los 5 momentos clave ocurren en orden y en su segundo exacto", () => {
-  const guion = cargarGuion(rutaGuion);
-  const momentos = guion.timeline
-    .filter((e) => e.nota !== undefined)
+test("the 5 key moments happen in order and at their exact second", () => {
+  const script = loadScript(scriptPath);
+  const moments = script.timeline
+    .filter((e) => e.note !== undefined)
     .sort((a, b) => a.atSeconds - b.atSeconds);
-  assert.equal(momentos.length, 5);
+  assert.equal(moments.length, 5);
 
-  const { sim, feed } = simNueva();
-  sim.iniciar(INICIO_MS);
+  const { sim, feed } = freshSim();
+  sim.start(START_MS);
 
-  let publicado = 0;
-  for (const momento of momentos) {
-    sim.avanzar(INICIO_MS + momento.atSeconds * 1000);
-    const nuevos = feed.desde(publicado);
-    publicado = feed.ultimoSeq();
-    assert.ok(nuevos.length > 0, `el momento t=${momento.atSeconds}s no publicó nada`);
+  let published = 0;
+  for (const moment of moments) {
+    sim.advance(START_MS + moment.atSeconds * 1000);
+    const fresh = feed.since(published);
+    published = feed.lastSeq();
+    assert.ok(fresh.length > 0, `the moment t=${moment.atSeconds}s published nothing`);
 
-    if (momento.kind === "sensor_event") {
-      const alarma = nuevos.find(
+    if (moment.kind === "sensor_event") {
+      const alarm = fresh.find(
         (i) =>
-          i.kind === "alarma" &&
-          i.elementId === momento.payload.elementId &&
-          i.value === momento.payload.value,
+          i.kind === "alarm" &&
+          i.elementId === moment.payload.elementId &&
+          i.value === moment.payload.value,
       );
-      assert.ok(alarma, `falta la alarma del momento t=${momento.atSeconds}s`);
-      // segundo exacto según el reloj simulado
-      const elemento = sim.estado().elementos.find((e) => e.id === momento.payload.elementId);
-      assert.equal(elemento?.actualizadoEn, relojIso(momento.atSeconds));
+      assert.ok(alarm, `missing the alarm of moment t=${moment.atSeconds}s`);
+      // exact second according to the simulated clock
+      const element = sim.state().elements.find((e) => e.id === moment.payload.elementId);
+      assert.equal(element?.updatedAt, isoClock(moment.atSeconds));
     }
 
-    const ultimo = nuevos[nuevos.length - 1];
-    if (ultimo.kind !== "sistema") assert.fail("la nota del momento debe salir como sistema");
-    assert.equal(ultimo.mensaje, momento.nota);
+    const last = fresh[fresh.length - 1];
+    if (last.kind !== "system") assert.fail("the moment's note must come out as system");
+    assert.equal(last.message, moment.note);
   }
 
-  // momento 5: la subestación lleva 60s estable con tensión restaurada → incidente cerrado
-  sim.avanzar(INICIO_MS + DURACION * 1000);
-  const sub = sim.estado().elementos.find((e) => e.id === "sub-01");
-  assert.equal(sub?.status, "resuelto");
+  // moment 5: the substation has been 60s stable with restored voltage → incident closed
+  sim.advance(START_MS + DURATION * 1000);
+  const sub = sim.state().elements.find((e) => e.id === "sub-01");
+  assert.equal(sub?.status, "resolved");
 });
 
-test("reiniciar deja el estado inicial reproducible y una repetición idéntica", () => {
-  const { sim, feed } = simNueva();
-  sim.iniciar(INICIO_MS);
-  recorrer(sim);
-  const estadoFinal = sim.estado();
-  const feedFinal = contenido(feed.desde(0));
-  const seqFinal = feed.ultimoSeq();
-  assert.ok(feedFinal.length > 0);
+test("reset leaves the reproducible initial state and an identical repetition", () => {
+  const { sim, feed } = freshSim();
+  sim.start(START_MS);
+  runThrough(sim);
+  const finalState = sim.state();
+  const finalFeed = content(feed.since(0));
+  const finalSeq = feed.lastSeq();
+  assert.ok(finalFeed.length > 0);
 
-  sim.reiniciar();
-  // el cursor nunca retrocede: el acumulador del frontend no ve seq reusados
-  assert.equal(feed.ultimoSeq(), seqFinal);
-  assert.deepEqual(feed.desde(0), []);
-  // el mundo queda exactamente como uno recién creado (salvo el cursor del feed)
-  const estadoReset = sim.estado();
-  const fresco = simNueva();
-  assert.deepEqual(estadoReset, { ...fresco.sim.estado(), ultimoSeq: estadoReset.ultimoSeq });
+  sim.reset();
+  // the cursor never goes back: the frontend accumulator never sees reused seqs
+  assert.equal(feed.lastSeq(), finalSeq);
+  assert.deepEqual(feed.since(0), []);
+  // the world is left exactly like a freshly created one (except the feed cursor)
+  const resetState = sim.state();
+  const fresh = freshSim();
+  assert.deepEqual(resetState, { ...fresh.sim.state(), lastSeq: resetState.lastSeq });
 
-  sim.iniciar(INICIO_MS);
-  recorrer(sim);
-  assert.deepEqual(contenido(feed.desde(seqFinal)), feedFinal);
-  assert.deepEqual(sim.estado(), { ...estadoFinal, ultimoSeq: feed.ultimoSeq() });
+  sim.start(START_MS);
+  runThrough(sim);
+  assert.deepEqual(content(feed.since(finalSeq)), finalFeed);
+  assert.deepEqual(sim.state(), { ...finalState, lastSeq: feed.lastSeq() });
 });
 
-test("al resolverse un incidente se entrega un cierre único por elemento", () => {
-  const cierres: CierreIncidente[] = [];
-  const feed = crearFeed();
-  const guion = cargarGuion(rutaGuion);
-  const sim = crearSimulacion(
-    guion,
-    INICIO_MS,
+test("when an incident is resolved a single closure is delivered per element", () => {
+  const closures: IncidentClosure[] = [];
+  const feed = createFeed();
+  const script = loadScript(scriptPath);
+  const sim = createSimulation(
+    script,
+    START_MS,
     feed,
-    crearMundo(guion),
-    (cierre) => cierres.push(cierre),
+    createWorld(script),
+    (closure) => closures.push(closure),
   );
-  sim.iniciar(INICIO_MS);
-  recorrer(sim);
+  sim.start(START_MS);
+  runThrough(sim);
 
-  // momento 5: solo la subestación alcanza `resuelto` dentro del guion (estable desde t=240)
-  assert.deepEqual(cierres.map((c) => c.elementoId), ["sub-01"]);
-  assert.equal(cierres[0].tipo, "subestacion");
-  assert.equal(cierres[0].severidadMaxima, 90);
+  // moment 5: only the substation reaches `resolved` within the script (stable since t=240)
+  assert.deepEqual(closures.map((c) => c.elementId), ["sub-01"]);
+  assert.equal(closures[0].type, "substation");
+  assert.equal(closures[0].maxSeverity, 90);
 
-  // el datacenter cierra al cumplir su propia estabilidad; la subestación no se repite
-  sim.avanzar(INICIO_MS + 325 * 1000);
-  assert.deepEqual(cierres.map((c) => c.elementoId), ["sub-01", "dc-01"]);
+  // the datacenter closes once it reaches its own stability; the substation is not repeated
+  sim.advance(START_MS + 325 * 1000);
+  assert.deepEqual(closures.map((c) => c.elementId), ["sub-01", "dc-01"]);
 });
 
-test("inyectar aplica un sensor event inmediato y lo emite en el feed", () => {
-  const { sim, feed } = simNueva();
-  sim.iniciar(INICIO_MS);
-  sim.avanzar(INICIO_MS + 10_000);
-  const seqAntes = feed.ultimoSeq();
+test("inject applies an immediate sensor event and emits it in the feed", () => {
+  const { sim, feed } = freshSim();
+  sim.start(START_MS);
+  sim.advance(START_MS + 10_000);
+  const seqBefore = feed.lastSeq();
 
-  sim.inyectar({ elementId: "dc-01", metric: "temperatura", value: 55, severidad: 80 });
+  sim.inject({ elementId: "dc-01", metric: "temperature", value: 55, severity: 80 });
 
-  const dc = sim.estado().elementos.find((e) => e.id === "dc-01");
-  assert.equal(dc?.sensores.temperatura, 55);
-  assert.equal(dc?.severidad, 80);
-  assert.equal(dc?.status, "critico");
-  assert.equal(dc?.actualizadoEn, relojIso(10));
+  const dc = sim.state().elements.find((e) => e.id === "dc-01");
+  assert.equal(dc?.sensors.temperature, 55);
+  assert.equal(dc?.severity, 80);
+  assert.equal(dc?.status, "critical");
+  assert.equal(dc?.updatedAt, isoClock(10));
 
-  const nuevos = feed.desde(seqAntes);
-  assert.equal(nuevos.length, 1);
-  const item = nuevos[0];
-  if (item.kind !== "alarma") assert.fail("la inyección debe emitir una alarma");
+  const fresh = feed.since(seqBefore);
+  assert.equal(fresh.length, 1);
+  const item = fresh[0];
+  if (item.kind !== "alarm") assert.fail("the injection must emit an alarm");
   assert.equal(item.elementId, "dc-01");
-  assert.equal(item.metric, "temperatura");
+  assert.equal(item.metric, "temperature");
   assert.equal(item.value, 55);
-  assert.equal(item.severidad, 80);
+  assert.equal(item.severity, 80);
 
   assert.throws(
-    () => sim.inyectar({ elementId: "no-existe", metric: "temperatura", value: 1, severidad: 1 }),
-    /desconocido/,
+    () => sim.inject({ elementId: "does-not-exist", metric: "temperature", value: 1, severity: 1 }),
+    /unknown/,
   );
 });

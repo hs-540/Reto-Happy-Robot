@@ -2,28 +2,28 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ChromaClient } from "chromadb";
 
-/** El arranque del servidor local puede tardar: da margen a la primera indexación del disco */
-const ARRANQUE_TIMEOUT_MS = 15_000;
-const SONDEO_MS = 250;
+/** The local server startup can be slow: give it margin for the first disk indexing */
+const STARTUP_TIMEOUT_MS = 15_000;
+const POLL_MS = 250;
 
-export interface ChromaLocal {
-  cliente: ChromaClient;
-  /** Detiene el servidor solo si lo arrancó este proceso; si reutilizó uno, no lo toca */
-  parar(): Promise<void>;
+export interface LocalChroma {
+  client: ChromaClient;
+  /** Stops the server only if this process started it; if it reused one, it leaves it alone */
+  stop(): Promise<void>;
 }
 
-export interface OpcionesChroma {
-  ruta: string;
-  puerto: number;
+export interface ChromaOptions {
+  path: string;
+  port: number;
 }
 
-function dormir(ms: number): Promise<void> {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function latido(puerto: number): Promise<boolean> {
+async function heartbeat(port: number): Promise<boolean> {
   try {
-    const res = await fetch(`http://localhost:${puerto}/api/v2/heartbeat`, {
+    const res = await fetch(`http://localhost:${port}/api/v2/heartbeat`, {
       signal: AbortSignal.timeout(1_000),
     });
     return res.ok;
@@ -32,86 +32,86 @@ async function latido(puerto: number): Promise<boolean> {
   }
 }
 
-/** chromadb solo exporta su entrada ("."), y el CLI del servidor vive junto a ella */
-function rutaCli(): string {
-  const entrada = fileURLToPath(import.meta.resolve("chromadb"));
-  return entrada.replace(/chromadb\.mjs$/, "cli.mjs");
+/** chromadb only exports its entry point ("."), and the server CLI lives next to it */
+function cliPath(): string {
+  const entry = fileURLToPath(import.meta.resolve("chromadb"));
+  return entry.replace(/chromadb\.mjs$/, "cli.mjs");
 }
 
-let hijoActual: ChildProcess | null = null;
+let currentChild: ChildProcess | null = null;
 
-function alSalir(): void {
-  if (hijoActual?.exitCode === null) hijoActual.kill("SIGKILL");
+function onExit(): void {
+  if (currentChild?.exitCode === null) currentChild.kill("SIGKILL");
 }
 
-function adjuntarHijo(hijo: ChildProcess): void {
-  hijoActual = hijo;
-  const errores = hijo.stderr;
-  if (errores) {
-    errores.setEncoding("utf8");
-    errores.on("data", (trozo: string) => {
-      for (const linea of trozo.split("\n")) {
-        if (linea.trim()) console.error(`[chroma] ${linea.trim()}`);
+function attachChild(child: ChildProcess): void {
+  currentChild = child;
+  const errors = child.stderr;
+  if (errors) {
+    errors.setEncoding("utf8");
+    errors.on("data", (chunk: string) => {
+      for (const line of chunk.split("\n")) {
+        if (line.trim()) console.error(`[chroma] ${line.trim()}`);
       }
     });
   }
-  if (hijo === hijoActual) {
-    process.once("exit", alSalir);
+  if (child === currentChild) {
+    process.once("exit", onExit);
     process.once("SIGINT", () => process.exit(130));
     process.once("SIGTERM", () => process.exit(143));
   }
 }
 
-async function detener(hijo: ChildProcess): Promise<void> {
-  if (hijo.exitCode !== null) return;
-  hijo.kill("SIGTERM");
-  for (let i = 0; i < 10 && hijo.exitCode === null; i++) await dormir(300);
-  if (hijo.exitCode === null) hijo.kill("SIGKILL");
-  await new Promise<void>((resolve) => hijo.once("exit", () => resolve()));
+async function terminate(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null) return;
+  child.kill("SIGTERM");
+  for (let i = 0; i < 10 && child.exitCode === null; i++) await sleep(300);
+  if (child.exitCode === null) child.kill("SIGKILL");
+  await new Promise<void>((resolve) => child.once("exit", () => resolve()));
 }
 
 /**
- * Servidor Chroma local y persistido en disco (DESIGN.md "Aprendizaje entre
- * ejecuciones"): reutiliza uno ya presente en el puerto o arranca el CLI que
- * distribuye el propio paquete `chromadb`, con `--path` desde config.
+ * Local, disk-persisted Chroma server (DESIGN.md "Learning between runs"):
+ * reuses one already listening on the port or starts the CLI shipped by the
+ * `chromadb` package itself, with `--path` from config.
  */
-export async function arrancarChroma(opciones: OpcionesChroma): Promise<ChromaLocal> {
-  const { ruta, puerto } = opciones;
+export async function startChroma(options: ChromaOptions): Promise<LocalChroma> {
+  const { path, port } = options;
 
-  if (await latido(puerto)) {
-    console.log(`[chroma] reutilizando el servidor ya presente en el puerto ${puerto}`);
-    return { cliente: new ChromaClient({ host: "localhost", port: puerto }), parar: async () => {} };
+  if (await heartbeat(port)) {
+    console.log(`[chroma] reusing the server already listening on port ${port}`);
+    return { client: new ChromaClient({ host: "localhost", port }), stop: async () => {} };
   }
 
-  // sin wrapper (npx/npm): el PID del hijo debe ser el del servidor para poder pararlo
-  const hijo = spawn(
+  // no wrapper (npx/npm): the child PID must be the server's so we can stop it
+  const child = spawn(
     process.execPath,
-    [rutaCli(), "run", "--path", ruta, "--port", String(puerto)],
+    [cliPath(), "run", "--path", path, "--port", String(port)],
     { stdio: ["ignore", "ignore", "pipe"] },
   );
-  adjuntarHijo(hijo);
+  attachChild(child);
 
-  const inicio = Date.now();
-  while (Date.now() - inicio < ARRANQUE_TIMEOUT_MS) {
-    if (await latido(puerto)) {
-      console.log(`[chroma] servidor local en el puerto ${puerto}, datos en ${ruta}`);
+  const start = Date.now();
+  while (Date.now() - start < STARTUP_TIMEOUT_MS) {
+    if (await heartbeat(port)) {
+      console.log(`[chroma] local server on port ${port}, data at ${path}`);
       return {
-        cliente: new ChromaClient({ host: "localhost", port: puerto }),
-        parar: () => detener(hijo),
+        client: new ChromaClient({ host: "localhost", port }),
+        stop: () => terminate(child),
       };
     }
-    if (hijo.exitCode !== null) {
-      // otro proceso pudo ganar la carrera por el puerto mientras fallaba el nuestro
-      if (await latido(puerto)) {
-        console.log(`[chroma] reutilizando el servidor ya presente en el puerto ${puerto}`);
+    if (child.exitCode !== null) {
+      // another process may have won the race for the port while ours was failing
+      if (await heartbeat(port)) {
+        console.log(`[chroma] reusing the server already listening on port ${port}`);
         return {
-          cliente: new ChromaClient({ host: "localhost", port: puerto }),
-          parar: async () => {},
+          client: new ChromaClient({ host: "localhost", port }),
+          stop: async () => {},
         };
       }
-      throw new Error(`el servidor Chroma murió al arrancar (código ${hijo.exitCode})`);
+      throw new Error(`the Chroma server died on startup (exit code ${child.exitCode})`);
     }
-    await dormir(SONDEO_MS);
+    await sleep(POLL_MS);
   }
-  throw new Error(`el servidor Chroma no respondió en el puerto ${puerto} tras 15 s`);
+  throw new Error(`the Chroma server did not answer on port ${port} within 15 s`);
 }

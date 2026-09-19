@@ -1,40 +1,40 @@
-import type { ElementoGuion, RecursoGuion, SensorEvent } from "./guion.js";
+import type { ScriptElement, ScriptResource, SensorEvent } from "./script.js";
 
-/* Primitivas derivadas de los esquemas de data/ (fuente única en guion.ts) */
-export type ElementType = ElementoGuion["type"];
+/* Primitives derived from the data/ schemas (single source in script.ts) */
+export type ElementType = ScriptElement["type"];
 
-export type ElementStatus = ElementoGuion["status"];
+export type ElementStatus = ScriptElement["status"];
 
 export type SensorMetric = SensorEvent["metric"];
 
-export type ResourceType = RecursoGuion["type"];
+export type ResourceType = ScriptResource["type"];
 
-export type ResourceStatus = RecursoGuion["status"];
+export type ResourceStatus = ScriptResource["status"];
 
-export type ElementTopology = Omit<ElementoGuion, "status">;
+export type ElementTopology = Omit<ScriptElement, "status">;
 
-export type ResourceTopology = Omit<RecursoGuion, "status" | "assignedElementId">;
+export type ResourceTopology = Omit<ScriptResource, "status" | "assignedElementId">;
 
-export interface GuionMoment {
+export interface ScriptMoment {
   atSeconds: number;
-  titulo: string;
+  title: string;
 }
 
 export interface TopologyView {
   crisis: {
-    titulo: string;
-    duracionSegundos: number;
-    momentos: GuionMoment[];
+    title: string;
+    durationSeconds: number;
+    moments: ScriptMoment[];
   };
-  elementos: ElementTopology[];
-  recursos: ResourceTopology[];
+  elements: ElementTopology[];
+  resources: ResourceTopology[];
 }
 
 export type AttentionState =
-  | "sin_atencion"
-  | "analizando"
-  | "recurso_asignado"
-  | "resuelto";
+  | "unattended"
+  | "analyzing"
+  | "resource_assigned"
+  | "resolved";
 
 export interface ElementView {
   id: string;
@@ -43,15 +43,15 @@ export interface ElementView {
   lat: number;
   lng: number;
   status: ElementStatus;
-  /** 0-100, derivada de los sensores en backend */
-  severidad: number;
-  sensores: Partial<Record<SensorMetric, number>>;
-  atencion: {
-    estado: AttentionState;
-    recursoId: string | null;
-    decisionActivaId: string | null;
+  /** 0-100, derived from sensors in the backend */
+  severity: number;
+  sensors: Partial<Record<SensorMetric, number>>;
+  attention: {
+    state: AttentionState;
+    resourceId: string | null;
+    activeDecisionId: string | null;
   };
-  actualizadoEn: string;
+  updatedAt: string;
 }
 
 export interface ResourceView {
@@ -65,13 +65,13 @@ export interface ResourceView {
 
 export interface StateView {
   tick: number;
-  pausado: boolean;
-  /** false hasta que el guion arranca vía POST /api/control {accion:"iniciar"} */
-  iniciado: boolean;
-  /** Instante simulado, ISO 8601 */
-  relojSimulacion: string;
-  /** Último seq emitido en el feed; correlaciona /api/state con /api/feed */
-  ultimoSeq: number;
-  elementos: ElementView[];
-  recursos: ResourceView[];
+  paused: boolean;
+  /** false until the script starts via POST /api/control {action:"start"} */
+  started: boolean;
+  /** Simulated instant, ISO 8601 */
+  simulationClock: string;
+  /** Last seq emitted in the feed; correlates /api/state with /api/feed */
+  lastSeq: number;
+  elements: ElementView[];
+  resources: ResourceView[];
 }

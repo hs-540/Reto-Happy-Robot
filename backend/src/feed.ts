@@ -1,44 +1,44 @@
 import type { FeedItem } from "@swarmup/shared";
 
-/** FeedItem sin el sello del log: `seq` y `ts` los asigna el feed al publicar */
-type SinSello<T> = T extends unknown ? Omit<T, "seq" | "ts"> : never;
-export type PublicacionFeed = SinSello<FeedItem>;
+/** FeedItem without the log stamp: `seq` and `ts` are assigned by the feed on publish */
+type Unstamped<T> = T extends unknown ? Omit<T, "seq" | "ts"> : never;
+export type FeedPublication = Unstamped<FeedItem>;
 
 export interface Feed {
-  publicar(item: PublicacionFeed): void;
-  /** ítems con `seq > since` (contrato CONTRACT.md: sin `since` → feed completo) */
-  desde(since: number): FeedItem[];
-  ultimoSeq(): number;
-  /** Vacía los ítems del run anterior; el contador sigue monotónico para no romper el acumulador por `seq` */
-  reiniciar(): void;
+  publish(item: FeedPublication): void;
+  /** items with `seq > since` (CONTRACT.md: no `since` → full feed) */
+  since(since: number): FeedItem[];
+  lastSeq(): number;
+  /** Clears the previous run's items; the counter stays monotonic so the client-side accumulator keyed by `seq` does not break */
+  reset(): void;
 }
 
 /**
- * La retención guarda la demo completa en memoria: 4-5 min de guion son ~15
- * ítems, así que recortar la cola rompería el polling por `since` sin beneficio.
+ * Retention keeps the whole demo in memory: 4-5 min of script is ~15 items, so
+ * trimming the queue would break the `since` polling with no upside.
  */
-export function crearFeed(): Feed {
+export function createFeed(): Feed {
   const items: FeedItem[] = [];
-  let ultimo = 0;
+  let last = 0;
   return {
-    publicar(item) {
-      ultimo += 1;
-      items.push({ ...item, seq: ultimo, ts: new Date().toISOString() });
+    publish(item) {
+      last += 1;
+      items.push({ ...item, seq: last, ts: new Date().toISOString() });
     },
-    desde(since) {
+    since(since) {
       return items.filter((item) => item.seq > since);
     },
-    ultimoSeq() {
-      return ultimo;
+    lastSeq() {
+      return last;
     },
-    reiniciar() {
+    reset() {
       items.length = 0;
     },
   };
 }
 
-/** `since` ausente → 0 (todo el feed); inválido → null (el route responde 400) */
-export function parsearSince(raw: unknown): number | null {
+/** missing `since` → 0 (whole feed); invalid → null (the route answers 400) */
+export function parseSince(raw: unknown): number | null {
   if (raw === undefined) return 0;
   if (typeof raw !== "string" || !/^\d+$/.test(raw)) return null;
   return Number(raw);

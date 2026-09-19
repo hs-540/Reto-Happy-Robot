@@ -13,7 +13,7 @@ Open a pull request for the current branch against `main`, using `gh`, kept cons
 
 - `type`: one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `style`, `perf`, `ci`, `build` — same set used by the `commiting`/`branching-setup` skills, pick the one that best matches the overall change.
 - `message`: imperative, lowercase, in **English**, under ~70 characters.
-- Keep domain/business terms (e.g. `apagón-madrid`, `subestación`) in their original language — do not translate them.
+- Write the title fully in English, consistent with the repo's English-only rule.
 
 ## PR body format
 
@@ -51,5 +51,5 @@ Open a pull request for the current branch against `main`, using `gh`, kept cons
 
 - `feat: add booking confirmation endpoint`
 - `fix: prevent duplicate incidente entries`
-- `docs: document apagón-madrid scenario`
+- `docs: document madrid-blackout scenario`
 - `chore: add branching-setup skill`

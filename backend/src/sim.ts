@@ -2,268 +2,268 @@ import type {
   ElementStatus,
   ElementType,
   ElementView,
-  InyectarPayload,
+  InjectPayload,
   SensorMetric,
   StateView,
 } from "@swarmup/shared";
 import {
-  SEGUNDOS_ESTABLE_RESUELTO,
-  TENSION_ESTABLE_RESUELTO,
-  derivarStatus,
+  RESOLVED_STABLE_SECONDS,
+  RESOLVED_STABLE_VOLTAGE,
+  deriveStatus,
 } from "@swarmup/shared";
-import type { Guion, GuionEvento } from "./guion.js";
+import type { Script, ScriptEvent } from "./script.js";
 import type { Feed } from "./feed.js";
-import type { Mundo } from "./mundo.js";
+import type { World } from "./world.js";
 
-/** Cadencia del motor de decisión (DESIGN.md): tick cada 5-10s */
-export const TICK_SEGUNDOS = 5;
+/** Decision engine cadence (DESIGN.md): tick every 5-10s */
+export const TICK_SECONDS = 5;
 
-/** Retraso que sufre la cuadrilla en el momento 4 del guion */
-const RETRASO_ETA_SEG = 60;
+/** Delay suffered by the crew at moment 4 of the script */
+const ETA_DELAY_SECONDS = 60;
 
-interface EstadoElemento {
-  severidad: number;
-  /** máxima severidad alcanzada durante el incidente, para el registro histórico */
-  severidadMaxima: number;
-  sensores: Partial<Record<SensorMetric, number>>;
-  /** segundo simulado en el que el elemento entró en status normal (null si no está normal) */
-  normalDesde: number | null;
-  tuvoIncidente: boolean;
-  /** el cierre del incidente ya se entregó a `alResolver` */
-  registrado: boolean;
-  /** segundo simulado del último evento recibido */
-  actualizadoEn: number;
+interface ElementState {
+  severity: number;
+  /** maximum severity reached during the incident, for the historical record */
+  maxSeverity: number;
+  sensors: Partial<Record<SensorMetric, number>>;
+  /** simulated second the element entered normal status (null if not normal) */
+  normalSince: number | null;
+  hadIncident: boolean;
+  /** the incident closure was already handed to `onResolved` */
+  reported: boolean;
+  /** simulated second of the last received event */
+  updatedAt: number;
 }
 
-/** Datos observables del cierre de un incidente (momento en que el elemento queda `resuelto`) */
-export interface CierreIncidente {
-  elementoId: string;
-  tipo: ElementType;
-  nombre: string;
-  severidadMaxima: number;
-  reloj: string;
+/** Observable data of an incident closure (the moment the element becomes `resolved`) */
+export interface IncidentClosure {
+  elementId: string;
+  type: ElementType;
+  name: string;
+  maxSeverity: number;
+  clock: string;
 }
 
-export interface Simulacion {
-  /** Avanza el reloj hasta `ahoraMs` y aplica los eventos vencidos del guion */
-  avanzar(ahoraMs: number): void;
-  /** Arranca el guion en `ahoraMs` (sin efecto si ya está en marcha) */
-  iniciar(ahoraMs: number): void;
-  /** Vuelve al estado inicial reproducible y detiene el guion */
-  reiniciar(): void;
-  pausar(): void;
-  reanudar(): void;
-  /** Modo híbrido: aplica un sensor event de emergencia en el segundo simulado actual */
-  inyectar(payload: InyectarPayload): void;
-  estado(): StateView;
+export interface Simulation {
+  /** Advances the clock up to `nowMs` and applies the script's due events */
+  advance(nowMs: number): void;
+  /** Starts the script at `nowMs` (no effect if already running) */
+  start(nowMs: number): void;
+  /** Back to the reproducible initial state and stops the script */
+  reset(): void;
+  pause(): void;
+  resume(): void;
+  /** Hybrid mode: applies an emergency sensor event at the current simulated second */
+  inject(payload: InjectPayload): void;
+  state(): StateView;
   tick(): number;
-  /** Segundo simulado actual; lo consume `mundo.avanzar` */
-  segundos(): number;
-  readonly pausado: boolean;
-  readonly iniciado: boolean;
+  /** Current simulated second; consumed by `world.advance` */
+  seconds(): number;
+  readonly paused: boolean;
+  readonly started: boolean;
 }
 
-export function crearSimulacion(
-  guion: Guion,
-  inicioMs: number,
+export function createSimulation(
+  script: Script,
+  startMs: number,
   feed: Feed,
-  mundo: Mundo,
-  alResolver?: (cierre: CierreIncidente) => void,
-): Simulacion {
-  const timeline = [...guion.timeline].sort((a, b) => a.atSeconds - b.atSeconds);
-  let siguiente = 0;
-  let segundos = 0;
-  let ultimoMs = inicioMs;
-  let pausado = false;
-  let iniciado = false;
-  let inyecciones = 0;
+  world: World,
+  onResolved?: (closure: IncidentClosure) => void,
+): Simulation {
+  const timeline = [...script.timeline].sort((a, b) => a.atSeconds - b.atSeconds);
+  let next = 0;
+  let seconds = 0;
+  let lastMs = startMs;
+  let paused = false;
+  let started = false;
+  let injections = 0;
 
-  const elementos = new Map<string, EstadoElemento>();
+  const elements = new Map<string, ElementState>();
 
-  function sembrarElementos(): void {
-    elementos.clear();
-    for (const e of guion.elements) {
-      elementos.set(e.id, {
-        severidad: 0,
-        severidadMaxima: 0,
-        sensores: {},
-        normalDesde: 0,
-        tuvoIncidente: false,
-        registrado: false,
-        actualizadoEn: 0,
+  function seedElements(): void {
+    elements.clear();
+    for (const e of script.elements) {
+      elements.set(e.id, {
+        severity: 0,
+        maxSeverity: 0,
+        sensors: {},
+        normalSince: 0,
+        hadIncident: false,
+        reported: false,
+        updatedAt: 0,
       });
     }
   }
-  sembrarElementos();
+  seedElements();
 
-  function estadoDe(id: string): EstadoElemento {
-    const estado = elementos.get(id);
-    if (!estado) throw new Error(`evento para elemento desconocido: ${id}`);
-    return estado;
+  function stateOf(id: string): ElementState {
+    const state = elements.get(id);
+    if (!state) throw new Error(`event for unknown element: ${id}`);
+    return state;
   }
 
-  function relojIso(seg: number): string {
-    return new Date(inicioMs + seg * 1000).toISOString();
+  function isoClock(sec: number): string {
+    return new Date(startMs + sec * 1000).toISOString();
   }
 
-  function aplicarEvento(ev: GuionEvento): void {
+  function applyEvent(ev: ScriptEvent): void {
     if (ev.kind === "narrative") {
-      if (ev.nota !== undefined) {
-        feed.publicar({ kind: "sistema", mensaje: ev.nota });
+      if (ev.note !== undefined) {
+        feed.publish({ kind: "system", message: ev.note });
       }
-      if (ev.payload.evento !== "eta_incumplida" || ev.payload.resourceId === undefined) return;
-      // momento 4 del guion: la cuadrilla no llega a tiempo. El mundo alarga su
-      // trayecto y emite el trigger de replanificación en el siguiente tick.
-      mundo.retrasar(ev.payload.resourceId, RETRASO_ETA_SEG);
+      if (ev.payload.event !== "eta_missed" || ev.payload.resourceId === undefined) return;
+      // moment 4 of the script: the crew does not arrive in time. The world
+      // extends its route and emits the replan trigger on the next tick.
+      world.delay(ev.payload.resourceId, ETA_DELAY_SECONDS);
       return;
     }
-    const estado = estadoDe(ev.payload.elementId);
-    estado.severidad = ev.payload.severidad;
-    estado.sensores[ev.payload.metric] = ev.payload.value;
-    estado.actualizadoEn = ev.atSeconds;
-    if (ev.payload.severidad > estado.severidadMaxima) {
-      estado.severidadMaxima = ev.payload.severidad;
+    const state = stateOf(ev.payload.elementId);
+    state.severity = ev.payload.severity;
+    state.sensors[ev.payload.metric] = ev.payload.value;
+    state.updatedAt = ev.atSeconds;
+    if (ev.payload.severity > state.maxSeverity) {
+      state.maxSeverity = ev.payload.severity;
     }
-    if (derivarStatus(estado.severidad) === "normal") {
-      if (estado.normalDesde === null) estado.normalDesde = ev.atSeconds;
+    if (deriveStatus(state.severity) === "normal") {
+      if (state.normalSince === null) state.normalSince = ev.atSeconds;
     } else {
-      estado.normalDesde = null;
-      estado.tuvoIncidente = true;
+      state.normalSince = null;
+      state.hadIncident = true;
     }
-    feed.publicar({
-      kind: "alarma",
+    feed.publish({
+      kind: "alarm",
       elementId: ev.payload.elementId,
       metric: ev.payload.metric,
       value: ev.payload.value,
-      severidad: ev.payload.severidad,
+      severity: ev.payload.severity,
     });
-    // los momentos clave del guion son el marco narrativo de la demo
-    if (ev.nota !== undefined) {
-      feed.publicar({ kind: "sistema", mensaje: ev.nota });
+    // the key moments of the script are the demo's narrative frame
+    if (ev.note !== undefined) {
+      feed.publish({ kind: "system", message: ev.note });
     }
   }
 
-  function statusDe(estado: EstadoElemento): ElementStatus {
-    // hist-sub-002: una restauración parcial engaña; `resuelto` exige estabilidad
-    // sostenida y, si el elemento reporta tensión de red, que esté restaurada
+  function statusOf(state: ElementState): ElementStatus {
+    // hist-sub-002: a partial restoration misleads; `resolved` demands sustained
+    // stability and, if the element reports grid voltage, that it is restored
     if (
-      estado.tuvoIncidente &&
-      estado.normalDesde !== null &&
-      segundos - estado.normalDesde >= SEGUNDOS_ESTABLE_RESUELTO
+      state.hadIncident &&
+      state.normalSince !== null &&
+      seconds - state.normalSince >= RESOLVED_STABLE_SECONDS
     ) {
-      const tension = estado.sensores.tension_red;
-      if (tension === undefined || tension >= TENSION_ESTABLE_RESUELTO) return "resuelto";
+      const voltage = state.sensors.grid_voltage;
+      if (voltage === undefined || voltage >= RESOLVED_STABLE_VOLTAGE) return "resolved";
     }
-    return derivarStatus(estado.severidad);
+    return deriveStatus(state.severity);
   }
 
-  /** Cierre del bucle (DESIGN.md): cada elemento que pasa a `resuelto` se entrega una sola vez */
-  function registrarResueltos(): void {
-    for (const e of guion.elements) {
-      const estado = estadoDe(e.id);
-      if (estado.registrado || !estado.tuvoIncidente || statusDe(estado) !== "resuelto") continue;
-      estado.registrado = true;
-      if (!alResolver) continue;
-      alResolver({
-        elementoId: e.id,
-        tipo: e.type,
-        nombre: e.name,
-        severidadMaxima: Math.round(estado.severidadMaxima),
-        reloj: relojIso(segundos),
+  /** Loop closure (DESIGN.md): every element that becomes `resolved` is handed over exactly once */
+  function reportResolved(): void {
+    for (const e of script.elements) {
+      const state = stateOf(e.id);
+      if (state.reported || !state.hadIncident || statusOf(state) !== "resolved") continue;
+      state.reported = true;
+      if (!onResolved) continue;
+      onResolved({
+        elementId: e.id,
+        type: e.type,
+        name: e.name,
+        maxSeverity: Math.round(state.maxSeverity),
+        clock: isoClock(seconds),
       });
     }
   }
 
   return {
-    avanzar(ahoraMs: number): void {
-      if (!iniciado) {
-        ultimoMs = ahoraMs;
+    advance(nowMs: number): void {
+      if (!started) {
+        lastMs = nowMs;
         return;
       }
-      const deltaMs = ahoraMs - ultimoMs;
-      ultimoMs = ahoraMs;
-      if (!pausado) segundos += deltaMs / 1000;
-      while (siguiente < timeline.length && timeline[siguiente].atSeconds <= segundos) {
-        aplicarEvento(timeline[siguiente]);
-        siguiente++;
+      const deltaMs = nowMs - lastMs;
+      lastMs = nowMs;
+      if (!paused) seconds += deltaMs / 1000;
+      while (next < timeline.length && timeline[next].atSeconds <= seconds) {
+        applyEvent(timeline[next]);
+        next++;
       }
-      registrarResueltos();
+      reportResolved();
     },
-    iniciar(ahoraMs: number): void {
-      if (iniciado) return;
-      iniciado = true;
-      pausado = false;
-      ultimoMs = ahoraMs;
+    start(nowMs: number): void {
+      if (started) return;
+      started = true;
+      paused = false;
+      lastMs = nowMs;
     },
-    reiniciar(): void {
-      siguiente = 0;
-      segundos = 0;
-      pausado = false;
-      iniciado = false;
-      feed.reiniciar();
-      inyecciones = 0;
-      sembrarElementos();
-      mundo.reiniciar();
+    reset(): void {
+      next = 0;
+      seconds = 0;
+      paused = false;
+      started = false;
+      feed.reset();
+      injections = 0;
+      seedElements();
+      world.reset();
     },
-    pausar(): void {
-      pausado = true;
+    pause(): void {
+      paused = true;
     },
-    reanudar(): void {
-      pausado = false;
+    resume(): void {
+      paused = false;
     },
-    inyectar(payload: InyectarPayload): void {
-      inyecciones++;
-      aplicarEvento({
-        atSeconds: segundos,
+    inject(payload: InjectPayload): void {
+      injections++;
+      applyEvent({
+        atSeconds: seconds,
         kind: "sensor_event",
         payload: {
-          id: `inyeccion-${inyecciones}`,
+          id: `injection-${injections}`,
           elementId: payload.elementId,
           metric: payload.metric,
           value: payload.value,
-          severidad: payload.severidad,
+          severity: payload.severity,
         },
       });
     },
-    estado(): StateView {
-      const vistas: ElementView[] = guion.elements.map((e) => {
-        const estado = estadoDe(e.id);
+    state(): StateView {
+      const views: ElementView[] = script.elements.map((e) => {
+        const state = stateOf(e.id);
         return {
           id: e.id,
           type: e.type,
           name: e.name,
           lat: e.lat,
           lng: e.lng,
-          status: statusDe(estado),
-          severidad: Math.round(estado.severidad),
-          sensores: { ...estado.sensores },
-          // decisiones stub en este skeleton: el motor real es scope de B
-          atencion: { estado: "sin_atencion", recursoId: null, decisionActivaId: null },
-          actualizadoEn: relojIso(estado.actualizadoEn),
+          status: statusOf(state),
+          severity: Math.round(state.severity),
+          sensors: { ...state.sensors },
+          // stub attention in this skeleton: the real engine is scope of B
+          attention: { state: "unattended", resourceId: null, activeDecisionId: null },
+          updatedAt: isoClock(state.updatedAt),
         };
       });
       return {
-        tick: Math.floor(segundos / TICK_SEGUNDOS),
-        pausado,
-        iniciado,
-        relojSimulacion: relojIso(segundos),
-        ultimoSeq: feed.ultimoSeq(),
-        elementos: vistas,
-        // los recursos los posee `mundo`: estado físico, posición y trayectos
-        recursos: mundo.recursos(),
+        tick: Math.floor(seconds / TICK_SECONDS),
+        paused,
+        started,
+        simulationClock: isoClock(seconds),
+        lastSeq: feed.lastSeq(),
+        elements: views,
+        // resources are owned by `world`: physical state, position and routes
+        resources: world.resources(),
       };
     },
     tick(): number {
-      return Math.floor(segundos / TICK_SEGUNDOS);
+      return Math.floor(seconds / TICK_SECONDS);
     },
-    segundos(): number {
-      return segundos;
+    seconds(): number {
+      return seconds;
     },
-    get pausado(): boolean {
-      return pausado;
+    get paused(): boolean {
+      return paused;
     },
-    get iniciado(): boolean {
-      return iniciado;
+    get started(): boolean {
+      return started;
     },
   };
 }

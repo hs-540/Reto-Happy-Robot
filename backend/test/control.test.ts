@@ -1,57 +1,57 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { crearRegistroAcciones, esquemaControl } from "../src/control.js";
-import { crearFeed } from "../src/feed.js";
+import { createActionRegistry, controlSchema } from "../src/control.js";
+import { createFeed } from "../src/feed.js";
 
-function montar() {
-  const feed = crearFeed();
-  const registro = crearRegistroAcciones(feed);
-  const proponerLlamada = () =>
-    registro.proponer({
-      type: "llamada_voz",
+function setup() {
+  const feed = createFeed();
+  const registry = createActionRegistry(feed);
+  const proposeCall = () =>
+    registry.record({
+      type: "voice_call",
       targetElementId: "hosp-01",
-      destinatario: "responsable_hospital",
-      mensaje: "Cortaremos suministro 10 min para conectar el generador.",
+      recipient: "hospital_manager",
+      message: "We will cut power for 10 min to connect the generator.",
     });
-  return { feed, registro, proponerLlamada };
+  return { feed, registry, proposeCall };
 }
 
-function estadosDeAccion(feed: ReturnType<typeof crearFeed>): string[] {
+function actionStatuses(feed: ReturnType<typeof createFeed>): string[] {
   return feed
-    .desde(0)
-    .filter((i) => i.kind === "accion")
-    .map((i) => (i.kind === "accion" ? i.estado : ""));
+    .since(0)
+    .filter((i) => i.kind === "action")
+    .map((i) => (i.kind === "action" ? i.status : ""));
 }
 
-test("toda acción se registra ya ejecutada, sin gate humano", () => {
-  const { feed, registro, proponerLlamada } = montar();
+test("every action is recorded as already executed, no human gate", () => {
+  const { feed, proposeCall } = setup();
 
-  const accion = proponerLlamada();
-  assert.equal(accion.status, "ejecutada");
-  assert.ok(accion.id.startsWith("act-"));
-  assert.deepEqual(estadosDeAccion(feed), ["ejecutada"]);
+  const action = proposeCall();
+  assert.equal(action.status, "executed");
+  assert.ok(action.id.startsWith("act-"));
+  assert.deepEqual(actionStatuses(feed), ["executed"]);
 });
 
-test("esquemaControl valida las acciones de control y el payload de inyectar", () => {
-  assert.ok(esquemaControl.safeParse({ accion: "iniciar" }).success);
-  assert.ok(esquemaControl.safeParse({ accion: "reiniciar" }).success);
-  assert.ok(esquemaControl.safeParse({ accion: "pausar" }).success);
-  assert.ok(esquemaControl.safeParse({ accion: "reanudar" }).success);
-  assert.ok(!esquemaControl.safeParse({ accion: "confirmar", id: "act-007" }).success);
-  assert.ok(!esquemaControl.safeParse({ accion: "arrancar" }).success);
+test("controlSchema validates the control actions and the inject payload", () => {
+  assert.ok(controlSchema.safeParse({ action: "start" }).success);
+  assert.ok(controlSchema.safeParse({ action: "reset" }).success);
+  assert.ok(controlSchema.safeParse({ action: "pause" }).success);
+  assert.ok(controlSchema.safeParse({ action: "resume" }).success);
+  assert.ok(!controlSchema.safeParse({ action: "confirm", id: "act-007" }).success);
+  assert.ok(!controlSchema.safeParse({ action: "run" }).success);
 
-  const inyeccion = {
-    accion: "inyectar",
-    payload: { elementId: "dc-01", metric: "temperatura", value: 55, severidad: 80 },
+  const injection = {
+    action: "inject",
+    payload: { elementId: "dc-01", metric: "temperature", value: 55, severity: 80 },
   };
-  assert.ok(esquemaControl.safeParse(inyeccion).success);
+  assert.ok(controlSchema.safeParse(injection).success);
   assert.ok(
-    !esquemaControl.safeParse({ ...inyeccion, payload: { ...inyeccion.payload, metric: "presion" } })
+    !controlSchema.safeParse({ ...injection, payload: { ...injection.payload, metric: "pressure" } })
       .success,
   );
   assert.ok(
-    !esquemaControl.safeParse({ ...inyeccion, payload: { ...inyeccion.payload, severidad: 101 } })
+    !controlSchema.safeParse({ ...injection, payload: { ...injection.payload, severity: 101 } })
       .success,
   );
-  assert.ok(!esquemaControl.safeParse({ accion: "inyectar" }).success);
+  assert.ok(!controlSchema.safeParse({ action: "inject" }).success);
 });

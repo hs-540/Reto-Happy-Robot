@@ -1,103 +1,103 @@
 # SwarmUp
 
-Agente de IA autónomo que gestiona una crisis en directo: un apagón en cascada en la Comunidad de Madrid. Un motor de decisión híbrido (reglas duras + LLM) criba las señales que importan, prioriza con los recursos que quedan, los despliega sobre el terreno y replantea la estrategia cuando la situación cambia. Proyecto para el reto HappyRobot de HackSpain 2026 — *"¿Puede la IA gestionar una crisis?"*.
+Autonomous AI agent managing a live crisis: a cascading blackout in the Community of Madrid. A hybrid decision engine (hard rules + LLM) triages the signals that matter, prioritizes with the remaining resources, deploys them on the ground and re-plans when the situation changes. Project for the HappyRobot challenge at HackSpain 2026 — *"Can AI manage a crisis?"*.
 
-## Arquitectura
+## Architecture
 
-Monorepo en TypeScript (npm workspaces):
+TypeScript monorepo (npm workspaces):
 
 ```
-/backend   → servidor Node: API REST + motor de decisión + RAG
-/frontend  → app React + MapLibre GL: mapa de la crisis, feed del agente y control manual
-/shared    → tipos, esquemas y catálogo de reglas duras compartidos
-/data      → guion de eventos (JSON) e histórico RAG pre-cargado por tipo de elemento
-/docs      → diseño, contrato de API y documentación del reto
+/backend   → Node server: REST API + decision engine + RAG
+/frontend  → React + MapLibre GL app: crisis map, agent feed and manual control
+/shared    → shared types, schemas and hard-rules catalog
+/data      → event script (JSON) and RAG history pre-loaded per element type
+/docs      → design, API contract and challenge documentation
 ```
 
-### Cómo decide el agente
+### How the agent decides
 
-Tres capas por tick:
+Three layers per tick:
 
-1. **Percepción** (determinista, ~1 ms) — filtra el ruido, deriva `status` y `severidad`, calcula la prioridad. Solo despierta al LLM si algo ha cambiado de verdad: un cruce de umbral, un ETA incumplido, un plazo superado o una inyección manual. El resto de ticks no gastan una llamada.
-2. **Deliberación** (LLM, 8-30 s) — recibe el mundo, el catálogo de reglas, el histórico del tipo de sitio afectado y el plan en curso. Devuelve salida estructurada: qué descarta y por qué, objetivo, pasos y decisiones con su razonamiento.
-3. **Validación** (determinista) — `validarAccion` veta lo que incumple las reglas duras y le devuelve el motivo al modelo para que lo corrija, hasta dos reintentos. Los rechazos se publican en el feed.
+1. **Perception** (deterministic, ~1 ms) — filters the noise, derives `status` and `severity`, computes priority. It only wakes the LLM if something really changed: a threshold crossing, a missed ETA, an exceeded deadline or a manual injection. The remaining ticks cost no call.
+2. **Deliberation** (LLM, 8-30 s) — receives the world, the rules catalog, the history of the affected site type and the plan in progress. Returns structured output: what it discards and why, objective, steps and decisions with their reasoning.
+3. **Validation** (deterministic) — `validateAction` vetoes whatever violates the hard rules and hands the reason back to the model so it can fix it, up to two retries. Rejections are published in the feed.
 
-Si el LLM no responde a tiempo, el motor **degrada a la fórmula de prioridad determinista** y la simulación sigue. La demo nunca se congela.
+If the LLM does not answer in time, the engine **degrades to the deterministic priority formula** and the simulation keeps running. The demo never freezes.
 
-- **LLM**: un proveedor con interfaz OpenAI-compatible ([Helmcode](https://helmcode.com), modelo `deepseek-v4-flash`). El proveedor es configuración, no código: se cambia en el `.env`.
-- **Aprendizaje**: RAG con Chroma local, arrancado por el propio backend. El histórico se consulta por tipo de elemento y el agente cita los incidentes que aplican por su id.
-- **Acciones reales**: ⚠️ pendiente. Las acciones `contactar` se deciden, se registran y salen en el feed, pero la integración con la API de HappyRobot todavía no está.
+- **LLM**: a provider with an OpenAI-compatible interface ([Helmcode](https://helmcode.com), model `deepseek-v4-flash`). The provider is configuration, not code: it changes in the `.env`.
+- **Learning**: RAG with local Chroma, started by the backend itself. The history is queried by element type and the agent cites the incidents that apply by their id.
+- **Real actions**: ⚠️ pending. `contact` actions are decided, recorded and shown in the feed, but the integration with the HappyRobot API is not there yet.
 
-## Requisitos
+## Requirements
 
-- Node 24 (ver `.nvmrc`)
-- Una clave de Helmcode (o de cualquier proveedor OpenAI-compatible)
+- Node 24 (see `.nvmrc`)
+- A Helmcode key (or one from any OpenAI-compatible provider)
 
-## Puesta en marcha
+## Getting started
 
 ```bash
 npm install
-cp .env.example .env   # rellena LLM_BASE_URL, LLM_API_KEY y LLM_MODEL
+cp .env.example .env   # fill in LLM_BASE_URL, LLM_API_KEY and LLM_MODEL
 npm run dev
 ```
 
-Y abre **http://localhost:5173**. Arrancan tres procesos:
+Then open **http://localhost:5173**. Three processes start:
 
-| Puerto | Qué |
-| ------ | --------------------------------------------------- |
-| `5173` | Frontend (Vite, proxea `/api` al backend)           |
-| `3001` | Backend: API, motor de decisión y simulación        |
-| `8000` | Chroma (RAG) — lo levanta el backend, no hay que tocarlo |
+| Port   | What                                                          |
+| ------ | ------------------------------------------------------------- |
+| `5173` | Frontend (Vite, proxies `/api` to the backend)                |
+| `3001` | Backend: API, decision engine and simulation                  |
+| `8000` | Chroma (RAG) — started by the backend, no need to touch it    |
 
-Si ya hay un Chroma escuchando en su puerto, se reutiliza en vez de arrancar otro.
+If a Chroma is already listening on its port, it gets reused instead of starting another one.
 
-## Cómo se usa la demo
+## How to run the demo
 
-Todo desde la interfaz, sin `curl`:
+Everything from the UI, no `curl`:
 
-- **Iniciar** el guion — botón en la cabecera. Son 300 s con cinco momentos clave.
-- **Pausar / reanudar** — cabecera.
-- **Inyectar eventos en vivo** — panel de inyección. Cruzar un umbral dispara una replanificación completa en el siguiente tick.
+- **Start** the script — button in the header. It lasts 300 s with five key moments.
+- **Pause / resume** — header.
+- **Inject live events** — injection panel. Crossing a threshold triggers a full re-plan on the next tick.
 
-La primera deliberación **tarda entre 8 y 30 segundos**: las alarmas aparecen al instante en el feed y el razonamiento del agente llega después. No está colgado, está pensando.
+The first deliberation **takes between 8 and 30 seconds**: alarms show up instantly in the feed and the agent's reasoning arrives later. It is not stuck, it is thinking.
 
 ## Scripts
 
-| Comando             | Descripción                               |
-| ------------------- | ----------------------------------------- |
-| `npm run dev`       | Backend y frontend en modo desarrollo     |
-| `npm run build`     | Build de los tres workspaces              |
-| `npm run typecheck` | Typecheck estricto de los tres workspaces |
-| `npm run test`      | Tests de todos los workspaces             |
-| `npm run lint`      | Lint de todos los workspaces              |
+| Command             | Description                              |
+| ------------------- | ---------------------------------------- |
+| `npm run dev`       | Backend and frontend in development mode |
+| `npm run build`     | Build of the three workspaces            |
+| `npm run typecheck` | Strict typecheck of the three workspaces |
+| `npm run test`      | Tests of every workspace                 |
+| `npm run lint`      | Lint of every workspace                  |
 
 ## API
 
-| Endpoint        | Método | Descripción                                        |
+| Endpoint        | Method | Description                                        |
 | --------------- | ------ | -------------------------------------------------- |
-| `/api/topology` | GET    | Elementos afectados y recursos del escenario       |
-| `/api/state`    | GET    | Foto del mundo: estado, sensores, posiciones       |
-| `/api/agent`    | GET    | Plan actual, decisiones y acciones del agente      |
-| `/api/feed`     | GET    | Log append-only con cursor `since`                 |
-| `/api/control`  | POST   | Iniciar, reiniciar, pausar, reanudar e inyectar    |
-| `/api/health`   | GET    | Healthcheck del backend                            |
+| `/api/topology` | GET    | Affected elements and scenario resources           |
+| `/api/state`    | GET    | Snapshot of the world: status, sensors, positions  |
+| `/api/agent`    | GET    | Current plan, decisions and actions of the agent   |
+| `/api/feed`     | GET    | Append-only log with `since` cursor                |
+| `/api/control`  | POST   | Start, reset, pause, resume and inject             |
+| `/api/health`   | GET    | Backend healthcheck                                |
 
-El detalle completo en [`docs/CONTRACT.md`](docs/CONTRACT.md).
+Full detail in [`docs/CONTRACT.md`](docs/CONTRACT.md).
 
-## Configuración
+## Configuration
 
-Todas las variables van en `.env` (raíz del repo, fuera de git). Ver [`.env.example`](.env.example): puerto, cadencia del tick, proveedor LLM (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_EMBEDDING_MODEL`), clave de HappyRobot y ajustes de Chroma.
+All variables go in `.env` (repo root, outside git). See [`.env.example`](.env.example): port, tick cadence, LLM provider (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_EMBEDDING_MODEL`), HappyRobot key and Chroma settings.
 
-El backend valida el `.env` al arrancar y no levanta si falta algo, indicando qué variable falla sin mostrar su valor.
+The backend validates the `.env` on startup and does not start if something is missing, stating which variable failed without showing its value.
 
-## Documentación
+## Documentation
 
-- [`docs/DESIGN.md`](docs/DESIGN.md) — arquitectura y decisiones de diseño
-- [`docs/CONTRACT.md`](docs/CONTRACT.md) — contrato de API y datos
-- [`docs/RULES.md`](docs/RULES.md) — catálogo de reglas duras: umbrales, prioridad y reglas bloqueantes
-- [`docs/Guía del Reto Happy Robot.md`](docs/Guía%20del%20Reto%20Happy%20Robot.md) — enunciado original del reto
-- [`docs/Checklist Evaluación Reto Happy Robot.md`](docs/Checklist%20Evaluación%20Reto%20Happy%20Robot.md) — criterios de evaluación
+- [`docs/DESIGN.md`](docs/DESIGN.md) — architecture and design decisions
+- [`docs/CONTRACT.md`](docs/CONTRACT.md) — API and data contract
+- [`docs/RULES.md`](docs/RULES.md) — hard rules catalog: thresholds, priority and blocking rules
+- [`docs/Happy Robot Challenge Guide.md`](docs/Happy%20Robot%20Challenge%20Guide.md) — original challenge statement
+- [`docs/Happy Robot Challenge Evaluation Checklist.md`](docs/Happy%20Robot%20Challenge%20Evaluation%20Checklist.md) — evaluation criteria
 
 ## CI
 
-GitHub Actions ejecuta `npm ci`, typecheck, build y lint en cada push a `main` y en cada PR (`.github/workflows/ci.yml`).
+GitHub Actions runs `npm ci`, typecheck, build and lint on every push to `main` and on every PR (`.github/workflows/ci.yml`).

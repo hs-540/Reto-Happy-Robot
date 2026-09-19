@@ -15,7 +15,7 @@
     "dev:backend": "npm run dev --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
     "build:shared": "npm run build --workspace shared",
-    "rag:precarga": "npm run rag:precarga --workspace backend",
+    "rag:preload": "npm run rag:preload --workspace backend",
     "pretest": "npm run build --workspace shared",
     "test": "npm run test --workspaces --if-present"
   }
