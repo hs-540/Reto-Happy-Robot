@@ -46,7 +46,8 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > grid the tanker cannot refill), and a **road junction** (traffic lights out
 > doubles every journey). Resources grew with them: a **tanker** and a **police
 > unit** alongside the crew and the two generators. The live injection button —
-> filed above as a future improvement — is built.
+> filed above as a future improvement — is built. The run itself was compressed
+> from 4-5 minutes to **~2 real minutes** (`TIME_SCALE = 15` in `sim.ts`).
 >
 > The timeline is now **1800 s** with **54 entries** (18 sensor events, 35
 > reports, 1 narrative). The five key moments survive, re-timed and with the
@@ -85,8 +86,11 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > `resources.capacity`), which is what the six-site scenario needs. A fourth
 > replan trigger was added: **a contact refuses an action or reports a delay**
 > — the point of making real calls is that the answer can invalidate the plan,
-> and until this existed a refusal changed nothing. Cadence held: `TICK_MS`
-> defaults to 5000 and the frontend polls every 2 s (`useCrisis.ts`).
+> and until this existed a refusal changed nothing. Cadence tightened to match
+> the compressed run: `TICK_MS` defaults to 2000 and the frontend polls every
+> 500 ms (`useCrisis.ts`). While the UI is open, the poll — which advances the
+> simulation server-side on every request — is the engine's effective cadence;
+> `TICK_MS` only governs the headless interval.
 >
 > The deterministic layer also gained a floor the design did not anticipate: if
 > the LLM does not answer inside `DELIBERATION_BUDGET_MS` (75 s), `decideByRules`

@@ -22,11 +22,11 @@ export const TICK_SECONDS = 5;
 /**
  * Crisis seconds per real second. The domain numbers are realistic — a hospital
  * survives 8 min without power, repairing a substation takes 18 — but a demo
- * runs for five minutes: at 1:1 none of those deadlines ever came due. At 6x,
- * five minutes of demo is half an hour of emergency and every limit in
+ * runs for two minutes: at 1:1 none of those deadlines ever came due. At 15x,
+ * two minutes of demo is half an hour of emergency and every limit in
  * rules.json and every duration in remedies.json starts meaning something.
  */
-export const TIME_SCALE = 6;
+export const TIME_SCALE = 15;
 
 /** Delay suffered by the crew at moment 4 of the script */
 const ETA_DELAY_SECONDS = 60;
