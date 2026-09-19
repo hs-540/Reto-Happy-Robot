@@ -41,6 +41,8 @@ interface ElementState {
   /** simulated second the element entered normal status (null if not normal) */
   normalSince: number | null;
   hadIncident: boolean;
+  /** simulated second the incident started; null until the first non-normal reading */
+  incidentStartedAt: number | null;
   /** the incident closure was already handed to `onResolved` */
   reported: boolean;
   /** simulated second of the last received event */
@@ -53,6 +55,10 @@ export interface IncidentClosure {
   type: ElementType;
   name: string;
   maxSeverity: number;
+  /** crisis-seconds from the incident onset to the closure */
+  durationSeconds: number;
+  /** resource whose remedy settled the element; null if it recovered on its own */
+  resolvedBy: string | null;
   clock: string;
 }
 
@@ -105,6 +111,7 @@ export function createSimulation(
         sensors: {},
         normalSince: 0,
         hadIncident: false,
+        incidentStartedAt: null,
         reported: false,
         updatedAt: 0,
       });
@@ -160,6 +167,8 @@ export function createSimulation(
       if (state.normalSince === null) state.normalSince = ev.atSeconds;
     } else {
       state.normalSince = null;
+      // the onset is the first non-normal reading of the incident, not the last
+      if (state.incidentStartedAt === null) state.incidentStartedAt = ev.atSeconds;
       state.hadIncident = true;
     }
     feed.publish({
@@ -201,6 +210,8 @@ export function createSimulation(
         type: e.type,
         name: e.name,
         maxSeverity: Math.round(state.maxSeverity),
+        durationSeconds: Math.round(seconds - (state.incidentStartedAt ?? seconds)),
+        resolvedBy: world.resolvedBy(e.id),
         clock: isoClock(seconds),
       });
     }

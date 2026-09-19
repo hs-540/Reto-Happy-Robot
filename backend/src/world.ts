@@ -148,6 +148,13 @@ export interface World {
   repairEstimate(elementId: string, seconds: number): RepairEstimate | null;
   /** Accumulated seconds without grid power or reliable backup, by elementId */
   secondsWithoutPower(elementId: string): number;
+  /**
+   * Resource whose remedy last settled `elementId`, or null if the element
+   * recovered on its own. Kept after the resource stands down: the closure is
+   * written when the site is deemed resolved, by which time the resource may
+   * already be free and no longer reachable through `resources()`.
+   */
+  resolvedBy(elementId: string): string | null;
   /** Context consumed by `validateAction` from shared/rules */
   context(elements: ElementView[]): ValidationContext;
   /** Elements sorted by `calculatePriority`, from most to least urgent */
@@ -195,6 +202,8 @@ export function createWorld(
   const withoutPower = new Map<string, number>();
   /** this element exceeding its deadline was already reported */
   const deadlineReported = new Set<string>();
+  /** resource that last applied a remedy to each element; survives its release */
+  const settledBy = new Map<string, string>();
   /** events emitted outside the tick; the next `advance` drains them */
   const pending: WorldEvent[] = [];
   /** last second a recovery step was emitted, per element */
@@ -231,6 +240,7 @@ export function createWorld(
     withoutPower.clear();
     for (const e of script.elements) withoutPower.set(e.id, 0);
     deadlineReported.clear();
+    settledBy.clear();
     lastRecovery.clear();
     pending.length = 0;
     lastSecond = 0;
@@ -440,6 +450,7 @@ export function createWorld(
         if (seconds - r.arrivedAt < remedy.minutes * 60) continue;
 
         r.remedyApplied = true;
+        settledBy.set(targetId, r.id);
         const healthy = HEALTHY_METRIC[elementType];
         if (healthy) {
           events.push({
@@ -455,6 +466,7 @@ export function createWorld(
         // supplies: repairing a node returns the grid to everything below it
         for (const dependent of dependentsOf(topology, targetId)) {
           if (!typeOf.has(dependent)) continue;
+          settledBy.set(dependent, r.id);
           events.push({
             type: "remedy_applied",
             elementId: dependent,
@@ -642,6 +654,10 @@ export function createWorld(
 
     secondsWithoutPower(elementId: string): number {
       return withoutPower.get(elementId) ?? 0;
+    },
+
+    resolvedBy(elementId: string): string | null {
+      return settledBy.get(elementId) ?? null;
     },
 
     context(elements: ElementView[]): ValidationContext {
