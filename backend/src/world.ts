@@ -155,7 +155,7 @@ export interface World {
 }
 
 /** Approximate distance in km. At municipal scale the flat approximation is plenty. */
-function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const dLat = (a.lat - b.lat) * 111;
   const dLng = (a.lng - b.lng) * 111 * Math.cos((a.lat * Math.PI) / 180);
   return Math.hypot(dLat, dLng);

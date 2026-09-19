@@ -63,6 +63,10 @@ export function useCrisis() {
         if (s.tick < previousTick.current) {
           cursor.current = 0
           setFeed([])
+          // a reset rebuilds the backend: the new run may come with its own map
+          getTopology()
+            .then((t) => active && setTopology(t))
+            .catch(() => {})
         }
         previousTick.current = s.tick
 

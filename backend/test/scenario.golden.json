@@ -1,0 +1,1057 @@
+{
+ "title": "Seeded blackout — Getafe, Community of Madrid",
+ "durationSeconds": 1800,
+ "elements": [
+  {
+   "id": "dc-01",
+   "type": "datacenter"
+  },
+  {
+   "id": "dc-02",
+   "type": "datacenter"
+  },
+  {
+   "id": "fuel-01",
+   "type": "fuel_station"
+  },
+  {
+   "id": "fuel-02",
+   "type": "fuel_station"
+  },
+  {
+   "id": "hosp-01",
+   "type": "hospital"
+  },
+  {
+   "id": "hosp-02",
+   "type": "hospital"
+  },
+  {
+   "id": "hosp-03",
+   "type": "hospital"
+  },
+  {
+   "id": "junction-01",
+   "type": "junction"
+  },
+  {
+   "id": "junction-02",
+   "type": "junction"
+  },
+  {
+   "id": "sub-01",
+   "type": "substation"
+  },
+  {
+   "id": "sub-02",
+   "type": "substation"
+  },
+  {
+   "id": "sub-03",
+   "type": "substation"
+  },
+  {
+   "id": "tower-01",
+   "type": "tower"
+  },
+  {
+   "id": "tower-02",
+   "type": "tower"
+  },
+  {
+   "id": "tower-03",
+   "type": "tower"
+  }
+ ],
+ "resources": [
+  "crew-1",
+  "generator-1",
+  "generator-2",
+  "generator-4",
+  "police-1",
+  "police-2",
+  "tanker-1",
+  "tanker-2"
+ ],
+ "topologyEdges": [
+  "fuel-01->tanker-1:refuels",
+  "fuel-02->tanker-2:refuels",
+  "junction-01->*:enables_transit",
+  "sub-01->dc-01:supplies",
+  "sub-01->fuel-01:supplies",
+  "sub-01->hosp-01:supplies",
+  "sub-01->junction-01:supplies",
+  "sub-01->tower-01:supplies",
+  "sub-02->dc-02:supplies",
+  "sub-02->fuel-02:supplies",
+  "sub-02->hosp-02:supplies",
+  "sub-02->tower-02:supplies",
+  "sub-03->hosp-03:supplies",
+  "sub-03->junction-02:supplies",
+  "sub-03->tower-03:supplies",
+  "tower-01->*:enables_comms"
+ ],
+ "contactIds": [
+  "crew-chief",
+  "datacenter-operator",
+  "emergency-coordinator",
+  "hospital-lead",
+  "hospital-lead-2",
+  "hospital-lead-3",
+  "tanker-driver",
+  "tanker-driver-2",
+  "traffic-patrol",
+  "traffic-patrol-2",
+  "ventilator-citizen"
+ ],
+ "needleElementId": "hosp-02",
+ "timeline": [
+  {
+   "at": 0,
+   "kind": "sensor_event",
+   "id": "evt-001",
+   "elementId": "sub-03",
+   "metric": "grid_voltage",
+   "value": 12,
+   "severity": 90
+  },
+  {
+   "at": 15,
+   "kind": "report",
+   "id": "rep-001",
+   "elementId": "sub-03",
+   "source": "field"
+  },
+  {
+   "at": 15,
+   "kind": "sensor_event",
+   "id": "evt-002",
+   "elementId": "hosp-03",
+   "metric": "grid_voltage",
+   "value": 9,
+   "severity": 82
+  },
+  {
+   "at": 20,
+   "kind": "sensor_event",
+   "id": "evt-003",
+   "elementId": "junction-02",
+   "metric": "grid_voltage",
+   "value": 10,
+   "severity": 76
+  },
+  {
+   "at": 25,
+   "kind": "sensor_event",
+   "id": "evt-004",
+   "elementId": "tower-03",
+   "metric": "grid_voltage",
+   "value": 14,
+   "severity": 76
+  },
+  {
+   "at": 30,
+   "kind": "report",
+   "id": "rep-002",
+   "elementId": "hosp-03",
+   "source": "emergency_call"
+  },
+  {
+   "at": 51,
+   "kind": "report",
+   "id": "rep-003",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 60,
+   "kind": "sensor_event",
+   "id": "evt-005",
+   "elementId": "sub-03",
+   "metric": "grid_voltage",
+   "value": 8,
+   "severity": 92
+  },
+  {
+   "at": 60,
+   "kind": "report",
+   "id": "rep-004",
+   "elementId": "junction-02",
+   "source": "field"
+  },
+  {
+   "at": 70,
+   "kind": "report",
+   "id": "rep-005",
+   "elementId": "sub-03",
+   "source": "social"
+  },
+  {
+   "at": 90,
+   "kind": "sensor_event",
+   "id": "evt-006",
+   "elementId": "hosp-03",
+   "metric": "generator_battery",
+   "value": 40,
+   "severity": 58
+  },
+  {
+   "at": 130,
+   "kind": "report",
+   "id": "rep-006",
+   "elementId": "hosp-03",
+   "source": "field"
+  },
+  {
+   "at": 150,
+   "kind": "sensor_event",
+   "id": "evt-007",
+   "elementId": "junction-02",
+   "metric": "congestion",
+   "value": 7,
+   "severity": 32
+  },
+  {
+   "at": 161,
+   "kind": "report",
+   "id": "rep-007",
+   "elementId": null,
+   "source": "faulty_sensor"
+  },
+  {
+   "at": 200,
+   "kind": "sensor_event",
+   "id": "evt-008",
+   "elementId": "tower-03",
+   "metric": "tower_battery",
+   "value": 62,
+   "severity": 40
+  },
+  {
+   "at": 300,
+   "kind": "report",
+   "id": "rep-008",
+   "elementId": "sub-03",
+   "source": "press"
+  },
+  {
+   "at": 300,
+   "kind": "sensor_event",
+   "id": "evt-009",
+   "elementId": "hosp-03",
+   "metric": "generator_battery",
+   "value": 18,
+   "severity": 78
+  },
+  {
+   "at": 300,
+   "kind": "report",
+   "id": "rep-009",
+   "elementId": "tower-03",
+   "source": "field"
+  },
+  {
+   "at": 320,
+   "kind": "report",
+   "id": "rep-010",
+   "elementId": "junction-02",
+   "source": "social"
+  },
+  {
+   "at": 322,
+   "kind": "report",
+   "id": "rep-011",
+   "elementId": null,
+   "source": "emergency_call"
+  },
+  {
+   "at": 324,
+   "kind": "report",
+   "id": "rep-012",
+   "elementId": null,
+   "source": "emergency_call"
+  },
+  {
+   "at": 330,
+   "kind": "report",
+   "id": "rep-013",
+   "elementId": null,
+   "source": "press"
+  },
+  {
+   "at": 400,
+   "kind": "sensor_event",
+   "id": "evt-010",
+   "elementId": "junction-02",
+   "metric": "congestion",
+   "value": 11,
+   "severity": 55
+  },
+  {
+   "at": 420,
+   "kind": "report",
+   "id": "rep-014",
+   "elementId": "hosp-03",
+   "source": "social"
+  },
+  {
+   "at": 450,
+   "kind": "sensor_event",
+   "id": "evt-011",
+   "elementId": "tower-03",
+   "metric": "tower_battery",
+   "value": 41,
+   "severity": 58
+  },
+  {
+   "at": 480,
+   "kind": "sensor_event",
+   "id": "evt-012",
+   "elementId": "hosp-03",
+   "metric": "generator_battery",
+   "value": 8,
+   "severity": 88
+  },
+  {
+   "at": 482,
+   "kind": "report",
+   "id": "rep-015",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 600,
+   "kind": "report",
+   "id": "rep-016",
+   "elementId": "tower-03",
+   "source": "social"
+  },
+  {
+   "at": 600,
+   "kind": "report",
+   "id": "rep-017",
+   "elementId": "junction-02",
+   "source": "emergency_call"
+  },
+  {
+   "at": 613,
+   "kind": "sensor_event",
+   "id": "evt-013",
+   "elementId": "sub-01",
+   "metric": "grid_voltage",
+   "value": 12,
+   "severity": 90
+  },
+  {
+   "at": 628,
+   "kind": "report",
+   "id": "rep-018",
+   "elementId": "sub-01",
+   "source": "field"
+  },
+  {
+   "at": 628,
+   "kind": "sensor_event",
+   "id": "evt-014",
+   "elementId": "hosp-01",
+   "metric": "grid_voltage",
+   "value": 9,
+   "severity": 82
+  },
+  {
+   "at": 633,
+   "kind": "sensor_event",
+   "id": "evt-015",
+   "elementId": "dc-01",
+   "metric": "grid_voltage",
+   "value": 10,
+   "severity": 80
+  },
+  {
+   "at": 633,
+   "kind": "sensor_event",
+   "id": "evt-016",
+   "elementId": "junction-01",
+   "metric": "grid_voltage",
+   "value": 10,
+   "severity": 76
+  },
+  {
+   "at": 638,
+   "kind": "sensor_event",
+   "id": "evt-017",
+   "elementId": "tower-01",
+   "metric": "grid_voltage",
+   "value": 14,
+   "severity": 76
+  },
+  {
+   "at": 643,
+   "kind": "report",
+   "id": "rep-019",
+   "elementId": "hosp-01",
+   "source": "emergency_call"
+  },
+  {
+   "at": 643,
+   "kind": "sensor_event",
+   "id": "evt-018",
+   "elementId": "fuel-01",
+   "metric": "grid_voltage",
+   "value": 11,
+   "severity": 78
+  },
+  {
+   "at": 646,
+   "kind": "report",
+   "id": "rep-020",
+   "elementId": null,
+   "source": "faulty_sensor"
+  },
+  {
+   "at": 650,
+   "kind": "sensor_event",
+   "id": "evt-019",
+   "elementId": "junction-02",
+   "metric": "congestion",
+   "value": 16,
+   "severity": 72
+  },
+  {
+   "at": 673,
+   "kind": "sensor_event",
+   "id": "evt-020",
+   "elementId": "sub-01",
+   "metric": "grid_voltage",
+   "value": 8,
+   "severity": 92
+  },
+  {
+   "at": 673,
+   "kind": "report",
+   "id": "rep-021",
+   "elementId": "junction-01",
+   "source": "field"
+  },
+  {
+   "at": 683,
+   "kind": "report",
+   "id": "rep-022",
+   "elementId": "sub-01",
+   "source": "social"
+  },
+  {
+   "at": 700,
+   "kind": "sensor_event",
+   "id": "evt-021",
+   "elementId": "tower-03",
+   "metric": "network_coverage",
+   "value": 52,
+   "severity": 62
+  },
+  {
+   "at": 703,
+   "kind": "sensor_event",
+   "id": "evt-022",
+   "elementId": "hosp-01",
+   "metric": "generator_battery",
+   "value": 40,
+   "severity": 58
+  },
+  {
+   "at": 703,
+   "kind": "report",
+   "id": "rep-023",
+   "elementId": "dc-01",
+   "source": "faulty_sensor"
+  },
+  {
+   "at": 733,
+   "kind": "report",
+   "id": "rep-024",
+   "elementId": "fuel-01",
+   "source": "field"
+  },
+  {
+   "at": 743,
+   "kind": "report",
+   "id": "rep-025",
+   "elementId": "hosp-01",
+   "source": "field"
+  },
+  {
+   "at": 763,
+   "kind": "sensor_event",
+   "id": "evt-023",
+   "elementId": "dc-01",
+   "metric": "ups_load",
+   "value": 44,
+   "severity": 48
+  },
+  {
+   "at": 763,
+   "kind": "sensor_event",
+   "id": "evt-024",
+   "elementId": "junction-01",
+   "metric": "congestion",
+   "value": 7,
+   "severity": 32
+  },
+  {
+   "at": 792,
+   "kind": "report",
+   "id": "rep-026",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 813,
+   "kind": "sensor_event",
+   "id": "evt-025",
+   "elementId": "tower-01",
+   "metric": "tower_battery",
+   "value": 62,
+   "severity": 40
+  },
+  {
+   "at": 843,
+   "kind": "report",
+   "id": "rep-027",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 850,
+   "kind": "sensor_event",
+   "id": "evt-026",
+   "elementId": "tower-03",
+   "metric": "tower_battery",
+   "value": 22,
+   "severity": 78
+  },
+  {
+   "at": 853,
+   "kind": "sensor_event",
+   "id": "evt-027",
+   "elementId": "fuel-01",
+   "metric": "fuel",
+   "value": 30,
+   "severity": 40
+  },
+  {
+   "at": 858,
+   "kind": "report",
+   "id": "rep-028",
+   "elementId": null,
+   "source": "press"
+  },
+  {
+   "at": 913,
+   "kind": "report",
+   "id": "rep-029",
+   "elementId": "sub-01",
+   "source": "press"
+  },
+  {
+   "at": 913,
+   "kind": "sensor_event",
+   "id": "evt-028",
+   "elementId": "hosp-01",
+   "metric": "generator_battery",
+   "value": 18,
+   "severity": 78
+  },
+  {
+   "at": 913,
+   "kind": "report",
+   "id": "rep-030",
+   "elementId": "tower-01",
+   "source": "field"
+  },
+  {
+   "at": 933,
+   "kind": "report",
+   "id": "rep-031",
+   "elementId": "dc-01",
+   "source": "field"
+  },
+  {
+   "at": 933,
+   "kind": "report",
+   "id": "rep-032",
+   "elementId": "junction-01",
+   "source": "social"
+  },
+  {
+   "at": 943,
+   "kind": "sensor_event",
+   "id": "evt-029",
+   "elementId": "dc-01",
+   "metric": "ups_load",
+   "value": 14,
+   "severity": 68
+  },
+  {
+   "at": 981,
+   "kind": "report",
+   "id": "rep-033",
+   "elementId": null,
+   "source": "press"
+  },
+  {
+   "at": 998,
+   "kind": "sensor_event",
+   "id": "evt-030",
+   "elementId": "sub-02",
+   "metric": "grid_voltage",
+   "value": 12,
+   "severity": 90
+  },
+  {
+   "at": 1013,
+   "kind": "report",
+   "id": "rep-034",
+   "elementId": "sub-02",
+   "source": "field"
+  },
+  {
+   "at": 1013,
+   "kind": "sensor_event",
+   "id": "evt-031",
+   "elementId": "junction-01",
+   "metric": "congestion",
+   "value": 11,
+   "severity": 55
+  },
+  {
+   "at": 1013,
+   "kind": "sensor_event",
+   "id": "evt-032",
+   "elementId": "hosp-02",
+   "metric": "grid_voltage",
+   "value": 11,
+   "severity": 80
+  },
+  {
+   "at": 1018,
+   "kind": "sensor_event",
+   "id": "evt-033",
+   "elementId": "dc-02",
+   "metric": "grid_voltage",
+   "value": 10,
+   "severity": 80
+  },
+  {
+   "at": 1019,
+   "kind": "report",
+   "id": "rep-035",
+   "elementId": null,
+   "source": "press"
+  },
+  {
+   "at": 1020,
+   "kind": "report",
+   "id": "rep-036",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 1023,
+   "kind": "sensor_event",
+   "id": "evt-034",
+   "elementId": "tower-02",
+   "metric": "grid_voltage",
+   "value": 14,
+   "severity": 76
+  },
+  {
+   "at": 1028,
+   "kind": "sensor_event",
+   "id": "evt-035",
+   "elementId": "fuel-02",
+   "metric": "grid_voltage",
+   "value": 11,
+   "severity": 78
+  },
+  {
+   "at": 1032,
+   "kind": "report",
+   "id": "rep-037",
+   "elementId": "hosp-02",
+   "source": "emergency_call"
+  },
+  {
+   "at": 1033,
+   "kind": "report",
+   "id": "rep-038",
+   "elementId": "hosp-01",
+   "source": "social"
+  },
+  {
+   "at": 1033,
+   "kind": "sensor_event",
+   "id": "evt-036",
+   "elementId": "fuel-01",
+   "metric": "grid_voltage",
+   "value": 7,
+   "severity": 84
+  },
+  {
+   "at": 1058,
+   "kind": "sensor_event",
+   "id": "evt-037",
+   "elementId": "sub-02",
+   "metric": "grid_voltage",
+   "value": 8,
+   "severity": 92
+  },
+  {
+   "at": 1058,
+   "kind": "report",
+   "id": "rep-039",
+   "elementId": "hosp-02",
+   "source": "emergency_call"
+  },
+  {
+   "at": 1063,
+   "kind": "sensor_event",
+   "id": "evt-038",
+   "elementId": "tower-01",
+   "metric": "tower_battery",
+   "value": 41,
+   "severity": 58
+  },
+  {
+   "at": 1063,
+   "kind": "report",
+   "id": "rep-040",
+   "elementId": "fuel-01",
+   "source": "field"
+  },
+  {
+   "at": 1068,
+   "kind": "report",
+   "id": "rep-041",
+   "elementId": "sub-02",
+   "source": "social"
+  },
+  {
+   "at": 1088,
+   "kind": "report",
+   "id": "rep-042",
+   "elementId": "dc-02",
+   "source": "faulty_sensor"
+  },
+  {
+   "at": 1093,
+   "kind": "sensor_event",
+   "id": "evt-039",
+   "elementId": "hosp-01",
+   "metric": "generator_battery",
+   "value": 8,
+   "severity": 88
+  },
+  {
+   "at": 1113,
+   "kind": "sensor_event",
+   "id": "evt-040",
+   "elementId": "dc-01",
+   "metric": "temperature",
+   "value": 42,
+   "severity": 60
+  },
+  {
+   "at": 1118,
+   "kind": "sensor_event",
+   "id": "evt-041",
+   "elementId": "hosp-02",
+   "metric": "generator_battery",
+   "value": 70,
+   "severity": 32
+  },
+  {
+   "at": 1118,
+   "kind": "report",
+   "id": "rep-043",
+   "elementId": "fuel-02",
+   "source": "field"
+  },
+  {
+   "at": 1141,
+   "kind": "report",
+   "id": "rep-044",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 1148,
+   "kind": "sensor_event",
+   "id": "evt-042",
+   "elementId": "dc-02",
+   "metric": "ups_load",
+   "value": 44,
+   "severity": 48
+  },
+  {
+   "at": 1163,
+   "kind": "report",
+   "id": "rep-045",
+   "elementId": "dc-01",
+   "source": "social"
+  },
+  {
+   "at": 1198,
+   "kind": "sensor_event",
+   "id": "evt-043",
+   "elementId": "tower-02",
+   "metric": "tower_battery",
+   "value": 62,
+   "severity": 40
+  },
+  {
+   "at": 1213,
+   "kind": "report",
+   "id": "rep-046",
+   "elementId": "tower-01",
+   "source": "social"
+  },
+  {
+   "at": 1213,
+   "kind": "report",
+   "id": "rep-047",
+   "elementId": "junction-01",
+   "source": "emergency_call"
+  },
+  {
+   "at": 1238,
+   "kind": "sensor_event",
+   "id": "evt-044",
+   "elementId": "fuel-02",
+   "metric": "fuel",
+   "value": 30,
+   "severity": 40
+  },
+  {
+   "at": 1263,
+   "kind": "sensor_event",
+   "id": "evt-045",
+   "elementId": "dc-01",
+   "metric": "temperature",
+   "value": 47,
+   "severity": 78
+  },
+  {
+   "at": 1263,
+   "kind": "sensor_event",
+   "id": "evt-046",
+   "elementId": "junction-01",
+   "metric": "congestion",
+   "value": 16,
+   "severity": 72
+  },
+  {
+   "at": 1297,
+   "kind": "report",
+   "id": "rep-048",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 1297,
+   "kind": "report",
+   "id": "rep-049",
+   "elementId": null,
+   "source": "press"
+  },
+  {
+   "at": 1298,
+   "kind": "report",
+   "id": "rep-050",
+   "elementId": "sub-02",
+   "source": "press"
+  },
+  {
+   "at": 1298,
+   "kind": "report",
+   "id": "rep-051",
+   "elementId": "tower-02",
+   "source": "field"
+  },
+  {
+   "at": 1313,
+   "kind": "sensor_event",
+   "id": "evt-047",
+   "elementId": "tower-01",
+   "metric": "network_coverage",
+   "value": 52,
+   "severity": 62
+  },
+  {
+   "at": 1318,
+   "kind": "report",
+   "id": "rep-052",
+   "elementId": "dc-02",
+   "source": "field"
+  },
+  {
+   "at": 1328,
+   "kind": "sensor_event",
+   "id": "evt-048",
+   "elementId": "dc-02",
+   "metric": "ups_load",
+   "value": 14,
+   "severity": 68
+  },
+  {
+   "at": 1333,
+   "kind": "report",
+   "id": "rep-053",
+   "elementId": null,
+   "source": "faulty_sensor"
+  },
+  {
+   "at": 1358,
+   "kind": "sensor_event",
+   "id": "evt-049",
+   "elementId": "hosp-02",
+   "metric": "generator_battery",
+   "value": 45,
+   "severity": 55
+  },
+  {
+   "at": 1401,
+   "kind": "report",
+   "id": "rep-054",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 1418,
+   "kind": "report",
+   "id": "rep-055",
+   "elementId": "hosp-02",
+   "source": "social"
+  },
+  {
+   "at": 1418,
+   "kind": "sensor_event",
+   "id": "evt-050",
+   "elementId": "fuel-02",
+   "metric": "grid_voltage",
+   "value": 7,
+   "severity": 84
+  },
+  {
+   "at": 1448,
+   "kind": "sensor_event",
+   "id": "evt-051",
+   "elementId": "tower-02",
+   "metric": "tower_battery",
+   "value": 41,
+   "severity": 58
+  },
+  {
+   "at": 1448,
+   "kind": "report",
+   "id": "rep-056",
+   "elementId": "fuel-02",
+   "source": "field"
+  },
+  {
+   "at": 1463,
+   "kind": "sensor_event",
+   "id": "evt-052",
+   "elementId": "tower-01",
+   "metric": "tower_battery",
+   "value": 22,
+   "severity": 78
+  },
+  {
+   "at": 1465,
+   "kind": "report",
+   "id": "rep-057",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 1498,
+   "kind": "sensor_event",
+   "id": "evt-053",
+   "elementId": "dc-02",
+   "metric": "temperature",
+   "value": 42,
+   "severity": 60
+  },
+  {
+   "at": 1548,
+   "kind": "report",
+   "id": "rep-058",
+   "elementId": "dc-02",
+   "source": "social"
+  },
+  {
+   "at": 1598,
+   "kind": "sensor_event",
+   "id": "evt-054",
+   "elementId": "hosp-02",
+   "metric": "generator_battery",
+   "value": 26,
+   "severity": 72
+  },
+  {
+   "at": 1598,
+   "kind": "report",
+   "id": "rep-059",
+   "elementId": "tower-02",
+   "source": "social"
+  },
+  {
+   "at": 1625,
+   "kind": "report",
+   "id": "rep-060",
+   "elementId": null,
+   "source": "emergency_call"
+  },
+  {
+   "at": 1628,
+   "kind": "report",
+   "id": "rep-061",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 1641,
+   "kind": "report",
+   "id": "rep-062",
+   "elementId": null,
+   "source": "social"
+  },
+  {
+   "at": 1648,
+   "kind": "sensor_event",
+   "id": "evt-055",
+   "elementId": "dc-02",
+   "metric": "temperature",
+   "value": 47,
+   "severity": 78
+  },
+  {
+   "at": 1698,
+   "kind": "sensor_event",
+   "id": "evt-056",
+   "elementId": "tower-02",
+   "metric": "network_coverage",
+   "value": 52,
+   "severity": 62
+  },
+  {
+   "at": 1778,
+   "kind": "sensor_event",
+   "id": "evt-057",
+   "elementId": "hosp-02",
+   "metric": "generator_battery",
+   "value": 17,
+   "severity": 82
+  }
+ ]
+}

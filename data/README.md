@@ -7,7 +7,7 @@ the JSON, leaving the agent decorative.
 
 | File | What it is | Loaded by |
 | --- | --- | --- |
-| `scripts/madrid-blackout.json` | The timed event script: 15 places, 10 resources and the timeline that breaks them | `loadScript` (`backend/src/script.ts`) |
+| `scripts/madrid-blackout.json` | The curated event script — and the catalog the scenario generator draws from: 15 places, 10 resources and the timeline that breaks them | `loadScript` (`backend/src/script.ts`) |
 | `topology.json` | Dependency graph of the scenario | `loadTopology` (`shared/src/loaders.ts`) |
 | `remedies.json` | What fixes what, and who to call | `loadRemedies` |
 | `roads.json` | Routable graph of the real Getafe street network (© OpenStreetMap contributors): `nodes` are `[lat, lng]` pairs, `edges` are directed node pairs (oneway streets only allow their real direction). Regenerate with the Overpass API; keep the largest connected component. | `loadRoads` (`shared/src/loaders.ts`) |
@@ -112,6 +112,14 @@ An entry with a `note` becomes a "key moment" in `GET /api/topology`
 (`toTopology`). The five notes mark the blackout (0 s), the datacenter
 overheating (240 s), the tower batteries draining (450 s), the hospital losing
 its generator (540 s) and the crew missing its ETA (900 s).
+
+This file is also the **generator's catalog** (`backend/src/scenario.ts`): every
+boot and every reset draws a seed that picks 8-15 of these 15 places and deploys
+4-10 of the 10 resources, with the failure arcs coming from the templates in
+`backend/src/scenario-templates.ts`. The generated timeline carries no `note`s,
+so a random run has no pre-announced key moments; the five listed above belong
+to the curated script, which survives as the generator's fallback and the
+tests' fixture.
 
 ## `history/<type>/` — pre-loaded RAG history
 
