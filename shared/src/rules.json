@@ -112,11 +112,11 @@
     },
     {
       "id": "hospital-power-priority",
-      "rule": "While a hospital is critical and without power backup, generators can only be assigned to it."
+      "rule": "While a hospital is critical, without power backup and with no generator committed to it, generators can only be assigned to it. A generator already on its way counts as committed."
     },
     {
       "id": "hospital-power-deadline",
-      "rule": "If a hospital exceeds its limit of minutes without power, only acting on it or on the origin substation is allowed."
+      "rule": "If a hospital exceeds its limit of minutes without power and has no generator committed to it, only acting on it or on the origin substation is allowed. Once a generator is on its way the hospital is answered for, and the rest of the fleet is free again."
     },
     {
       "id": "critical-ups-act",

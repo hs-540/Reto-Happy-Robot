@@ -227,6 +227,18 @@ export function deriveElementStatus(
  */
 const RESOURCES_COMPETING_WITH_HOSPITAL: readonly ResourceType[] = ["generator", "tanker"];
 
+/**
+ * A generator committed to this element — deployed on site OR still driving to
+ * it. The hospital rules protect a hospital that has no answer coming; one with
+ * a generator on the way has its answer, and holding the rest of the fleet
+ * hostage buys it nothing while another site burns.
+ */
+function hasGeneratorCommitted(context: ValidationContext, elementId: string): boolean {
+  return context.resources.some(
+    (r) => r.type === "generator" && r.assignedElementId === elementId,
+  );
+}
+
 export type EngineActionType = "contact" | "assign_resource" | "wait";
 
 export interface ActionAttempt {
@@ -277,14 +289,20 @@ export function validateAction(
       e.type === "hospital" &&
       e.status === "critical" &&
       e.secondsWithoutPower > 0 &&
-      !context.resources.some(
-        (r) => r.type === "generator" && r.assignedElementId === e.id,
-      ),
+      !hasGeneratorCommitted(context, e.id),
   );
   const hospitalPastDeadline = context.elements.find(
     (e) =>
       e.type === "hospital" &&
-      e.secondsWithoutPower > MAX_MINUTES_WITHOUT_POWER.hospital * 60,
+      e.secondsWithoutPower > MAX_MINUTES_WITHOUT_POWER.hospital * 60 &&
+      // A hospital with a generator already committed is answered for. Without
+      // this the two rules above contradicted each other — `hospitalsAtRisk`
+      // counted an inbound generator, this one did not — and the disagreement
+      // had teeth: with a generator still driving to a hospital past its limit,
+      // every other generator assignment was vetoed and so was `wait`, leaving
+      // "send the second generator to the hospital" as the only legal move.
+      // The agent was not being careless, it was being cornered.
+      !hasGeneratorCommitted(context, e.id),
   );
 
   if (attempt.type === "assign_resource") {
