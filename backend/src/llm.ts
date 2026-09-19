@@ -3,8 +3,13 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import type { z } from "zod";
 
-/** Presupuesto por intento de gateway: el tick del motor dura 5-10s (DESIGN.md) */
-const TIMEOUT_MS = 5_000;
+/**
+ * Presupuesto por intento de gateway. Medido en vivo: una deliberación con
+ * salida estructurada tarda 4-6s, así que 5s mataba la mayoría de llamadas
+ * justo antes de que respondieran. El tick del motor no espera a la
+ * deliberación (corre en paralelo), de modo que esto no frena la simulación.
+ */
+const TIMEOUT_MS = 10_000;
 
 export interface GatewayLlm {
   id: string;
@@ -36,10 +41,19 @@ export interface ClienteLlm {
   embeddings(textos: readonly string[]): Promise<number[][]>;
 }
 
-/** Clasifica el error según el failover del diseño: timeout/conexión, 429 y 5xx. null = no hay failover */
+/**
+ * Clasifica el error para decidir si se prueba el siguiente gateway.
+ * Un gateway que rechaza la credencial (401) o niega el servicio (403: key
+ * caducada, crédito agotado, cuenta sin verificar) está tan indisponible como
+ * uno que devuelve 500 — y esos son justo los fallos que aparecen en directo.
+ * `null` = error de nuestra petición, reintentar en otro gateway no ayudaría.
+ */
 function motivoFallo(err: unknown): string | null {
   if (err instanceof APIConnectionError) return "timeout o conexión";
   if (err instanceof APIError && err.status !== null) {
+    if (err.status === 401) return "401 credencial rechazada";
+    if (err.status === 403) return "403 servicio denegado (crédito o cuenta)";
+    if (err.status === 404) return "404 modelo no servido por este gateway";
     if (err.status === 429) return "429";
     if (err.status >= 500) return `status ${err.status}`;
   }

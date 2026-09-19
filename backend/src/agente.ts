@@ -24,8 +24,13 @@ import {
 /** Reintentos ante acciones rechazadas por las reglas duras, antes de descartarlas */
 const MAX_REINTENTOS = 2;
 
-/** Presupuesto total de una deliberación; agotado, manda el fallback determinista */
-const PRESUPUESTO_MS = 12_000;
+/**
+ * Presupuesto total de una deliberación, reintentos incluidos; agotado, manda
+ * el fallback determinista. Tiene que cubrir el peor caso realista: un gateway
+ * agotando su timeout y el siguiente respondiendo, o una propuesta rechazada
+ * por reglas y corregida en un segundo intento.
+ */
+const PRESUPUESTO_MS = 25_000;
 
 /** Decisiones que se conservan para `/api/agent` */
 const MAX_DECISIONES = 20;
