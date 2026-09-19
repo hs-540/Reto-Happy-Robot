@@ -3,6 +3,7 @@ import type {
   ControlBody,
   ControlResponse,
   FeedResponse,
+  RunSummaryView,
   StateView,
   TopologyView,
 } from '@swarmup/shared'
@@ -18,6 +19,9 @@ export const getTopology = () => getJson<TopologyView>('/api/topology')
 export const getState = () => getJson<StateView>('/api/state')
 
 export const getAgent = () => getJson<AgentView>('/api/agent')
+
+/** End-of-run report; meaningful once `state.finished` is true */
+export const getSummary = () => getJson<RunSummaryView>('/api/summary')
 
 /** Only what's new: the client accumulates by `seq` (CONTRACT.md, golden rule 6) */
 export const getFeed = (since: number) => getJson<FeedResponse>(`/api/feed?since=${since}`)
