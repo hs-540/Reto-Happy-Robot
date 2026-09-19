@@ -61,6 +61,8 @@ export interface FeedOutcome extends FeedBase {
 export interface FeedSystem extends FeedBase {
   kind: "system";
   message: string;
+  /** true when the entry is a key moment of the script (revealed as it fires) */
+  moment?: boolean;
 }
 
 export type FeedItem =

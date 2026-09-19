@@ -8,12 +8,10 @@ import { InjectionModal } from './components/InjectionModal'
 import { StartOverlay } from './components/StartOverlay'
 import { RunSummaryOverlay } from './components/RunSummaryOverlay'
 import { Icon } from './components/icons'
-import { useCrisis } from './hooks/useCrisis'
+import { useCrisis, TICK_SECONDS } from './hooks/useCrisis'
 import { useTheme } from './hooks/useTheme'
 import { postControl } from './api'
 import './App.css'
-
-const TICK_SECONDS = 5
 
 function Loading() {
   return (
@@ -30,7 +28,7 @@ function Loading() {
 }
 
 function App() {
-  const { topology, state, agent, feed, summary, live, refresh } = useCrisis()
+  const { topology, state, agent, feed, moments, summary, live, refresh } = useCrisis()
   const [selectedElementId, setSelectedElementId] = useState<string | null>('hosp-01')
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
   const [injectOpen, setInjectOpen] = useState(false)
@@ -132,7 +130,7 @@ function App() {
           finished={state.finished}
           currentSecond={state.tick * TICK_SECONDS}
           durationSeconds={topology.crisis.durationSeconds}
-          moments={topology.crisis.moments}
+          moments={moments}
           pending={pending}
           error={error}
           theme={theme}
@@ -193,7 +191,6 @@ function App() {
         <StartOverlay
           title={topology.crisis.title}
           durationSeconds={topology.crisis.durationSeconds}
-          moments={topology.crisis.moments}
           sitesCount={state.elements.length}
           unitsCount={state.resources.length}
           pending={pending}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentView, FeedItem, RunSummaryView, StateView, TopologyView } from '@swarmup/shared'
+import type { AgentView, FeedItem, FeedSystem, RunSummaryView, StateView, TopologyView } from '@swarmup/shared'
 import { getAgent, getFeed, getState, getSummary, getTopology } from '../api'
 
 /* The map moves fast (TIME_SCALE = 15): half-second polling keeps marker
@@ -8,8 +8,18 @@ import { getAgent, getFeed, getState, getSummary, getTopology } from '../api'
    engine's effective cadence. */
 const POLL_MS = 500
 
+export const TICK_SECONDS = 5
+
+/** A key moment of the script, revealed the moment its note fires on the feed */
+export interface MomentMark {
+  seq: number
+  /** crisis second at which the moment was seen firing (poll resolution) */
+  atSecond: number
+  title: string
+}
+
 const EMPTY_TOPOLOGY: TopologyView = {
-  crisis: { title: 'Connecting to the backend…', durationSeconds: 0, moments: [] },
+  crisis: { title: 'Connecting to the backend…', durationSeconds: 0 },
   elements: [],
   resources: [],
 }
@@ -38,6 +48,7 @@ export function useCrisis() {
   const [state, setState] = useState<StateView>(EMPTY_STATE)
   const [agent, setAgent] = useState<AgentView>(EMPTY_AGENT)
   const [feed, setFeed] = useState<FeedItem[]>([])
+  const [moments, setMoments] = useState<MomentMark[]>([])
   const [summary, setSummary] = useState<RunSummaryView | null>(null)
   const [live, setLive] = useState(false)
   const [nonce, setNonce] = useState(0)
@@ -67,6 +78,7 @@ export function useCrisis() {
         if (s.tick < previousTick.current) {
           cursor.current = 0
           setFeed([])
+          setMoments([])
           // a reset rebuilds the backend: the new run may come with its own map
           getTopology()
             .then((t) => active && setTopology(t))
@@ -76,6 +88,17 @@ export function useCrisis() {
 
         setState(s)
         setAgent(a)
+        // key moments enter the thread as they fire: never before
+        const fired = f.items.filter(
+          (i): i is FeedSystem => i.kind === 'system' && i.moment === true,
+        )
+        if (fired.length > 0) {
+          const atSecond = s.tick * TICK_SECONDS
+          setMoments((previous) => [
+            ...previous,
+            ...fired.map((i) => ({ seq: i.seq, atSecond, title: i.message })),
+          ])
+        }
         if (f.items.length > 0) {
           cursor.current = f.lastSeq
           // dedup by `seq`: the accumulator tolerates a repeated poll without duplicating
@@ -126,6 +149,7 @@ export function useCrisis() {
     state,
     agent,
     feed,
+    moments,
     summary,
     live,
     /** immediate re-query after an operator action, without waiting for the poll */

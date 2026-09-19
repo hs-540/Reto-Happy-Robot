@@ -130,12 +130,16 @@ export function createSimulation(
         text: ev.payload.text,
         elementId: ev.payload.elementId,
       });
+      // a note on a report is a key moment of the script: revealed as it fires
+      if (ev.note !== undefined) {
+        feed.publish({ kind: "system", message: ev.note, moment: true });
+      }
       onReport?.(ev.payload);
       return;
     }
     if (ev.kind === "narrative") {
       if (ev.note !== undefined) {
-        feed.publish({ kind: "system", message: ev.note });
+        feed.publish({ kind: "system", message: ev.note, moment: true });
       }
       if (ev.payload.event !== "eta_missed" || ev.payload.resourceId === undefined) return;
       // moment 4 of the script: the crew does not arrive in time. The world
@@ -165,7 +169,7 @@ export function createSimulation(
     });
     // the key moments of the script are the demo's narrative frame
     if (ev.note !== undefined) {
-      feed.publish({ kind: "system", message: ev.note });
+      feed.publish({ kind: "system", message: ev.note, moment: true });
     }
   }
 

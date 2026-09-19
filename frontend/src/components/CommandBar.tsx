@@ -1,5 +1,5 @@
-import type { ScriptMoment } from '@swarmup/shared'
 import { formatElapsed, formatClock } from '../lib/format'
+import type { MomentMark } from '../hooks/useCrisis'
 import { Icon } from './icons'
 
 interface CommandBarProps {
@@ -13,7 +13,7 @@ interface CommandBarProps {
   finished: boolean
   currentSecond: number
   durationSeconds: number
-  moments: ScriptMoment[]
+  moments: MomentMark[]
   pending: boolean
   error: string | null
   theme: 'dark' | 'light'
@@ -50,7 +50,8 @@ export function CommandBar({
 }: CommandBarProps) {
   const pill = statusPill(live, started, paused, finished)
   const progress = durationSeconds > 0 ? Math.min(100, (currentSecond / durationSeconds) * 100) : 0
-  const currentMoment = [...moments].reverse().find((m) => m.atSeconds <= currentSecond)
+  // the thread only ever contains moments whose note already fired on the feed
+  const currentMoment = moments[moments.length - 1]
 
   return (
     <header className="command glass">
@@ -140,9 +141,9 @@ export function CommandBar({
 
       <div className="timeline">
         <div className="timeline__moment">
-          {currentMoment && started ? (
+          {currentMoment ? (
             <>
-              <b>M{moments.indexOf(currentMoment) + 1}</b>
+              <b>M{moments.length}</b>
               <span>{currentMoment.title}</span>
             </>
           ) : (
@@ -160,10 +161,10 @@ export function CommandBar({
           <div className="timeline__fill" style={{ width: `${progress}%` }} />
           {moments.map((m, i) => (
             <div
-              key={m.atSeconds}
-              className={`timeline__mark ${m.atSeconds <= currentSecond && started ? 'is-past' : ''}`}
-              style={{ left: `${durationSeconds > 0 ? (m.atSeconds / durationSeconds) * 100 : 0}%` }}
-              title={`${formatElapsed(m.atSeconds)} · ${m.title}`}
+              key={m.seq}
+              className="timeline__mark is-past"
+              style={{ left: `${durationSeconds > 0 ? (m.atSecond / durationSeconds) * 100 : 0}%` }}
+              title={`${formatElapsed(m.atSecond)} · ${m.title}`}
             >
               {i + 1}
             </div>

@@ -1,11 +1,8 @@
-import type { ScriptMoment } from '@swarmup/shared'
-import { formatElapsed } from '../lib/format'
 import { Icon } from './icons'
 
 interface StartOverlayProps {
   title: string
   durationSeconds: number
-  moments: ScriptMoment[]
   sitesCount: number
   unitsCount: number
   pending: boolean
@@ -16,7 +13,6 @@ interface StartOverlayProps {
 export function StartOverlay({
   title,
   durationSeconds,
-  moments,
   sitesCount,
   unitsCount,
   pending,
@@ -40,18 +36,12 @@ export function StartOverlay({
           <span>{sitesCount} sites</span>
           <span>{unitsCount} units</span>
           <span>{Math.round(durationSeconds / 60)} min</span>
-          <span>{moments.length} key moments</span>
         </div>
 
-        <ol className="launch__moments">
-          {moments.map((m, i) => (
-            <li key={m.atSeconds}>
-              <b>M{i + 1}</b>
-              {m.title}
-              <small>{formatElapsed(m.atSeconds)}</small>
-            </li>
-          ))}
-        </ol>
+        <p className="launch__brief">
+          The scenario unfolds live: the command bar reveals each moment of the crisis only once it
+          has happened.
+        </p>
 
         <button type="button" className="btn btn--primary btn--xl" onClick={onLaunch} disabled={pending}>
           <Icon name="play" size={15} />

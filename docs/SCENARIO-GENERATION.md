@@ -137,16 +137,14 @@ never lost to a dice roll, and is still not predictable.
 
 ### UI: reveal only what has happened
 
-Generated events carry no `note`, so `GET /api/topology` serves no key moments
-(`toTopology` only surfaces `note` entries) and the moments UI is empty — the
-screen no longer announces the plot. Still pending (`StartOverlay.tsx`,
-`CommandBar.tsx`):
-
-- The start overlay states the crisis type and duration, not what will happen.
-- The command bar shows moments **already** past, as a narrative thread.
-
-Randomizing behind the scenes while the UI still previews the plot would be
-counterproductive.
+`GET /api/topology` serves no key moments: the plot never travels in the
+topology. Every incident opening carries a `note` (roots and locals; grid
+cascades are covered by their root's moment), and `applyEvent` publishes each
+note as a `system` feed entry marked `moment: true` the moment it fires — the
+needle's report carries one too. The command bar accumulates those entries into
+its narrative thread: marks appear on the track as the run passes them, the
+latest moment is titled, and nothing that has not happened is ever rendered.
+The start overlay states the crisis type and duration, not what will happen.
 
 ### RAG coverage
 

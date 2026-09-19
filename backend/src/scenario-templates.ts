@@ -40,6 +40,12 @@ export interface ElementTemplate {
   appliesTo: ElementType;
   /** the resource class the remedy catalog offers against this arc */
   fixResource: ResourceType;
+  /**
+   * Narrative title of the arc, revealed through the feed the moment the
+   * incident opens. Only roots and locals carry one: grid cascades are
+   * consequences of their substation, covered by the root's own moment.
+   */
+  moment?: string;
   steps: TemplateStep[];
   reports: TemplateReport[];
 }
@@ -48,6 +54,7 @@ export const TEMPLATES: ElementTemplate[] = [
   /* ── Roots: substation grid failures ── */
   {
     id: "substation-total-collapse",
+    moment: "{site} collapses — every site it supplies goes dark",
     kind: "root",
     appliesTo: "substation",
     fixResource: "crew",
@@ -63,6 +70,7 @@ export const TEMPLATES: ElementTemplate[] = [
   },
   {
     id: "substation-feeder-fault",
+    moment: "{site} suffers a feeder fault — the ring is losing voltage",
     kind: "root",
     appliesTo: "substation",
     fixResource: "crew",
@@ -199,6 +207,7 @@ export const TEMPLATES: ElementTemplate[] = [
   /* ── Local failures: genuinely independent of the grid ── */
   {
     id: "hospital-backup-fuel-low",
+    moment: "{site} is burning backup fuel faster than planned",
     kind: "local",
     appliesTo: "hospital",
     fixResource: "tanker",
@@ -214,6 +223,7 @@ export const TEMPLATES: ElementTemplate[] = [
   },
   {
     id: "datacenter-ups-fault",
+    moment: "{site} runs its UPS bank on bypass after a fault",
     kind: "local",
     appliesTo: "datacenter",
     fixResource: "generator",
@@ -231,6 +241,7 @@ export const TEMPLATES: ElementTemplate[] = [
   },
   {
     id: "tower-battery-fault",
+    moment: "{site} is down to one battery string",
     kind: "local",
     appliesTo: "tower",
     fixResource: "generator",
@@ -246,6 +257,7 @@ export const TEMPLATES: ElementTemplate[] = [
   },
   {
     id: "fuel-station-dry-tank",
+    moment: "{site} is nearly out of diesel",
     kind: "local",
     appliesTo: "fuel_station",
     fixResource: "tanker",
@@ -261,6 +273,7 @@ export const TEMPLATES: ElementTemplate[] = [
   },
   {
     id: "junction-accident-jam",
+    moment: "Two-vehicle collision at {site} blocks a lane",
     kind: "local",
     appliesTo: "junction",
     fixResource: "police",

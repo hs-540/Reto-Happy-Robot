@@ -16,16 +16,10 @@ export type ElementTopology = Omit<ScriptElement, "status">;
 
 export type ResourceTopology = Omit<ScriptResource, "status" | "assignedElementId">;
 
-export interface ScriptMoment {
-  atSeconds: number;
-  title: string;
-}
-
 export interface TopologyView {
   crisis: {
     title: string;
     durationSeconds: number;
-    moments: ScriptMoment[];
   };
   elements: ElementTopology[];
   resources: ResourceTopology[];
