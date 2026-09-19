@@ -2,8 +2,10 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { z } from "zod";
 import type {
   AgentPlan,
+  ChatMessage,
   ElementView,
   HistoricalIncident,
+  OperatorDirective,
   Remedies,
   Report,
   ResourceView,
@@ -359,6 +361,27 @@ function historyLine(h: HistoryEntry): string {
   ].join("\n");
 }
 
+/**
+ * A standing operator instruction as the model reads it. The verb comes first
+ * because that is the part that changes behaviour; the operator's own words
+ * follow, because the reason they gave is usually the real information.
+ */
+function directiveLine(d: OperatorDirective): string {
+  const site = d.elementId ? ` on ${d.elementId}` : "";
+  const unit = d.resourceId ? ` with ${d.resourceId}` : "";
+  const verb =
+    d.kind === "prioritize"
+      ? "RAISE THE PRIORITY"
+      : d.kind === "deprioritize"
+        ? "LOWER THE PRIORITY"
+        : d.kind === "assign"
+          ? "COMMIT"
+          : d.kind === "release"
+            ? "STAND DOWN"
+            : "STANDING INSTRUCTION";
+  return `- ${verb}${site}${unit}: ${d.note}`;
+}
+
 export interface AgentContext {
   simulationClock: string;
   elements: ElementView[];
@@ -376,6 +399,8 @@ export interface AgentContext {
   history: HistoryEntry[];
   /** why this deliberation was triggered */
   reasons: string[];
+  /** standing instructions the human operator gave you in the chat */
+  standing: OperatorDirective[];
 }
 
 export function buildMessages(
@@ -390,6 +415,16 @@ export function buildMessages(
     "WHY YOU ARE DELIBERATING NOW:",
     ...ctx.reasons.map((m) => `- ${m}`),
     "",
+    ...(ctx.standing.length > 0
+      ? [
+          "STANDING ORDERS FROM THE HUMAN OPERATOR — they are watching the same map",
+          "and know things no sensor reports. Obey them unless a hard rule forbids it,",
+          "and when one does, say so in the reasoning of the decision it touches:",
+          ...ctx.standing.map(directiveLine),
+          "A priority order is already folded into the numbers below; do not double-count it.",
+          "",
+        ]
+      : []),
     "SITES (priority = rule-computed clue, higher = more urgent):",
     ...ctx.elements.map((e) =>
       elementLine(e, ctx.secondsWithoutPower(e.id), priorityOf.get(e.id) ?? 0),
@@ -464,6 +499,147 @@ export function buildMessages(
       ].join("\n"),
     });
   }
+
+  return messages;
+}
+
+/* ─── Operator channel ──────────────────────────────────────────────────
+ * The same agent, answering the human watching the map. A separate, much
+ * smaller prompt: this call sits in front of a person waiting for an answer,
+ * so it gets the world and the conversation and nothing else — no rules
+ * catalog, no history, no topology. The orders it extracts are validated by
+ * the engine afterwards, exactly like the LLM's own proposals.
+ */
+
+export const OperatorIntentSchema = z.object({
+  kind: z.enum(["prioritize", "deprioritize", "assign", "release", "note"]),
+  /** site id from the SITES list; null when the order names no site */
+  elementId: z.string().nullable(),
+  /** unit id from the RESOURCES list; required for assign/release */
+  resourceId: z.string().nullable(),
+  /** what the operator wants, one line, in their own words */
+  note: z.string(),
+});
+
+export const ChatReplySchema = z.object({
+  /** what you say back to the operator */
+  reply: z.string(),
+  /** the orders you read in their message; empty when they only asked something */
+  directives: z.array(OperatorIntentSchema),
+});
+
+export type OperatorIntent = z.infer<typeof OperatorIntentSchema>;
+export type ChatReply = z.infer<typeof ChatReplySchema>;
+
+const CHAT_SYSTEM_PROMPT = `You are the autonomous coordinator of a regional blackout crisis in the
+Community of Madrid, talking to the HUMAN OPERATOR who is watching the same map you are.
+
+They can see what you see, and they know things no sensor reports. Treat them as a colleague
+running the same emergency: answer what they ask, and carry out what they order.
+
+HOW YOU ANSWER
+- Short. Three sentences at most, no preamble, no restating their question back at them.
+- In the operator's own language: if they write to you in Spanish, answer in Spanish.
+- Concrete. Cite the site and unit ids you are talking about, and the numbers that decide it.
+- Honest. If what they ask for is a bad idea, say so in one sentence AND DO IT ANYWAY when it
+  is legal — they are the human in the loop. If a hard rule forbids it, the engine will refuse
+  it after you answer and the operator will see the rule that refused it, so do not promise
+  that it will work; say what you are going to try.
+- You are answering, not deliberating: do not dump the whole plan on them.
+
+WHAT YOU PUT IN "directives"
+Only what they actually ORDERED, one entry each. A question, a piece of news or a thank-you
+carries NO directives — an empty array is the right answer far more often than not.
+- "prioritize" / "deprioritize" — they want a site to weigh more or less in your ranking.
+  "elementId" required.
+- "assign" — they want a named unit sent to a named site, now. BOTH "elementId" and
+  "resourceId" required. Do not invent the unit: pick one from the RESOURCES list, and prefer
+  one whose line says "available". If they said "send a generator" without naming which, choose
+  a free one that fits and say in your reply which one you chose.
+- "release" — they want a unit to stand down. "resourceId" required.
+- "note" — they told you a FACT you could not know (a ward being evacuated, a blocked street,
+  a crew already on site) and it should shape your next deliberations. This is the one
+  directive with no mechanical effect: it is carried into every deliberation from now on.
+- "note" is not a dumping ground: if the message changes nothing you would do, return nothing.
+
+IDS ARE NOT PROSE. "elementId" and "resourceId" are ids copied EXACTLY from the lists below
+("hosp-01", "gen-02"), never names, never roles, never a description. If the operator names a
+site in words, find its id in the list yourself.`;
+
+export interface ChatContext {
+  simulationClock: string;
+  elements: ElementView[];
+  resources: ResourceView[];
+  secondsWithoutPower: (elementId: string) => number;
+  priorities: { elementId: string; score: number }[];
+  currentPlan: AgentPlan | null;
+  remedies: Remedies;
+  /** orders that are already in force, so the agent does not re-apply them */
+  standing: OperatorDirective[];
+  /** the conversation so far, oldest first */
+  history: ChatMessage[];
+}
+
+/**
+ * The world as the operator's question needs it: the same site and unit lines
+ * the deliberation gets — an agent whose chat answer disagrees with its own
+ * plan is worse than no chat at all — plus the conversation so far.
+ */
+export function buildChatMessages(
+  ctx: ChatContext,
+  text: string,
+): ChatCompletionMessageParam[] {
+  const priorityOf = new Map(ctx.priorities.map((p) => [p.elementId, p.score]));
+  const gaps = coverageGaps(ctx.elements, ctx.resources, ctx.remedies);
+
+  const parts = [
+    `CRISIS CLOCK: ${ctx.simulationClock}`,
+    "",
+    "SITES (priority = rule-computed clue, higher = more urgent):",
+    ...ctx.elements.map((e) =>
+      elementLine(e, ctx.secondsWithoutPower(e.id), priorityOf.get(e.id) ?? 0),
+    ),
+    "",
+    "RESOURCES — this is everything you have:",
+    ...ctx.resources.map(resourceLine),
+  ];
+
+  if (gaps.length > 0) {
+    parts.push(
+      "",
+      "COVERAGE GAPS — sites nobody is heading to, each with a free unit whose remedy fits:",
+      ...gaps.map((g) => `- ${g.elementId} (${g.elementType}): ${g.freeResourceIds.join(", ")}`),
+    );
+  }
+
+  if (ctx.currentPlan) {
+    parts.push(
+      "",
+      `YOUR PLAN IN PROGRESS: ${ctx.currentPlan.objective}`,
+      ...ctx.currentPlan.steps.map((s) => `- [${s.completed ? "x" : " "}] ${s.description}`),
+    );
+  }
+
+  if (ctx.standing.length > 0) {
+    parts.push(
+      "",
+      "ORDERS THIS OPERATOR ALREADY GAVE YOU AND THAT ARE STILL IN FORCE —",
+      "do not re-issue them as new directives:",
+      ...ctx.standing.map(directiveLine),
+    );
+  }
+
+  const messages: ChatCompletionMessageParam[] = [
+    { role: "system", content: CHAT_SYSTEM_PROMPT },
+    { role: "user", content: parts.join("\n") },
+    ...ctx.history.map(
+      (m): ChatCompletionMessageParam =>
+        m.author === "operator"
+          ? { role: "user", content: m.text }
+          : { role: "assistant", content: m.text },
+    ),
+    { role: "user", content: text },
+  ];
 
   return messages;
 }

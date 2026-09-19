@@ -9,6 +9,7 @@ import type {
   ElementView,
   CallClosure,
   HistoricalIncident,
+  OperatorDirective,
   Remedies,
   Report,
   StateView,
@@ -31,6 +32,7 @@ import {
   buildMessages,
   countdown,
   coverageGaps,
+  type OperatorIntent,
   type ProposedAction,
   type AgentOutput,
 } from "./prompt.js";
@@ -117,6 +119,19 @@ const MAX_DECISIONS = 20;
  */
 const IDLE_WATCH_COOLDOWN_MS = 30_000;
 
+/**
+ * How much a priority order from the operator moves a site in the ranking.
+ *
+ * Calibrated against the catalog's own weights: a status jump is worth 40
+ * (degraded 20 → critical 60) and the widest gap between two site types is 24
+ * (hospital 30, junction 6). At 40, an operator can lift a degraded site over
+ * a critical one of the same type, or over a critical site of a lighter type —
+ * which is exactly the override a human watching the map needs. It is not
+ * enough to drag a junction above a hospital that has been dark for minutes:
+ * that gap is what the hard rules exist to defend, and an order cannot buy it.
+ */
+const OPERATOR_PRIORITY_BOOST = 40;
+
 export interface Agent {
   /** One engine tick. Decides whether to deliberate; if it does, executes the outcome. */
   observe(state: StateView, events: WorldEvent[]): Promise<void>;
@@ -138,6 +153,16 @@ export interface Agent {
    * was built on, so it forces replanning on the next tick.
    */
   closeCall(closure: CallClosure): void;
+  /**
+   * Orders the human operator gave in the chat, already read by the model and
+   * reduced to intents. Executed here, against the same validator the model's
+   * own proposals face: what comes back says, per order, whether it took
+   * effect and which rule refused it if it did not. Every accepted order is
+   * also a replanning trigger — the operator changed the problem.
+   */
+  command(state: StateView, intents: OperatorIntent[]): OperatorDirective[];
+  /** Orders still in force: priority biases and standing notes */
+  standing(): OperatorDirective[];
   reset(): void;
 }
 
@@ -490,6 +515,13 @@ export function createAgent(options: AgentOptions): Agent {
   let externalReasons: string[] = [];
   /** when the last deliberation finished, for the idle-capacity cooldown */
   let lastDeliberationEnd = 0;
+  /**
+   * Operator orders that outlive the turn they were given in: priority biases
+   * and notes. `assign` and `release` are not here — they already happened,
+   * and repeating them to the model every deliberation would read as a
+   * standing instruction to keep doing it.
+   */
+  let standingDirectives: OperatorDirective[] = [];
 
   function newId(prefix: string): string {
     counter += 1;
@@ -773,6 +805,7 @@ export function createAgent(options: AgentOptions): Agent {
         ...pendingReports.filter((r) => !HIGH_SIGNAL_SOURCES.includes(r.source)),
       ].slice(0, MAX_REPORTS_PER_TURN),
       reasons,
+      standing: standingDirectives,
     };
 
     // consumed: the next deliberation only sees what arrives from now on
@@ -823,7 +856,13 @@ export function createAgent(options: AgentOptions): Agent {
    * everything is flagged, the badge stops distinguishing anything and the
    * moment that matters — the crew missing its ETA — is lost.
    */
-  const REPLAN_REASONS = ["misses its ETA", "exceeded its limit", "Call "];
+  const REPLAN_REASONS = [
+    "misses its ETA",
+    "exceeded its limit",
+    "Call ",
+    // an order from the operator changes the problem, not just the state
+    "Operator order",
+  ];
 
   function isReplan(reasons: string[]): boolean {
     if (plan === null) return false; // no plan to abandon
@@ -1170,6 +1209,180 @@ export function createAgent(options: AgentOptions): Agent {
     },
 
 
+    command(state, intents): OperatorDirective[] {
+      const results: OperatorDirective[] = [];
+
+      for (const intent of intents) {
+        // The model mistypes the ids it was handed here exactly as it does in
+        // a deliberation, and an order dropped for a typo is an operator
+        // ignored. Same recovery, same rules about what is ambiguous.
+        const elementId = intent.elementId
+          ? resolveElementId(intent.elementId, state.elements)
+          : null;
+        const resourceId = intent.resourceId
+          ? resolveElementId(intent.resourceId, state.resources)
+          : null;
+        const site = elementId ? state.elements.find((e) => e.id === elementId) : undefined;
+        const unit = resourceId ? state.resources.find((r) => r.id === resourceId) : undefined;
+        const note = intent.note.trim() === "" ? "no reason given" : intent.note.trim();
+
+        const directive: OperatorDirective = {
+          id: newId("ord"),
+          kind: intent.kind,
+          elementId: site?.id ?? null,
+          resourceId: unit?.id ?? null,
+          note,
+          accepted: false,
+          reason: null,
+        };
+        /** Refusal is a result, not a failure: it is what the operator has to read */
+        const refuse = (reason: string): void => {
+          directive.accepted = false;
+          directive.reason = reason;
+        };
+
+        switch (intent.kind) {
+          case "prioritize":
+          case "deprioritize": {
+            if (!site) {
+              refuse(`no site called "${intent.elementId ?? "(none)"}" in this scenario`);
+              break;
+            }
+            const amount =
+              intent.kind === "prioritize" ? OPERATOR_PRIORITY_BOOST : -OPERATOR_PRIORITY_BOOST;
+            world.boost(site.id, amount);
+            directive.accepted = true;
+            feed.publish({
+              kind: "system",
+              message: `Operator order: ${site.id} ${amount > 0 ? "+" : ""}${amount} priority — ${note}`,
+            });
+            break;
+          }
+
+          case "assign": {
+            if (!site) {
+              refuse(`no site called "${intent.elementId ?? "(none)"}" in this scenario`);
+              break;
+            }
+            if (!unit) {
+              refuse(`no unit called "${intent.resourceId ?? "(none)"}" in this fleet`);
+              break;
+            }
+            // The operator is the human in the loop, not an exception to the
+            // hard rules: their order faces the same validator as the model's
+            // own proposals, and a refusal comes back naming the rule.
+            const verdict = validateAction(
+              { type: "assign_resource", elementId: site.id, resourceId: unit.id },
+              world.context(state.elements),
+            );
+            if (!verdict.allowed) {
+              refuse(`[${verdict.rule}] ${verdict.reason}`);
+              feed.publish({
+                kind: "system",
+                message: `Operator order refused — ${unit.id} to ${site.id}: [${verdict.rule}] ${verdict.reason}`,
+              });
+              break;
+            }
+            const result = world.assign(unit.id, site.id, seconds());
+            if (!result.ok) {
+              refuse(result.reason);
+              feed.publish({
+                kind: "system",
+                message: `Operator order refused — ${unit.id} to ${site.id}: ${result.reason}`,
+              });
+              break;
+            }
+            directive.accepted = true;
+            feed.publish({
+              kind: "system",
+              message: `Operator order: ${unit.id} → ${site.id}, arrives in ${countdown(result.etaSeconds)} — ${note}`,
+            });
+            // Recorded as a decision of its own so the panel shows WHO decided
+            // it. An operator move that only exists in the chat reads, three
+            // minutes later, as a resource the agent moved for no reason.
+            const decision: Decision = {
+              id: newId("dec"),
+              timestamp: state.simulationClock,
+              elementId: site.id,
+              priority: world.priorities(state.elements).find((p) => p.elementId === site.id)?.score ?? 0,
+              reasoning: `Operator order from the chat: ${note}. The hard rules allow ${unit.id} on ${site.id}, so it goes now.`,
+              provokesReplan: false,
+              actions: [],
+              assignments: [
+                {
+                  resourceId: unit.id,
+                  resourceType: unit.type,
+                  elementId: site.id,
+                  etaSeconds: result.etaSeconds,
+                  ok: true,
+                  reason: null,
+                },
+              ],
+            };
+            decisions = [decision, ...decisions].slice(0, MAX_DECISIONS);
+            feed.publish({
+              kind: "decision",
+              elementId: decision.elementId,
+              decisionId: decision.id,
+              priority: decision.priority,
+              reasoning: decision.reasoning,
+              provokesReplan: decision.provokesReplan,
+            });
+            break;
+          }
+
+          case "release": {
+            if (!unit) {
+              refuse(`no unit called "${intent.resourceId ?? "(none)"}" in this fleet`);
+              break;
+            }
+            if (unit.status === "available") {
+              refuse(`${unit.id} is already free: there is nothing to stand down`);
+              break;
+            }
+            world.release(unit.id);
+            directive.accepted = true;
+            feed.publish({
+              kind: "system",
+              message: `Operator order: ${unit.id} stands down from ${unit.assignedElementId ?? "its assignment"} — ${note}`,
+            });
+            break;
+          }
+
+          case "note": {
+            directive.accepted = true;
+            feed.publish({
+              kind: "system",
+              message: `Operator note${site ? ` on ${site.id}` : ""}: ${note}`,
+            });
+            break;
+          }
+        }
+
+        if (directive.accepted) {
+          // Priority biases and notes shape every deliberation from now on; a
+          // move that already happened does not need repeating to the model.
+          if (
+            directive.kind === "prioritize" ||
+            directive.kind === "deprioritize" ||
+            directive.kind === "note"
+          ) {
+            standingDirectives = [...standingDirectives, directive];
+          }
+          externalReasons.push(
+            `Operator order (${directive.kind}${directive.elementId ? ` on ${directive.elementId}` : ""}${directive.resourceId ? `, ${directive.resourceId}` : ""}): ${note}`,
+          );
+        }
+        results.push(directive);
+      }
+
+      return results;
+    },
+
+    standing(): OperatorDirective[] {
+      return [...standingDirectives];
+    },
+
     queueReport(report): void {
       pendingReports.push(report);
     },
@@ -1204,6 +1417,7 @@ export function createAgent(options: AgentOptions): Agent {
       externalReasons = [];
       bufferedEvents = [];
       lastDeliberationEnd = 0;
+      standingDirectives = [];
       counter = 0;
     },
   };

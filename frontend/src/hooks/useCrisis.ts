@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentView, FeedItem, FeedSystem, RunSummaryView, StateView, TopologyView } from '@swarmup/shared'
-import { getAgent, getFeed, getState, getSummary, getTopology } from '../api'
+import type {
+  AgentView,
+  ChatView,
+  FeedItem,
+  FeedSystem,
+  RunSummaryView,
+  StateView,
+  TopologyView,
+} from '@swarmup/shared'
+import { getAgent, getChat, getFeed, getState, getSummary, getTopology, postChat } from '../api'
 
 /* The map moves fast (TIME_SCALE, configurable in the backend .env):
    half-second polling keeps marker motion smooth instead of teleporting
@@ -35,6 +43,12 @@ const EMPTY_STATE: StateView = {
   resources: [],
 }
 
+const EMPTY_CHAT: ChatView = {
+  messages: [],
+  standing: [],
+  thinking: false,
+}
+
 const EMPTY_AGENT: AgentView = {
   tick: 0,
   paused: false,
@@ -48,6 +62,7 @@ export function useCrisis() {
   const [state, setState] = useState<StateView>(EMPTY_STATE)
   const [agent, setAgent] = useState<AgentView>(EMPTY_AGENT)
   const [feed, setFeed] = useState<FeedItem[]>([])
+  const [chat, setChat] = useState<ChatView>(EMPTY_CHAT)
   const [moments, setMoments] = useState<MomentMark[]>([])
   const [summary, setSummary] = useState<RunSummaryView | null>(null)
   const [live, setLive] = useState(false)
@@ -66,10 +81,11 @@ export function useCrisis() {
 
     async function tick() {
       try {
-        const [s, a, f] = await Promise.all([
+        const [s, a, f, c] = await Promise.all([
           getState(),
           getAgent(),
           getFeed(cursor.current),
+          getChat(),
         ])
         if (!active) return
 
@@ -88,6 +104,7 @@ export function useCrisis() {
 
         setState(s)
         setAgent(a)
+        setChat(c)
         // key moments enter the thread as they fire: never before
         const fired = f.items.filter(
           (i): i is FeedSystem => i.kind === 'system' && i.moment === true,
@@ -151,7 +168,21 @@ export function useCrisis() {
     feed,
     moments,
     summary,
+    chat,
     live,
+    /**
+     * Sends an operator turn and re-reads the channel at once, so the message
+     * appears the instant it is accepted instead of on the next poll. The
+     * agent's answer still arrives through the poll: it costs a model call.
+     */
+    sendChat: async (text: string) => {
+      await postChat({ text })
+      try {
+        setChat(await getChat())
+      } catch {
+        /* the poll will catch up */
+      }
+    },
     /** immediate re-query after an operator action, without waiting for the poll */
     refresh: () => setNonce((n) => n + 1),
   }

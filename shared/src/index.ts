@@ -1,6 +1,7 @@
 export * from "./world.js";
 export * from "./agent.js";
 export * from "./feed.js";
+export * from "./chat.js";
 export * from "./rules.js";
 export * from "./script.js";
 export * from "./graphs.js";
