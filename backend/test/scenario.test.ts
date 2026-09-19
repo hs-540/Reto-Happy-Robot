@@ -118,12 +118,18 @@ function assertTimelineWellFormed(scenario: Scenario): void {
 /**
  * The fleet shrinks with the drawn crisis: 4-10 units, never without one unit
  * of every class, ids unique so contacts and topology keep pointing at units
- * that exist.
+ * that exist — and never as large as the world: at most one unit fewer than
+ * the drawn sites, so prioritizing is always part of the job.
  */
 function assertFleetShape(scenario: Scenario): void {
   const byType = (type: string) => scenario.script.resources.filter((r) => r.type === type).length;
   const size = scenario.script.resources.length;
+  const sites = scenario.script.elements.length;
   assert.ok(size >= 4 && size <= 10, `fleet of 4-10 units, got ${size}`);
+  assert.ok(
+    size <= sites - 1,
+    `fleet of ${size} must stay below the ${sites} drawn sites: full coverage is never an option`,
+  );
   const ids = new Set(scenario.script.resources.map((r) => r.id));
   assert.equal(ids.size, size, "resource ids are unique");
   for (const type of ["crew", "generator", "tanker", "police"]) {

@@ -24,9 +24,12 @@ const CATALOG = loadScript(new URL("data/scripts/madrid-blackout.json", repoRoot
 const FULL_TOPOLOGY = loadTopology(new URL("data/topology.json", repoRoot).pathname);
 const REMEDIES = loadRemedies(new URL("data/remedies.json", repoRoot).pathname);
 
-/** Band of demand over capacity the draw must land in (two tunable constants) */
-export const BAND_MIN = 1.3;
-export const BAND_MAX = 1.8;
+/** Band of demand over capacity the draw must land in (two tunable constants).
+ *  Lowered from 1.3-1.8: the fleet was starving for units in every shape, and
+ *  a crisis with ~110-140% of demand still forces ranking sites (demand above
+ *  capacity, plus the fleet can never match the site count). */
+export const BAND_MIN = 1.1;
+export const BAND_MAX = 1.4;
 
 /** ~20 derived-seed attempts before falling back to the curated script */
 export const MAX_ATTEMPTS = 20;
@@ -160,11 +163,19 @@ function drawStarts(rng: Rng, count: number): number[] {
  * interesting survives in every shape. One unit of every class always stays,
  * so every remedy keeps a base to travel from; when no fleet size can reach
  * the band the smallest legal fleet is drawn and validation rejects the
- * attempt.
+ * attempt. The fleet is also never as large as the world: at most one unit
+ * fewer than the drawn sites, so covering everything at once is never on the
+ * table and ranking sites is always part of the job.
  */
-function drawFleet(rng: Rng, demandMinutes: number, durationSeconds: number): ScriptResource[] {
+function drawFleet(
+  rng: Rng,
+  demandMinutes: number,
+  durationSeconds: number,
+  siteCount: number,
+): ScriptResource[] {
   const windowMinutes = durationSeconds / 60;
-  const clamp = (n: number) => Math.min(Math.max(n, MIN_FLEET_SIZE), CATALOG.resources.length);
+  const cap = Math.min(CATALOG.resources.length, siteCount - 1);
+  const clamp = (n: number) => Math.min(Math.max(n, MIN_FLEET_SIZE), cap);
   const lo = clamp(Math.ceil(demandMinutes / (BAND_MAX * windowMinutes)));
   const hi = clamp(Math.floor(demandMinutes / (BAND_MIN * windowMinutes)));
   const size = lo <= hi ? rng.int(lo, hi) : MIN_FLEET_SIZE;
@@ -273,9 +284,10 @@ export function drawScenario(seed: number): ScenarioDraft {
   assignIds(playable);
 
   // the fleet is sized to this draw: a smaller crisis deploys fewer units, so
-  // the demand stays inside the band and the dilemma outlives the world size
+  // the demand stays inside the band and the dilemma outlives the world size —
+  // and it always stays below the site count: one site short of full coverage
   const preliminary = demand(incidents, downedSubs, active, durationSeconds, CATALOG.resources);
-  const fleet = drawFleet(rng, preliminary.demandMinutes, durationSeconds);
+  const fleet = drawFleet(rng, preliminary.demandMinutes, durationSeconds, active.size);
   const resourceIds = new Set(fleet.map((r) => r.id));
 
   const script: Script = {
@@ -443,6 +455,14 @@ export function validateScenario(draft: ScenarioDraft): string[] {
     if (!script.resources.some((r) => r.type === type)) {
       problems.push(`no ${type} in the fleet`);
     }
+  }
+
+  // the fleet never matches the world: with one site short of full coverage,
+  // ranking sites is always part of the job
+  if (script.resources.length > script.elements.length - 1) {
+    problems.push(
+      `fleet of ${script.resources.length} is not smaller than the ${script.elements.length} drawn sites`,
+    );
   }
 
   // topological upward closure: a dependent in implies its substation in

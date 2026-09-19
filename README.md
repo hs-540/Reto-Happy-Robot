@@ -66,7 +66,7 @@ If a Chroma is already listening on its port, it gets reused instead of starting
 
 Everything from the UI, no `curl`:
 
-- **Start** the script — button in the header. Each run draws a random crisis from a seed (`backend/src/scenario.ts`): 8-15 of the 15 sites, 4-10 of the 10 resources, and ~100-120 timeline entries spaced across the 30-minute window, most of them noise the agent must triage. The clock runs for 1800 s (30 min) of simulated time; a demo run does not need all of it.
+- **Start** the script — button in the header. Each run draws a random crisis from a seed (`backend/src/scenario.ts`): 8-15 of the 15 sites, 4-10 of the 10 resources — always at least one fewer than the drawn sites, so prioritizing is never optional — and ~100-120 timeline entries spaced across the 30-minute window, most of them noise the agent must triage. The clock runs for 1800 s (30 min) of simulated time; a demo run does not need all of it.
 - **Pause / resume** — header.
 - **Inject live events** — injection panel. Crossing a threshold triggers a full re-plan on the next tick.
 

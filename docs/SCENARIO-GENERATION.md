@@ -44,10 +44,11 @@ Two numbers that bound the design:
   `SensorMetric` values. Forty hand-written incidents would be the same arc with
   different site names.
 - **The catalog is 15 sites and 10 resources (2 crew, 4 generators, 2 tankers,
-  2 police) — but a generated scenario deploys a drawn fleet of 4-10.** A
+  2 police) — but a generated scenario deploys a drawn fleet of 4-10, always
+  smaller than the world: at most one unit fewer than the drawn sites.** A
   substation repair is 18 min against a 30 min crisis, so scarcity has to
   survive at every world size; the fleet shrinks with the world (see
-  Difficulty).
+  Difficulty), and covering every site at once is never an option.
 
 ## Design
 
@@ -90,7 +91,9 @@ The seed picks a subset of sites. Four invariants make the subset playable:
    generators.
 
 Validation also rejects a fleet without one unit of every class: a template's
-fix resource must have a base in the world.
+fix resource must have a base in the world. It also rejects a fleet as large as
+the drawn sites: with at most one unit fewer than the site count, ranking sites
+and leaving something unattended is always part of the job.
 
 ### Difficulty: the fleet is sized to the draw
 
@@ -101,8 +104,11 @@ the window** (`drawFleet`). Capacity is the scarce side: a smaller world deploys
 fewer units instead of drifting under the band. One unit of every class always
 stays (`MIN_FLEET_SIZE = 4`), so every remedy keeps a base to travel from and
 `tanker`/`police` never lose their site. Contacts and topology edges pointing at
-dropped units are filtered out with them. Triage is always visible and
-something is always closable. The band is two constants to tune.
+dropped units are filtered out with them. On top of the band, the fleet is
+capped at **one unit fewer than the drawn sites**: a full 15-site world can
+field all 10 units, but an 8-site world fields at most 7 — the world always has
+more problems than units to send. Triage is always visible and something is
+always closable. The band and the cap are constants to tune.
 
 This was the fix for the first calibration: with the fleet fixed at 10, only
 full 15-site worlds could reach the band, so validation rejected every smaller
