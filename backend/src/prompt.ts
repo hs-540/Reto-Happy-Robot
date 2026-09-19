@@ -231,8 +231,25 @@ function reportLine(r: Report): string {
   return `- [${r.source}]${r.elementId ? ` (${r.elementId})` : ""} ${r.text}`;
 }
 
-function historyLine(h: HistoricalIncident): string {
-  return `- [${h.id}] ${h.title}\n    ${h.summary}\n    Lesson: ${h.outcome}`;
+/**
+ * A past incident handed to the model together with WHY it surfaced now.
+ * Without that "why" the model cannot tell a semantic match from a plain type
+ * filter, and `historyCitation` comes back empty or cites whatever was first.
+ */
+export interface HistoryEntry {
+  incident: HistoricalIncident;
+  /** what surfaced it: the live situation it resembles, or the type filter */
+  retrievedFor: string;
+}
+
+function historyLine(h: HistoryEntry): string {
+  const { incident } = h;
+  return [
+    `- [${incident.id}] ${incident.title} (${incident.date})`,
+    `    Retrieved because: ${h.retrievedFor}`,
+    `    What happened: ${incident.summary}`,
+    `    Conclusion: ${incident.outcome}`,
+  ].join("\n");
 }
 
 export interface AgentContext {
@@ -248,8 +265,8 @@ export interface AgentContext {
   remedies: Remedies;
   /** raw signals since the last deliberation, mostly noise */
   reports: Report[];
-  /** historical incidents of the involved element types */
-  history: HistoricalIncident[];
+  /** past incidents retrieved for this situation, each with why it surfaced */
+  history: HistoryEntry[];
   /** why this deliberation was triggered */
   reasons: string[];
 }
@@ -293,7 +310,13 @@ export function buildMessages(
   }
 
   if (ctx.history.length > 0) {
-    parts.push("", "PAST INCIDENTS OF THESE SITE TYPES:", ...ctx.history.map(historyLine));
+    parts.push(
+      "",
+      "PAST INCIDENTS OF THESE SITE TYPES — retrieved from the incident memory by",
+      "similarity to what you are looking at now, closures of earlier runs included:",
+      ...ctx.history.map(historyLine),
+      'If one of these conclusions changes a decision, cite its id in "historyCitation".',
+    );
   }
 
   if (ctx.currentPlan) {

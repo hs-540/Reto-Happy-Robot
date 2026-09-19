@@ -20,6 +20,8 @@ import type { HappyRobotClient } from "./happyrobot.js";
 import type { LlmClient } from "./llm.js";
 import type { WorldEvent, World } from "./world.js";
 import type { Feed } from "./feed.js";
+import type { HistoryRag } from "./rag/history.js";
+import { staticHistory, tryRetrieveHistory } from "./rag/retrieval.js";
 import {
   AgentOutputSchema,
   buildMessages,
@@ -94,7 +96,14 @@ export interface AgentOptions {
   actionRegistry: ActionRegistry;
   /** channel to the real world: calls and messages */
   happyrobot: HappyRobotClient;
+  /** Static history shipped in `data/history`: the floor when retrieval is not available */
   history: HistoricalIncident[];
+  /**
+   * Incident memory, resolved when Chroma is up (`null` when it never came up).
+   * Optional and never awaited outside its own budget: it is what the agent
+   * remembers, not something the agent depends on.
+   */
+  rag?: Promise<HistoryRag | null> | null;
   topology: Topology;
   remedies: Remedies;
   /** Current simulated second */
@@ -153,8 +162,18 @@ export function resolveContact(
 }
 
 export function createAgent(options: AgentOptions): Agent {
-  const { world, feed, llm, actionRegistry, happyrobot, history, topology, remedies, seconds } =
-    options;
+  const {
+    world,
+    feed,
+    llm,
+    actionRegistry,
+    happyrobot,
+    history,
+    rag = null,
+    topology,
+    remedies,
+    seconds,
+  } = options;
 
   let plan: AgentPlan | null = null;
   let decisions: Decision[] = [];
@@ -314,9 +333,16 @@ export function createAgent(options: AgentOptions): Agent {
   /* ─── Deliberation: LLM with retry against the hard rules ────────────── */
 
   async function deliberate(state: StateView, reasons: string[]): Promise<AgentOutput> {
-    const involvedTypes = new Set(
-      state.elements.filter((e) => e.status !== "normal").map((e) => e.type),
-    );
+    const affected = state.elements.filter((e) => e.status !== "normal");
+    // Real retrieval against the incident memory, capped at the same measured
+    // per-turn budget. `null` covers every failure — no Chroma, a throw, a slow
+    // search — and the static history of `data/history` takes over.
+    const retrieved = await tryRetrieveHistory({
+      rag,
+      reasons,
+      sites: affected,
+      limit: MAX_HISTORY_PER_TURN,
+    });
     const ctx = {
       simulationClock: state.simulationClock,
       elements: state.elements,
@@ -324,7 +350,7 @@ export function createAgent(options: AgentOptions): Agent {
       secondsWithoutPower: (id: string) => world.secondsWithoutPower(id),
       priorities: world.priorities(state.elements),
       currentPlan: plan,
-      history: history.filter((h) => involvedTypes.has(h.type)).slice(0, MAX_HISTORY_PER_TURN),
+      history: retrieved ?? staticHistory(history, affected, MAX_HISTORY_PER_TURN),
       topology,
       remedies,
       reports: [
