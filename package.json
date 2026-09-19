@@ -7,7 +7,7 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "npm run dev:backend & npm run dev:frontend & wait",
+    "dev": "node scripts/dev.mjs",
     "predev": "npm run build --workspace shared",
     "build": "npm run build --workspace shared && npm run build --workspace backend && npm run build --workspace frontend",
     "typecheck": "npm run build --workspace shared && npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
