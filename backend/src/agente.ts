@@ -25,8 +25,12 @@ import {
   type SalidaAgente,
 } from "./prompt.js";
 
-/** Reintentos ante acciones rechazadas por las reglas duras, antes de descartarlas */
-const MAX_REINTENTOS = 2;
+/**
+ * Reintentos ante acciones rechazadas por las reglas duras. Uno, no dos: cada
+ * llamada cuesta 15-30s, así que tres intentos se comían el presupuesto entero
+ * y garantizaban el fallback justo cuando el agente estaba corrigiéndose.
+ */
+const MAX_REINTENTOS = 1;
 
 /**
  * Presupuesto total de una deliberación, reintentos incluidos; agotado, manda

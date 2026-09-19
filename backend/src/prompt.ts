@@ -47,6 +47,7 @@ export const SalidaAgenteSchema = z.object({
       elementId: z.string(),
       /** 1 = lo más urgente */
       prioridad: z.number(),
+      /** dos frases como mucho: el dato que manda y la conclusión */
       razonamiento: z.string(),
       /** id de un incidente histórico que justifica la decisión, o null */
       citaHistorico: z.string().nullable(),
@@ -104,6 +105,11 @@ TU TRABAJO EN CADA DELIBERACIÓN
    Encontrarlo es la parte de tu trabajo que nadie más puede hacer.
 2. Prioriza con los medios QUE QUEDAN, no con los que harían falta.
 3. Decide acciones concretas. "Monitorizar la situación" no es una acción.
+3b. SÉ BREVE. Decide sobre los 3 o 4 sitios que de verdad cambian algo en este momento,
+   no sobre los seis: un sitio estable y cubierto no necesita una decisión propia. Y cada
+   "razonamiento" son DOS FRASES como mucho, por debajo de 240 caracteres: el dato que
+   manda y la conclusión. Nada de recapitular el estado ni repetir lo que ya dijiste en
+   otra decisión. Quien te lee está gestionando una emergencia y tiene cuatro minutos.
 4. COMUNICA. Coordinar es hablar con gente, no solo mover camiones. Si un sitio está
    critico o degradado, o si una acción depende de alguien, EMITE una acción "contactar"
    con su canal, su destinatario de la lista de CONTACTOS y el mensaje ya redactado.
