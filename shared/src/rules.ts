@@ -134,7 +134,6 @@ export const MAX_MINUTES_WITHOUT_POWER: Record<ElementType, number> =
   AGENT_RULES.maxMinutesWithoutPower;
 
 export const UPS_ACT_THRESHOLD = AGENT_RULES.ups.act;
-export const UPS_EMERGENCY_THRESHOLD = AGENT_RULES.ups.emergency;
 export const CRITICAL_BATTERY_THRESHOLD = AGENT_RULES.ups.criticalBattery;
 
 /** Litres below which a generator cannot be deployed without refuelling first */
