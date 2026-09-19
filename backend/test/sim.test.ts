@@ -103,6 +103,22 @@ function runThrough(sim: ReturnType<typeof createSimulation>, until: number = DU
   }
 }
 
+test("finished only turns true once the script has fully played out", () => {
+  const { sim } = freshSim();
+  assert.equal(sim.finished, false);
+  sim.start(START_MS);
+  sim.advance(START_MS + 60_000);
+  assert.equal(sim.finished, false);
+  runThrough(sim);
+  assert.equal(sim.finished, true);
+  assert.equal(sim.state().finished, true);
+  // the clock freezes at the script's duration: the run is over, the world stops
+  sim.advance(START_MS + 600_000);
+  assert.equal(sim.seconds(), loadScript(scriptPath).durationSeconds);
+  sim.reset();
+  assert.equal(sim.finished, false);
+});
+
 test("without starting, the simulation does not advance nor emit feed", () => {
   const { sim, feed } = freshSim();
   sim.advance(START_MS + 60_000);

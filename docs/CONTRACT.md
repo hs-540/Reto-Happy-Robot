@@ -82,6 +82,7 @@ Full snapshot of the world. Replaced entirely on every poll.
   "tick": 42,
   "paused": false,
   "started": true,
+  "finished": false,
   "simulationClock": "2026-09-18T10:03:30.000Z",
   "lastSeq": 17,
   "elements": [

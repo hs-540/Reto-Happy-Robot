@@ -105,6 +105,8 @@ export interface StateView {
   paused: boolean;
   /** false until the script starts via POST /api/control {action:"start"} */
   started: boolean;
+  /** the script played out completely: the clock is frozen at its duration */
+  finished: boolean;
   /** Simulated instant, ISO 8601 */
   simulationClock: string;
   /** Last seq emitted in the feed; correlates /api/state with /api/feed */

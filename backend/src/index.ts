@@ -17,6 +17,7 @@ import { createFeed, parseSince } from "./feed.js";
 import { toTopology, loadScript } from "./script.js";
 import { createHappyRobotClient } from "./happyrobot.js";
 import { createLlmClient } from "./llm.js";
+import { createRunStats } from "./stats.js";
 import { createWorld } from "./world.js";
 import { startChroma } from "./rag/chroma.js";
 import { createHistoryRag, type HistoryRag } from "./rag/history.js";
@@ -42,6 +43,13 @@ const roads = (() => {
 })();
 
 const world = createWorld(script, remedies, topologyGraph, roads);
+
+/** Per-run counters: LLM latency/tokens and trigger-to-decision reaction times */
+const stats = createRunStats();
+/** Incidents closed this run; feeds the end-of-simulation summary */
+let resolvedClosures = 0;
+/** The end-of-run summary is published exactly once per run */
+let summaryPublished = false;
 
 /** History shipped with the repo, per site type: the seed of the incident memory */
 const history: HistoricalIncident[] = ["hospital", "datacenter", "substation"].flatMap((type) =>
@@ -81,6 +89,7 @@ const ragReady: Promise<HistoryRag | null> = startChroma({
   });
 
 function onResolved(closure: IncidentClosure): void {
+  resolvedClosures += 1;
   void ragReady.then((rag) => {
     if (!rag) return;
     rag
@@ -114,7 +123,7 @@ const happyrobot = createHappyRobotClient({
 const agent = createAgent({
   world,
   feed,
-  llm: createLlmClient(config.llm.gateways),
+  llm: createLlmClient(config.llm.gateways, stats),
   actionRegistry,
   happyrobot,
   history,
@@ -122,7 +131,50 @@ const agent = createAgent({
   topology: topologyGraph,
   remedies,
   seconds: () => sim.seconds(),
+  stats,
 });
+
+/**
+ * End-of-run report: what happened, how the agent reacted and what it cost.
+ * Logged to the console and summarized into the feed as a system item.
+ */
+function publishRunSummary(): void {
+  const items = feed.since(0);
+  const byKind = new Map<string, number>();
+  for (const item of items) {
+    byKind.set(item.kind, (byKind.get(item.kind) ?? 0) + 1);
+  }
+  const state = sim.state();
+  const open = state.elements.filter((e) => e.status === "critical" || e.status === "degraded");
+  const snapshot = stats.snapshot();
+  const fmtSeconds = (ms: number | null) => (ms === null ? "n/a" : `${(ms / 1000).toFixed(1)}s`);
+  const fmtInt = (n: number) => n.toLocaleString("en-US");
+
+  console.log(`[summary] simulation complete at crisis second ${Math.round(sim.seconds())} of ${script.durationSeconds}`);
+  console.log(
+    `[summary] events: ${items.length} total — ` +
+      `${byKind.get("alarm") ?? 0} alarms, ${byKind.get("report") ?? 0} raw signals, ` +
+      `${byKind.get("decision") ?? 0} decisions, ${byKind.get("action") ?? 0} actions, ` +
+      `${byKind.get("outcome") ?? 0} call outcomes, ${byKind.get("system") ?? 0} system`,
+  );
+  console.log(`[summary] incidents: ${resolvedClosures} resolved, ${open.length} still open`);
+  console.log(
+    `[summary] llm: ${snapshot.llm.calls} calls, latency min ${fmtSeconds(snapshot.llm.minLatencyMs)} / ` +
+      `avg ${fmtSeconds(snapshot.llm.meanLatencyMs)} / max ${fmtSeconds(snapshot.llm.maxLatencyMs)}, ` +
+      `tokens ${fmtInt(snapshot.llm.totalTokens)} total ` +
+      `(${fmtInt(snapshot.llm.promptTokens)} prompt / ${fmtInt(snapshot.llm.completionTokens)} completion)`,
+  );
+  console.log(`[summary] mean reaction time (trigger to decision executed): ${fmtSeconds(snapshot.meanReactionMs)}`);
+
+  feed.publish({
+    kind: "system",
+    message:
+      `Run complete: ${items.length} events processed, ${resolvedClosures} incidents resolved, ` +
+      `${snapshot.llm.calls} LLM calls (min/avg/max ${fmtSeconds(snapshot.llm.minLatencyMs)}/` +
+      `${fmtSeconds(snapshot.llm.meanLatencyMs)}/${fmtSeconds(snapshot.llm.maxLatencyMs)}), ` +
+      `${fmtInt(snapshot.llm.totalTokens)} tokens, mean reaction ${fmtSeconds(snapshot.meanReactionMs)}.`,
+  });
+}
 
 /**
  * One tick of the system: the sim applies the script's due events and the world
@@ -179,6 +231,10 @@ function advance(): void {
   void agent.observe(fullState(), events).catch((err: unknown) => {
     console.error(`[agent] observation failed: ${redactSecrets(err instanceof Error ? err.message : String(err))}`);
   });
+  if (sim.finished && !summaryPublished) {
+    summaryPublished = true;
+    publishRunSummary();
+  }
 }
 
 /** `attention` is derived and computed by the backend (CONTRACT.md, golden rule 4) */
@@ -280,6 +336,9 @@ app.post("/api/control", (req, res) => {
     case "reset":
       sim.reset();
       agent.reset();
+      stats.reset();
+      resolvedClosures = 0;
+      summaryPublished = false;
       break;
     case "pause":
       sim.pause();
