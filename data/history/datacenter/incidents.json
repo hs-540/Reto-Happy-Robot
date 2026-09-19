@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hist-dc-001",
+    "type": "datacenter",
+    "title": "Overheating due to cooling failure — February 2026",
+    "summary": "A grid outage halted cooling and raised the temperature to 44°C within 20 minutes. The technical crew was prioritized over the generator, since the problem was cooling, not raw power.",
+    "outcome": "The crew restarted the cooling system in manual mode before the UPS ran out. Lesson: when temperature rises without a simultaneous UPS load drop, prioritize the crew over the generator.",
+    "date": "2026-02-08"
+  },
+  {
+    "id": "hist-dc-002",
+    "type": "datacenter",
+    "title": "UPS drained while waiting for backup — April 2026",
+    "summary": "The UPS battery ran out before any resource arrived because action was postponed until the root cause was confirmed.",
+    "outcome": "8-minute service outage until the emergency generator restored it. Lesson: when UPS load falls below 15%, act immediately without waiting for a complete diagnosis.",
+    "date": "2026-04-22"
+  },
+  {
+    "id": "hist-dc-003",
+    "type": "datacenter",
+    "title": "Datacenter vs. hospital priority conflict resolved in favor of the hospital — June 2026",
+    "summary": "Both elements requested the only available generator simultaneously. It was assigned to the hospital due to human criticality, and the datacenter held on with its remaining UPS until the crew arrived.",
+    "outcome": "The datacenter lost partial service for 6 minutes, with no data loss. Lesson: in a direct conflict over the same resource, the hospital's human criticality outweighs the datacenter's service continuity, unless the UPS is already below 10%.",
+    "date": "2026-06-15"
+  }
+]

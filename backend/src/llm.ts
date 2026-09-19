@@ -4,142 +4,142 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import type { z } from "zod";
 
 /**
- * Presupuesto por intento de gateway. Medido en vivo contra Helmcode con el
- * prompt real del agente (catálogo de reglas + mundo + histórico):
- * `deepseek-v4-flash` tarda entre 8s y 19s, porque razona antes de responder,
- * y la latencia sube según engorda el prompt durante la ejecución. Con 10s
- * (valor calibrado para `gpt-4.1-mini`) solo sobrevivía 1 de cada 4 llamadas.
- * El tick del motor no espera a la deliberación, así que esto no frena la
- * simulación: solo evita matar respuestas que venían de camino.
+ * Budget per gateway attempt. Measured live against Helmcode with the agent's
+ * real prompt (rules catalog + world + history): `deepseek-v4-flash` takes
+ * between 8s and 19s because it reasons before answering, and latency grows as
+ * the prompt swells during the run. With 10s (calibrated for `gpt-4.1-mini`)
+ * only 1 in 4 calls survived. The engine tick does not wait for the
+ * deliberation, so this does not slow the simulation: it only avoids killing
+ * responses that were already on their way.
  */
 const TIMEOUT_MS = 35_000;
 
-export interface GatewayLlm {
+export interface LlmGateway {
   id: string;
   url: string;
   apiKey: string;
-  modelo: string;
-  modeloEmbeddings: string;
+  model: string;
+  embeddingModel: string;
 }
 
-export interface RespuestaLlm {
-  texto: string;
+export interface LlmResponse {
+  text: string;
   gateway: string;
-  modelo: string;
-  latenciaMs: number;
+  model: string;
+  latencyMs: number;
 }
 
-export interface RespuestaEstructurada<T> extends RespuestaLlm {
-  datos: T;
+export interface StructuredLlmResponse<T> extends LlmResponse {
+  data: T;
 }
 
-export interface ClienteLlm {
-  chat(mensajes: ChatCompletionMessageParam[]): Promise<RespuestaLlm>;
-  estructurada<T>(
-    mensajes: ChatCompletionMessageParam[],
-    esquema: z.ZodType<T>,
-    nombre: string,
-  ): Promise<RespuestaEstructurada<T>>;
-  /** Vectores alineados con `textos` (misma posición y longitud) */
-  embeddings(textos: readonly string[]): Promise<number[][]>;
+export interface LlmClient {
+  chat(messages: ChatCompletionMessageParam[]): Promise<LlmResponse>;
+  structured<T>(
+    messages: ChatCompletionMessageParam[],
+    schema: z.ZodType<T>,
+    name: string,
+  ): Promise<StructuredLlmResponse<T>>;
+  /** Vectors aligned with `texts` (same position and length) */
+  embeddings(texts: readonly string[]): Promise<number[][]>;
 }
 
 /**
- * Clasifica el error para decidir si se prueba el siguiente gateway.
- * Un gateway que rechaza la credencial (401) o niega el servicio (403: key
- * caducada, crédito agotado, cuenta sin verificar) está tan indisponible como
- * uno que devuelve 500 — y esos son justo los fallos que aparecen en directo.
- * `null` = error de nuestra petición, reintentar en otro gateway no ayudaría.
+ * Classifies the error to decide whether to try the next gateway.
+ * A gateway that rejects the credential (401) or denies service (403: expired
+ * key, spent credit, unverified account) is as unavailable as one returning
+ * 500 — and those are exactly the failures that show up live.
+ * `null` = error on our request side, retrying on another gateway would not help.
  */
-function motivoFallo(err: unknown): string | null {
-  if (err instanceof APIConnectionError) return "timeout o conexión";
+function failureReason(err: unknown): string | null {
+  if (err instanceof APIConnectionError) return "timeout or connection";
   if (err instanceof APIError && err.status !== null) {
-    if (err.status === 401) return "401 credencial rechazada";
-    if (err.status === 403) return "403 servicio denegado (crédito o cuenta)";
-    if (err.status === 404) return "404 modelo no servido por este gateway";
+    if (err.status === 401) return "401 credential rejected";
+    if (err.status === 403) return "403 service denied (credit or account)";
+    if (err.status === 404) return "404 model not served by this gateway";
     if (err.status === 429) return "429";
     if (err.status >= 500) return `status ${err.status}`;
   }
   return null;
 }
 
-interface IntentoGateway {
-  gw: GatewayLlm;
-  cliente: OpenAI;
+interface GatewayAttempt {
+  gw: LlmGateway;
+  client: OpenAI;
 }
 
-export function crearClienteLlm(gateways: readonly GatewayLlm[]): ClienteLlm {
-  const intentos: IntentoGateway[] = gateways.map((gw) => ({
+export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
+  const attempts: GatewayAttempt[] = gateways.map((gw) => ({
     gw,
-    cliente: new OpenAI({ baseURL: gw.url, apiKey: gw.apiKey, timeout: TIMEOUT_MS, maxRetries: 0 }),
+    client: new OpenAI({ baseURL: gw.url, apiKey: gw.apiKey, timeout: TIMEOUT_MS, maxRetries: 0 }),
   }));
 
-  async function conFailover<T>(
-    operacion: (intento: IntentoGateway) => Promise<T>,
-  ): Promise<{ resultado: T; gw: GatewayLlm; latenciaMs: number }> {
-    let ultimoError: unknown;
-    for (const intento of intentos) {
-      const inicio = performance.now();
+  async function withFailover<T>(
+    operation: (attempt: GatewayAttempt) => Promise<T>,
+  ): Promise<{ result: T; gw: LlmGateway; latencyMs: number }> {
+    let lastError: unknown;
+    for (const attempt of attempts) {
+      const start = performance.now();
       try {
-        const resultado = await operacion(intento);
-        const latenciaMs = Math.round(performance.now() - inicio);
-        console.log(`[llm] respuesta vía ${intento.gw.id} (${latenciaMs} ms)`);
-        return { resultado, gw: intento.gw, latenciaMs };
+        const result = await operation(attempt);
+        const latencyMs = Math.round(performance.now() - start);
+        console.log(`[llm] response via ${attempt.gw.id} (${latencyMs} ms)`);
+        return { result, gw: attempt.gw, latencyMs };
       } catch (err) {
-        ultimoError = err;
-        const motivo = motivoFallo(err);
-        if (motivo === null) throw err;
-        const haySiguiente = intento !== intentos[intentos.length - 1];
+        lastError = err;
+        const reason = failureReason(err);
+        if (reason === null) throw err;
+        const hasNext = attempt !== attempts[attempts.length - 1];
         console.error(
-          `[llm] gateway ${intento.gw.id} falló (${motivo})${haySiguiente ? "; failover al siguiente" : "; sin más gateways"}`,
+          `[llm] gateway ${attempt.gw.id} failed (${reason})${hasNext ? "; failing over to the next one" : "; no more gateways"}`,
         );
       }
     }
-    throw new Error(`todos los gateways fallaron (${gateways.map((g) => g.id).join(", ")})`, {
-      cause: ultimoError,
+    throw new Error(`all gateways failed (${gateways.map((g) => g.id).join(", ")})`, {
+      cause: lastError,
     });
   }
 
   return {
-    chat: async (mensajes) => {
-      const { resultado, gw, latenciaMs } = await conFailover(({ cliente, gw }: IntentoGateway) =>
-        cliente.chat.completions.create({ model: gw.modelo, messages: mensajes }),
+    chat: async (messages) => {
+      const { result, gw, latencyMs } = await withFailover(({ client, gw }: GatewayAttempt) =>
+        client.chat.completions.create({ model: gw.model, messages }),
       );
-      const texto = resultado.choices?.[0]?.message?.content ?? "";
-      if (!texto) throw new Error(`gateway ${gw.id} devolvió una respuesta vacía`);
-      return { texto, gateway: gw.id, modelo: gw.modelo, latenciaMs };
+      const text = result.choices?.[0]?.message?.content ?? "";
+      if (!text) throw new Error(`gateway ${gw.id} returned an empty response`);
+      return { text, gateway: gw.id, model: gw.model, latencyMs };
     },
 
-    estructurada: async (mensajes, esquema, nombre) => {
-      const { resultado, gw, latenciaMs } = await conFailover(({ cliente, gw }: IntentoGateway) =>
-        cliente.chat.completions.parse({
-          model: gw.modelo,
-          messages: mensajes,
-          response_format: zodResponseFormat(esquema, nombre),
+    structured: async (messages, schema, name) => {
+      const { result, gw, latencyMs } = await withFailover(({ client, gw }: GatewayAttempt) =>
+        client.chat.completions.parse({
+          model: gw.model,
+          messages,
+          response_format: zodResponseFormat(schema, name),
         }),
       );
-      const mensaje = resultado.choices[0]?.message;
-      const texto = mensaje?.content ?? "";
-      const datos = mensaje?.parsed;
-      if (texto === "" || datos == null) {
-        throw new Error(`gateway ${gw.id} no devolvió salida estructurada válida`);
+      const message = result.choices[0]?.message;
+      const text = message?.content ?? "";
+      const data = message?.parsed;
+      if (text === "" || data == null) {
+        throw new Error(`gateway ${gw.id} did not return valid structured output`);
       }
-      return { texto, datos, gateway: gw.id, modelo: gw.modelo, latenciaMs };
+      return { text, data, gateway: gw.id, model: gw.model, latencyMs };
     },
 
-    embeddings: async (textos) => {
-      if (textos.length === 0) return [];
-      const { resultado, gw } = await conFailover(({ cliente, gw }: IntentoGateway) =>
-        cliente.embeddings.create({ model: gw.modeloEmbeddings, input: [...textos] }),
+    embeddings: async (texts) => {
+      if (texts.length === 0) return [];
+      const { result, gw } = await withFailover(({ client, gw }: GatewayAttempt) =>
+        client.embeddings.create({ model: gw.embeddingModel, input: [...texts] }),
       );
-      const vectores = resultado.data.map((d) => d.embedding);
+      const vectors = result.data.map((d) => d.embedding);
       if (
-        vectores.length !== textos.length ||
-        vectores.some((v) => !Array.isArray(v) || v.length === 0)
+        vectors.length !== texts.length ||
+        vectors.some((v) => !Array.isArray(v) || v.length === 0)
       ) {
-        throw new Error(`gateway ${gw.id} devolvió embeddings incompletos`);
+        throw new Error(`gateway ${gw.id} returned incomplete embeddings`);
       }
-      return vectores;
+      return vectors;
     },
   };
 }

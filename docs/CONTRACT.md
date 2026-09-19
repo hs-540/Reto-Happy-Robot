@@ -1,93 +1,93 @@
-# Contrato de API y datos — Reto HappyRobot
+# API and data contract — HappyRobot Challenge
 
-Fuente de verdad de la comunicación backend ↔ frontend. Los tipos viven en
-`shared/src/index.ts`; este documento los ilustra con payloads de ejemplo.
+Source of truth for backend ↔ frontend communication. The types live in
+`shared/src/index.ts`; this document illustrates them with example payloads.
 
-Regla: si cambia una ruta o un payload, se cambia primero `shared`, compila, y
-luego se actualiza este documento. El tracker de issues no manda.
+Rule: if a route or a payload changes, `shared` changes first, it compiles, and
+then this document gets updated. The issue tracker does not rule.
 
 ## Endpoints
 
-| Ruta | Método | Propósito | Poll |
+| Route | Method | Purpose | Poll |
 |---|---|---|---|
-| `/api/topology` | GET | Elementos + recursos base + metadatos del guion | 1 vez al cargar |
-| `/api/state` | GET | Mundo + recursos (foto actual) | 2s |
-| `/api/agent` | GET | Plan actual, decisiones vivas, acciones | 2s |
-| `/api/feed?since=<seq>` | GET | Log append-only (`alarma`/`decision`/`accion`/`sistema`) | 1-2s |
-| `/api/control` | POST | `pausar`/`reanudar`/`inyectar` | — |
-| `/api/health` | GET | Estado de conexión | 5s |
+| `/api/topology` | GET | Elements + base resources + script metadata | once on load |
+| `/api/state` | GET | World + resources (current snapshot) | 2s |
+| `/api/agent` | GET | Current plan, live decisions, actions | 2s |
+| `/api/feed?since=<seq>` | GET | Append-only log (`alarm`/`decision`/`action`/`system`) | 1-2s |
+| `/api/control` | POST | `pause`/`resume`/`inject` | — |
+| `/api/health` | GET | Connection status | 5s |
 
-## Reglas de oro
+## Golden rules
 
-1. Cursor monotónico `seq`, **nunca timestamps** para `since`. Evita duplicados y huecos.
-2. Todo ítem del feed lleva `elementId` y, si aplica, `decisionId`/`actionId`. Permite correlacionar mapa ↔ agente.
-3. `/api/topology` y `/api/state` devuelven **foto completa**, nunca diffs.
-4. `severidad`, `status` y `atencion` los calcula el **backend**. El front no deriva estado crítico.
-5. `atencion.estado` es derivado (acción viva o recurso asignado), no lo setea el LLM.
-6. El feed se consume como **acumulador por `seq`** (merge + dedup). Así se puede pasar de polling a SSE sin tocar la UI.
+1. Monotonic `seq` cursor, **never timestamps** for `since`. Avoids duplicates and gaps.
+2. Every feed item carries `elementId` and, when applicable, `decisionId`/`actionId`. It allows correlating map ↔ agent.
+3. `/api/topology` and `/api/state` return a **full snapshot**, never diffs.
+4. `severity`, `status` and `attention` are computed by the **backend**. The frontend does not derive critical state.
+5. `attention.state` is derived (live action or assigned resource), the LLM does not set it.
+6. The feed is consumed as a **`seq`-keyed accumulator** (merge + dedup). That way it can move from polling to SSE without touching the UI.
 
 ## GET /api/topology
 
 ```json
 {
   "crisis": {
-    "titulo": "Apagón regional — Getafe, Comunidad de Madrid",
-    "duracionSegundos": 300,
-    "momentos": [
-      { "atSeconds": 0, "titulo": "Apagón inicial en la subestación" },
-      { "atSeconds": 40, "titulo": "Datacenter se sobrecalienta" },
-      { "atSeconds": 90, "titulo": "Hospital pierde el generador" },
-      { "atSeconds": 150, "titulo": "ETA incumplida: replanteamiento" },
-      { "atSeconds": 240, "titulo": "Subestación reparada" }
+    "title": "Regional blackout — Getafe, Community of Madrid",
+    "durationSeconds": 300,
+    "moments": [
+      { "atSeconds": 0, "title": "Initial blackout at the substation" },
+      { "atSeconds": 40, "title": "Datacenter overheats" },
+      { "atSeconds": 90, "title": "Hospital loses its generator" },
+      { "atSeconds": 150, "title": "ETA missed: re-plan" },
+      { "atSeconds": 240, "title": "Substation repaired" }
     ]
   },
-  "elementos": [
-    { "id": "sub-01", "type": "subestacion", "name": "Subestación Getafe-Sur", "lat": 40.3057, "lng": -3.7327, "criticidad": 70 },
-    { "id": "dc-01", "type": "datacenter", "name": "CPD Metropolitano Getafe", "lat": 40.295, "lng": -3.72, "criticidad": 60 },
-    { "id": "hosp-01", "type": "hospital", "name": "Hospital Regional Getafe-Sur", "lat": 40.31, "lng": -3.71, "criticidad": 95 }
+  "elements": [
+    { "id": "sub-01", "type": "substation", "name": "Getafe-Sur Substation", "lat": 40.3057, "lng": -3.7327, "criticality": 70 },
+    { "id": "dc-01", "type": "datacenter", "name": "Getafe Metropolitan Datacenter", "lat": 40.295, "lng": -3.72, "criticality": 60 },
+    { "id": "hosp-01", "type": "hospital", "name": "Getafe-Sur Regional Hospital", "lat": 40.31, "lng": -3.71, "criticality": 95 }
   ],
-  "recursos": [
-    { "id": "cuadrilla-1", "type": "cuadrilla", "lat": 40.302, "lng": -3.722 },
-    { "id": "generador-1", "type": "generador", "lat": 40.302, "lng": -3.722 },
-    { "id": "generador-2", "type": "generador", "lat": 40.302, "lng": -3.722 }
+  "resources": [
+    { "id": "crew-1", "type": "crew", "lat": 40.302, "lng": -3.722 },
+    { "id": "generator-1", "type": "generator", "lat": 40.302, "lng": -3.722 },
+    { "id": "generator-2", "type": "generator", "lat": 40.302, "lng": -3.722 }
   ]
 }
 ```
 
 ## GET /api/state
 
-Foto completa del mundo. Se reemplaza entera en cada poll.
+Full snapshot of the world. Replaced entirely on every poll.
 
 ```json
 {
   "tick": 42,
-  "pausado": false,
-  "iniciado": true,
-  "relojSimulacion": "2026-09-18T10:03:30.000Z",
-  "ultimoSeq": 17,
-  "elementos": [
+  "paused": false,
+  "started": true,
+  "simulationClock": "2026-09-18T10:03:30.000Z",
+  "lastSeq": 17,
+  "elements": [
     {
       "id": "hosp-01",
       "type": "hospital",
-      "name": "Hospital Regional Getafe-Sur",
+      "name": "Getafe-Sur Regional Hospital",
       "lat": 40.31,
       "lng": -3.71,
-      "status": "critico",
-      "severidad": 85,
-      "sensores": { "bateria_generador": 18, "tension_red": 12 },
-      "atencion": {
-        "estado": "recurso_asignado",
-        "recursoId": "generador-2",
-        "decisionActivaId": "dec-004"
+      "status": "critical",
+      "severity": 85,
+      "sensors": { "generator_battery": 18, "grid_voltage": 12 },
+      "attention": {
+        "state": "resource_assigned",
+        "resourceId": "generator-2",
+        "activeDecisionId": "dec-004"
       },
-      "actualizadoEn": "2026-09-18T10:03:30.000Z"
+      "updatedAt": "2026-09-18T10:03:30.000Z"
     }
   ],
-  "recursos": [
+  "resources": [
     {
-      "id": "cuadrilla-1",
-      "type": "cuadrilla",
-      "status": "en_transito",
+      "id": "crew-1",
+      "type": "crew",
+      "status": "in_transit",
       "assignedElementId": "dc-01",
       "lat": 40.299,
       "lng": -3.717
@@ -96,100 +96,100 @@ Foto completa del mundo. Se reemplaza entera en cada poll.
 }
 ```
 
-`status`: `normal` → `degradado` → `critico` → `resuelto`.
-`atencion.estado`: `sin_atencion` | `analizando` | `recurso_asignado` | `resuelto`.
-La asignación aparece en los dos lados (`element.atencion.recursoId` y `resource.assignedElementId`); el backend la calcula una vez.
+`status`: `normal` → `degraded` → `critical` → `resolved`.
+`attention.state`: `unattended` | `analyzing` | `resource_assigned` | `resolved`.
+The assignment shows up on both sides (`element.attention.resourceId` and `resource.assignedElementId`); the backend computes it once.
 
 ## GET /api/agent
 
 ```json
 {
   "tick": 42,
-  "pausado": false,
-  "planActual": {
-    "objetivo": "Estabilizar hospital antes de que se agote el generador",
-    "pasos": [
-      { "id": "p1", "descripcion": "Asignar generador-2 a hosp-01", "elementId": "hosp-01", "completado": true },
-      { "id": "p2", "descripcion": "Avisar a responsable del hospital", "elementId": "hosp-01", "completado": false }
+  "paused": false,
+  "currentPlan": {
+    "objective": "Stabilize the hospital before its generator runs out",
+    "steps": [
+      { "id": "s1", "description": "Assign generator-2 to hosp-01", "elementId": "hosp-01", "completed": true },
+      { "id": "s2", "description": "Notify the hospital manager", "elementId": "hosp-01", "completed": false }
     ],
-    "generadoEn": "2026-09-18T10:03:10.000Z",
-    "replanDe": "dec-003"
+    "generatedAt": "2026-09-18T10:03:10.000Z",
+    "replanOf": "dec-003"
   },
-  "decisiones": [
+  "decisions": [
     {
       "id": "dec-004",
       "timestamp": "2026-09-18T10:03:10.000Z",
       "elementId": "hosp-01",
-      "prioridad": 1,
-      "razonamiento": "El hospital tiene criticidad 95 y solo 18% de batería. El datacenter puede esperar 5 min.",
-      "provocaReplan": true,
-      "acciones": [
+      "priority": 1,
+      "reasoning": "The hospital has criticality 95 and only 18% battery. The datacenter can wait 5 min.",
+      "provokesReplan": true,
+      "actions": [
         {
           "id": "act-007",
-          "type": "llamada_voz",
+          "type": "voice_call",
           "targetElementId": "hosp-01",
-          "destinatario": "responsable_hospital",
-          "status": "ejecutada",
-          "mensaje": "Cortaremos suministro 10 min para conectar el generador portátil.",
+          "recipient": "hospital_manager",
+          "status": "executed",
+          "message": "We will cut power for 10 min to connect the portable generator.",
           "timestamp": "2026-09-18T10:03:10.000Z"
         }
       ]
     }
   ],
-  "acciones": []
+  "actions": []
 }
 ```
 
-`Decision.provocaReplan` marca los ticks que regeneran el plan global. El resto son ajustes incrementales.
-`Action.status` nace directamente en `ejecutada`: las acciones del agente se ejecutan sin gate humano de confirmación.
+`Decision.provokesReplan` marks the ticks that regenerate the global plan. The rest are incremental adjustments.
+`Action.status` is born directly as `executed`: the agent's actions run without a human confirmation gate.
 
 ## GET /api/feed?since=<seq>
 
-Devuelve solo lo nuevo. El front acumula y deduplica por `seq`.
+Returns only what is new. The frontend accumulates and dedups by `seq`.
 
 ```json
 {
   "items": [
-    { "seq": 18, "ts": "2026-09-18T10:03:40.000Z", "kind": "alarma", "elementId": "dc-01", "metric": "temperatura", "value": 48, "severidad": 70 },
-    { "seq": 19, "ts": "2026-09-18T10:03:41.000Z", "kind": "decision", "elementId": "dc-01", "decisionId": "dec-005", "prioridad": 2, "razonamiento": "Reasigno recursos al datacenter…", "provocaReplan": false },
-    { "seq": 20, "ts": "2026-09-18T10:03:42.000Z", "kind": "accion", "elementId": "dc-01", "actionId": "act-008", "tipo": "mensaje_chat", "estado": "ejecutada", "mensaje": "Cierre preventivo de pasillos calientes." },
-    { "seq": 21, "ts": "2026-09-18T10:03:43.000Z", "kind": "sistema", "mensaje": "Replanificación completa: cuadrilla no cumple ETA." }
+    { "seq": 18, "ts": "2026-09-18T10:03:40.000Z", "kind": "alarm", "elementId": "dc-01", "metric": "temperature", "value": 48, "severity": 70 },
+    { "seq": 19, "ts": "2026-09-18T10:03:41.000Z", "kind": "decision", "elementId": "dc-01", "decisionId": "dec-005", "priority": 2, "reasoning": "Reassigning resources to the datacenter…", "provokesReplan": false },
+    { "seq": 20, "ts": "2026-09-18T10:03:42.000Z", "kind": "action", "elementId": "dc-01", "actionId": "act-008", "type": "chat_message", "status": "executed", "message": "Preventive shutdown of the hot aisles." },
+    { "seq": 21, "ts": "2026-09-18T10:03:43.000Z", "kind": "system", "message": "Full re-plan: crew misses its ETA." }
   ],
-  "ultimoSeq": 21
+  "lastSeq": 21
 }
 ```
 
-Sin `since` → devuelve el feed completo (útil para debug).
+No `since` → returns the full feed (useful for debugging).
 
 ## POST /api/control
 
 ```json
-{ "accion": "inyectar", "payload": { "elementId": "dc-01", "metric": "temperatura", "value": 55, "severidad": 80 } }
+{ "action": "inject", "payload": { "elementId": "dc-01", "metric": "temperature", "value": 55, "severity": 80 } }
 ```
 
-Respuesta:
+Response:
 
 ```json
 { "ok": true }
 ```
 
-`accion`: `iniciar` | `reiniciar` | `pausar` | `reanudar` | `inyectar`.
-La simulación **no arranca sola al boot**: `iniciar` arranca el guion cronometrado y `reiniciar` devuelve el mundo al estado inicial reproducible (reloj a 0, feed vacío, recursos y elementos re-sembrados) y lo deja detenido.
-`pausar` congela el reloj de simulación y detiene el tick del LLM.
-`inyectar` requiere `payload` (sensor event sin `id`, que asigna el backend); un `elementId` desconocido responde `400 {ok:false, error}`.
-Cuerpo inválido responde `400 {ok:false, error}`.
+`action`: `start` | `reset` | `pause` | `resume` | `inject`.
+The simulation **does not start on boot**: `start` begins the timed script and `reset` returns the world to the reproducible initial state (clock at 0, empty feed, resources and elements re-seeded) and leaves it stopped.
+`pause` freezes the simulation clock and stops the LLM tick.
+`inject` requires `payload` (sensor event without `id`, assigned by the backend); an unknown `elementId` answers `400 {ok:false, error}`.
+An invalid body answers `400 {ok:false, error}`.
 
 ## GET /api/health
 
 ```json
-{ "status": "ok", "tick": 42, "pausado": false, "iniciado": true }
+{ "status": "ok", "tick": 42, "paused": false, "started": true }
 ```
 
-## Correlación mapa ↔ agente
+## Map ↔ agent correlation
 
-| Elemento UI | Fuente | Campo de enlace |
+| UI element | Source | Link field |
 |---|---|---|
-| Marcador, color | `/api/state` | `elementos[].status` |
-| Movimiento de recurso | `/api/state` | `recursos[].lat/lng` |
-| Texto de decisión | `/api/agent` | `decisiones[].razonamiento` |
-| Ticker / historial | `/api/feed` | `items[].elementId`, `decisionId`, `actionId` |
+| Marker, color | `/api/state` | `elements[].status` |
+| Resource movement | `/api/state` | `resources[].lat/lng` |
+| Decision text | `/api/agent` | `decisions[].reasoning` |
+| Ticker / history | `/api/feed` | `items[].elementId`, `decisionId`, `actionId` |

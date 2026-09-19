@@ -1,124 +1,124 @@
 import { useState } from 'react'
-import type { ElementView, GuionMoment } from '@swarmup/shared'
+import type { ElementView, ScriptMoment } from '@swarmup/shared'
 import { postControl } from '../api'
 import { InjectionPanel } from './InjectionPanel'
 
 interface HeaderBarProps {
-  titulo: string
+  title: string
   tick: number
-  reloj: string
-  pausado: boolean
-  iniciado: boolean
+  clock: string
+  paused: boolean
+  started: boolean
   onControlOk: () => void
-  segundoActual: number
-  duracionSegundos: number
-  momentos: GuionMoment[]
-  ultimoSeq: number
-  elementos: ElementView[]
+  currentSecond: number
+  durationSeconds: number
+  moments: ScriptMoment[]
+  lastSeq: number
+  elements: ElementView[]
 }
 
-function formatoHora(iso: string): string {
+function formatTime(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleTimeString('es-ES', { hour12: false })
+  return d.toLocaleTimeString('en-GB', { hour12: false })
 }
 
-function formatoMinutos(segundos: number): string {
-  const m = Math.floor(segundos / 60)
-  const s = Math.floor(segundos % 60)
+function formatMinutes(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
 export function HeaderBar({
-  titulo,
+  title,
   tick,
-  reloj,
-  pausado,
-  iniciado,
+  clock,
+  paused,
+  started,
   onControlOk,
-  segundoActual,
-  duracionSegundos,
-  momentos,
-  ultimoSeq,
-  elementos,
+  currentSecond,
+  durationSeconds,
+  moments,
+  lastSeq,
+  elements,
 }: HeaderBarProps) {
-  const [pendiente, setPendiente] = useState(false)
+  const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function manejarControl(accion: 'iniciar' | 'pausar' | 'reanudar') {
-    setPendiente(true)
+  async function handleControl(action: 'start' | 'pause' | 'resume') {
+    setPending(true)
     setError(null)
     try {
-      await postControl({ accion })
+      await postControl({ action })
       onControlOk()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error de control')
+      setError(e instanceof Error ? e.message : 'Control error')
     } finally {
-      setPendiente(false)
+      setPending(false)
     }
   }
 
-  const enMarcha = iniciado && !pausado
+  const running = started && !paused
 
-  const progreso = Math.min(100, (segundoActual / duracionSegundos) * 100)
-  const momentoActual = [...momentos]
+  const progress = Math.min(100, (currentSecond / durationSeconds) * 100)
+  const currentMoment = [...moments]
     .reverse()
-    .find((m) => m.atSeconds <= segundoActual)
+    .find((m) => m.atSeconds <= currentSecond)
 
   return (
     <header className="header">
       <div className="header__row">
         <div className="header__title">
-          <span className={`dot ${enMarcha ? 'dot--live' : 'dot--paused'}`} />
+          <span className={`dot ${running ? 'dot--live' : 'dot--paused'}`} />
           <div>
-            <h1>{titulo}</h1>
+            <h1>{title}</h1>
             <span className="header__subtitle">
-              tick {tick} · sim {formatoHora(reloj)} · seq {ultimoSeq}
+              tick {tick} · sim {formatTime(clock)} · seq {lastSeq}
             </span>
           </div>
         </div>
         <div className="header__actions">
-          {momentoActual && (
-            <span className="header__moment">M{momentos.indexOf(momentoActual) + 1} · {momentoActual.titulo}</span>
+          {currentMoment && (
+            <span className="header__moment">M{moments.indexOf(currentMoment) + 1} · {currentMoment.title}</span>
           )}
           {error && <span className="header__error">{error}</span>}
-          {!iniciado ? (
+          {!started ? (
             <button
               type="button"
               className="btn btn--primary"
-              onClick={() => manejarControl('iniciar')}
-              disabled={pendiente}
+              onClick={() => handleControl('start')}
+              disabled={pending}
             >
-              Iniciar
+              Start
             </button>
           ) : (
             <button
               type="button"
-              className={`btn ${pausado ? 'btn--primary' : ''}`}
-              onClick={() => manejarControl(pausado ? 'reanudar' : 'pausar')}
-              disabled={pendiente}
+              className={`btn ${paused ? 'btn--primary' : ''}`}
+              onClick={() => handleControl(paused ? 'resume' : 'pause')}
+              disabled={pending}
             >
-              {pausado ? 'Reanudar' : 'Pausar'}
+              {paused ? 'Resume' : 'Pause'}
             </button>
           )}
         </div>
       </div>
 
-      <InjectionPanel elementos={elementos} iniciado={iniciado} onControlOk={onControlOk} />
+      <InjectionPanel elements={elements} started={started} onControlOk={onControlOk} />
 
       <div className="timeline" role="presentation">
         <div className="timeline__track">
-          <div className="timeline__fill" style={{ width: `${progreso}%` }} />
-          {momentos.map((m, i) => (
+          <div className="timeline__fill" style={{ width: `${progress}%` }} />
+          {moments.map((m, i) => (
             <div
               key={m.atSeconds}
-              className={`timeline__tick ${m.atSeconds <= segundoActual ? 'is-past' : ''}`}
-              style={{ left: `${(m.atSeconds / duracionSegundos) * 100}%` }}
-              title={`${formatoMinutos(m.atSeconds)} · ${m.titulo}`}
+              className={`timeline__tick ${m.atSeconds <= currentSecond ? 'is-past' : ''}`}
+              style={{ left: `${(m.atSeconds / durationSeconds) * 100}%` }}
+              title={`${formatMinutes(m.atSeconds)} · ${m.title}`}
             >
               <span>{i + 1}</span>
             </div>
           ))}
-          <div className="timeline__cursor" style={{ left: `${progreso}%` }} />
+          <div className="timeline__cursor" style={{ left: `${progress}%` }} />
         </div>
       </div>
     </header>

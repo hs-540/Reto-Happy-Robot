@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hist-hosp-001",
+    "type": "hospital",
+    "title": "Power cut in the emergency wing — March 2026",
+    "summary": "An external grid failure left the emergency wing without power for 25 minutes. Dispatching the available portable generator was prioritized over another lower-criticality element that also requested it.",
+    "outcome": "The generator arrived in 18 minutes; there was no interruption of critical equipment. The delay was due to unanticipated traffic on the route.",
+    "date": "2026-03-12"
+  },
+  {
+    "id": "hist-hosp-002",
+    "type": "hospital",
+    "title": "Backup battery drained sooner than expected — January 2026",
+    "summary": "A backup generator's battery ran out 10 minutes before the initial estimate due to an outdated consumption calculation. No crew was available at that moment.",
+    "outcome": "A second generator already en route to another incident was diverted, delaying that response by 12 minutes. Lesson: battery autonomy calculations must be reviewed every 5 minutes, not every 15.",
+    "date": "2026-01-20"
+  },
+  {
+    "id": "hist-hosp-003",
+    "type": "hospital",
+    "title": "Early warning prevented a critical outage — May 2026",
+    "summary": "Sensors detected a gradual grid voltage drop 40 minutes before the total outage. The generator was dispatched preventively instead of waiting for the full failure.",
+    "outcome": "The generator was already operational when the real outage hit, avoiding any interruption. Lesson: act on degradation trends, not only on thresholds already reached.",
+    "date": "2026-05-03"
+  }
+]

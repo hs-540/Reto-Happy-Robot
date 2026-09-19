@@ -11,7 +11,7 @@ Create a new git branch following this repo's naming convention, kept consistent
 
 - `type`: one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `style`, `perf`, `ci`, `build` — same set used by the `commiting` command, pick the one that best matches the work.
 - `short-description`: kebab-case, in **English**, a few words max — no verbs like "add-the", just the essence.
-- Keep domain/business terms (e.g. proper nouns, scenario names like `apagón-madrid`, `subestación`) in their original language and form, but still kebab-case them (`apagon-madrid`, no accents/spaces since git refs can't hold them well — drop diacritics, keep the term recognizable).
+- Write every word of the branch name in English (kebab-case), consistent with the repo's English-only rule.
 
 ## Steps
 

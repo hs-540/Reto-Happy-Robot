@@ -4,34 +4,34 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { cargarGuion, cargarHistorico, parseGuion } from "../src/loaders.js";
+import { loadScript, loadHistory, parseScript } from "../src/loaders.js";
 
-const rutaGuion = fileURLToPath(new URL("../../data/scripts/apagon-madrid.json", import.meta.url));
+const scriptPath = fileURLToPath(new URL("../../data/scripts/madrid-blackout.json", import.meta.url));
 
-const rutaHistorico = (tipo: string) =>
-  fileURLToPath(new URL(`../../data/history/${tipo}/incidentes.json`, import.meta.url));
+const historyPath = (type: string) =>
+  fileURLToPath(new URL(`../../data/history/${type}/incidents.json`, import.meta.url));
 
-test("el guion actual valida sin errores", () => {
-  const guion = cargarGuion(rutaGuion);
-  assert.equal(guion.titulo, "Apagón regional — Getafe, Comunidad de Madrid");
-  assert.equal(guion.duracionSegundos, 300);
-  assert.equal(guion.elements.length, 3);
-  assert.equal(guion.resources.length, 3);
-  assert.equal(guion.timeline.length, 10);
+test("the current script validates without errors", () => {
+  const script = loadScript(scriptPath);
+  assert.equal(script.title, "Regional blackout — Getafe, Community of Madrid");
+  assert.equal(script.durationSeconds, 300);
+  assert.equal(script.elements.length, 3);
+  assert.equal(script.resources.length, 3);
+  assert.equal(script.timeline.length, 10);
 });
 
-test("los históricos actuales validan sin errores", () => {
-  for (const tipo of ["hospital", "datacenter", "subestacion"]) {
-    const incidentes = cargarHistorico(rutaHistorico(tipo));
-    assert.equal(incidentes.length, 3);
-    assert.ok(incidentes.every((i) => i.tipo === tipo));
+test("the current histories validate without errors", () => {
+  for (const type of ["hospital", "datacenter", "substation"]) {
+    const incidents = loadHistory(historyPath(type));
+    assert.equal(incidents.length, 3);
+    assert.ok(incidents.every((i) => i.type === type));
   }
 });
 
-test("un campo inválido reporta campo y valor recibido", () => {
-  const roto = {
-    titulo: "Apagón",
-    duracionSegundos: 300,
+test("an invalid field reports the field and the received value", () => {
+  const broken = {
+    title: "Blackout",
+    durationSeconds: 300,
     elements: [],
     resources: [],
     timeline: [
@@ -41,23 +41,23 @@ test("un campo inválido reporta campo y valor recibido", () => {
         payload: {
           id: "evt-001",
           elementId: "sub-01",
-          metric: "tension_red",
+          metric: "grid_voltage",
           value: 12,
-          severidad: "muy alta",
+          severity: "very high",
         },
       },
     ],
   };
-  assert.throws(() => parseGuion(roto), /timeline\.0\.payload\.severidad/);
-  assert.throws(() => parseGuion(roto), /recibido: "muy alta"/);
+  assert.throws(() => parseScript(broken), /timeline\.0\.payload\.severity/);
+  assert.throws(() => parseScript(broken), /received: "very high"/);
 });
 
-test("un JSON malformado falla con mensaje accionable", () => {
+test("malformed JSON fails with an actionable message", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "swarmup-data-"));
   try {
-    const ruta = path.join(dir, "roto.json");
-    writeFileSync(ruta, "{ titulo: roto }", "utf8");
-    assert.throws(() => cargarGuion(ruta), /roto\.json' no es JSON válido/);
+    const path_ = path.join(dir, "broken.json");
+    writeFileSync(path_, "{ title: broken }", "utf8");
+    assert.throws(() => loadScript(path_), /broken\.json' is not valid JSON/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

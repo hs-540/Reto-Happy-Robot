@@ -1,115 +1,115 @@
-# Catálogo de reglas duras
+# Hard rules catalog
 
-> **Fuente única de verdad**: `shared/src/rules.json` (datos) + `shared/src/rules.ts` (capa tipada y validación).
-> Cualquier número que aplique el motor o el agente vive aquí. **No hay umbrales mágicos repartidos por el código.**
+> **Single source of truth**: `shared/src/rules.json` (data) + `shared/src/rules.ts` (typed layer and validation).
+> Every number applied by the engine or the agent lives here. **There are no magic thresholds scattered through the code.**
 >
-> Estado: **cerrado** (acuerdo A + B, issue #26). Cambiar un valor requiere PR y actualizar este documento.
-> Depende de la semántica de `status`/`severidad`/`atencion` del contrato (#18).
+> Status: **closed** (agreement A + B, issue #26). Changing a value requires a PR and updating this document.
+> It depends on the `status`/`severity`/`attention` semantics of the contract (#18).
 
-## Cómo se consume
+## How it is consumed
 
-| Consumidor | Qué usa |
+| Consumer | What it uses |
 | --- | --- |
-| Derivación de estado (#19) | `derivarStatus`, `derivarStatusMetrica`, `derivarStatusElemento` |
-| Capa de reglas del motor (#10/#20) | `validarAccion`, `REGLAS_BLOQUEANTES`, `TRIGGERS_REPLAN` |
-| **Agente (LLM)** | `REGLAS_PARA_AGENTE` — el JSON completo, inyectado tal cual en el system prompt, para que las decisiones y planes de acción respeten las mismas reglas y pesos |
-| Prioridad de decisiones | `calcularPrioridad` + `ORDEN_PRIORIDAD` |
+| Status derivation (#19) | `deriveStatus`, `deriveMetricStatus`, `deriveElementStatus` |
+| Engine rules layer (#10/#20) | `validateAction`, `BLOCKING_RULES`, `REPLAN_TRIGGERS` |
+| **Agent (LLM)** | `AGENT_RULES` — the full JSON, injected as-is into the system prompt, so decisions and plans of action respect the same rules and weights |
+| Decision priority | `calculatePriority` + `PRIORITY_ORDER` |
 
-Flujo de toda acción del agente: **el LLM propone** (tool use / structured output) → **`validarAccion` valida contra las reglas bloqueantes** → si viola una regla se rechaza con su `id` y se devuelve al LLM → si no, **se ejecuta directamente, sin gate humano de confirmación** (#42), y se registra en la `Decision`.
+Flow of every agent action: **the LLM proposes** (tool use / structured output) → **`validateAction` checks it against the blocking rules** → if it violates a rule it is rejected with its `id` and handed back to the LLM → if not, **it is executed directly, without a human confirmation gate** (#42), and recorded in the `Decision`.
 
 ---
 
-## 1. Umbrales de severidad → status
+## 1. Severity thresholds → status
 
-`severidad` es 0–100 (más alto = peor). Cortes **incluidos** (>=):
+`severity` is 0–100 (higher = worse). **Inclusive** cuts (>=):
 
-| Rango | Status |
+| Range | Status |
 | --- | --- |
-| `severidad >= 60` | `critico` |
-| `30 <= severidad < 60` | `degradado` |
-| `severidad < 30` | `normal` |
-| `tension_red >= 90` durante **60 s** estables | `resuelto` |
+| `severity >= 60` | `critical` |
+| `30 <= severity < 60` | `degraded` |
+| `severity < 30` | `normal` |
+| `grid_voltage >= 90` during **60 s** stable | `resolved` |
 
-- El status final de un elemento es **el peor** entre la severidad del último evento y sus métricas crudas (`derivarStatusElemento`).
-- **No se declara `resuelto` con un único tick bueno**: exige 60 s de estabilidad con `tension_red >= 90` (lección de `hist-sub-002`, restauración parcial que generó falsa sensación de resolución).
+- An element's final status is **the worst** between the last event's severity and its raw metrics (`deriveElementStatus`).
+- **`resolved` is not declared with a single good tick**: it demands 60 s of stability with `grid_voltage >= 90` (lesson from `hist-sub-002`, a partial restoration that created a false sense of resolution).
 
-## 2. Umbrales por métrica
+## 2. Per-metric thresholds
 
-Cortes incluidos. `direccion = bajo` → peor cuanto más bajo el valor; `direccion = alto` → peor cuanto más alto.
+Inclusive cuts. `direction = low` → the lower the value the worse; `direction = high` → the higher the worse.
 
-| Métrica | Dirección | `degradado` | `critico` |
+| Metric | Direction | `degraded` | `critical` |
 | --- | --- | --- | --- |
-| `tension_red` (%) | bajo | ≤ 85 | ≤ 50 |
-| `carga_ups` (%) | bajo | ≤ 50 | ≤ 15 |
-| `bateria_generador` (%) | bajo | ≤ 60 | ≤ 20 |
-| `temperatura` (°C) | alto | ≥ 40 | ≥ 45 |
-| `cobertura_red` (%) | bajo | ≤ 80 | ≤ 50 |
+| `grid_voltage` (%) | low | ≤ 85 | ≤ 50 |
+| `ups_load` (%) | low | ≤ 50 | ≤ 15 |
+| `generator_battery` (%) | low | ≤ 60 | ≤ 20 |
+| `temperature` (°C) | high | ≥ 40 | ≥ 45 |
+| `network_coverage` (%) | low | ≤ 80 | ≤ 50 |
 
-Estos umbrales crudos **elevan el status aunque la severidad del evento sea baja** (p. ej. `temperatura 41` con `severidad 55` → al menos `degradado`).
+These raw thresholds **raise the status even when the event's severity is low** (e.g. `temperature 41` with `severity 55` → at least `degraded`).
 
-## 3. Límites temporales no negociables (minutos sin energía)
+## 3. Non-negotiable time limits (minutes without power)
 
-"Sin energía" = sin red **y sin respaldo fiable**. Al superar el límite del hospital se activa la regla bloqueante `hospital-plazo-energia`.
+"Without power" = no grid **and no reliable backup**. Exceeding the hospital's limit triggers the blocking rule `hospital-power-deadline`.
 
-| Tipo de sitio | Máx. minutos sin energía |
+| Site type | Max. minutes without power |
 | --- | --- |
 | **hospital** | **8** |
 | datacenter | 12 |
-| subestacion | 20 |
+| substation | 20 |
 
-### Umbral de UPS (cuándo una regla es bloqueante para el LLM)
+### UPS threshold (when a rule is blocking for the LLM)
 
-| Condición | Consecuencia |
+| Condition | Consequence |
 | --- | --- |
-| `carga_ups < 15` | **Prohibido `esperar`**: hay que asignar recurso o escalar (`hist-dc-002`: UPS agotada mientras se esperaba refuerzo) |
-| `carga_ups < 10` | Emergencia: activación inmediata de respaldo |
-| `bateria_generador < 20` | Batería crítica: priorizar despacho del generador |
+| `ups_load < 15` | **`wait` forbidden**: a resource must be assigned or the issue escalated (`hist-dc-002`: UPS drained while waiting for backup) |
+| `ups_load < 10` | Emergency: immediate backup activation |
+| `generator_battery < 20` | Critical battery: prioritize generator dispatch |
 
-## 4. Restricciones de recursos
+## 4. Resource constraints
 
-Capacidad total compartida del escenario: **1 cuadrilla + 2 generadores**.
+Total shared capacity of the scenario: **1 crew + 2 generators**.
 
-- **Exclusión mutua**: un recurso atiende a **un elemento a la vez**. Un recurso en `asignado` o `en_transito` no puede reasignarse (regla bloqueante `sin-doble-asignacion`).
-- **Al liberar un recurso** pasa a `disponible` y puede reasignarse en el siguiente tick; la liberación es un **ajuste incremental**, no dispara replanteamiento.
-- Asignar a un recurso inexistente o no disponible se rechaza con la razón explícita (`libéralo antes de reasignar`).
+- **Mutual exclusion**: a resource serves **one element at a time**. A resource in `assigned` or `in_transit` cannot be reassigned (blocking rule `no-double-assignment`).
+- **On release** a resource goes to `available` and can be reassigned on the next tick; releasing is an **incremental adjustment**, it does not trigger re-planning.
+- Assigning a nonexistent or unavailable resource is rejected with an explicit reason (`release it before reassigning`).
 
-## 5. Orden de prioridad (quién gana y por qué)
+## 5. Priority order (who wins and why)
 
-**Orden de tipos**: `hospital` > `subestacion` > `datacenter`. Motivo: riesgo vital > origen de la cascada (arreglarla restaura a todos) > pérdida de servicio. Coincide con la `criticidad` del contrato (95 / 70 / 60 en el guion).
+**Type order**: `hospital` > `substation` > `datacenter`. Reason: risk to life > origin of the cascade (fixing it restores everyone) > service loss. It matches the contract's `criticality` (95 / 70 / 60 in the script).
 
-### Fórmula de prioridad numérica
+### Numeric priority formula
 
 ```
-prioridad = 0.5 · criticidad
-          + pesoStatus        (critico 60 · degradado 20 · normal/resuelto 0)
-          + pesoTipo          (hospital 30 · subestacion 20 · datacenter 10)
-          + 2 · min(minutosSinEnergia, 15)
+priority = 0.5 · criticality
+         + statusWeight        (critical 60 · degraded 20 · normal/resolved 0)
+         + typeWeight          (hospital 30 · substation 20 · datacenter 10)
+         + 2 · min(minutesWithoutPower, 15)
 ```
 
-Ejemplo del guion: hospital `critico` con 10 min sin energía → `47.5 + 60 + 30 + 20 = 157.5`; datacenter `degradado` sin pérdida de energía → `60`. Los pesos viven en `prioridad` de `rules.json` y el LLM los recibe en su prompt para ordenar sus planes.
+Example from the script: hospital `critical` with 10 min without power → `47.5 + 60 + 30 + 20 = 157.5`; datacenter `degraded` without power loss → `60`. The weights live in `priority` of `rules.json` and the LLM receives them in its prompt to order its plans.
 
-## 6. Reglas bloqueantes para el LLM
+## 6. Blocking rules for the LLM
 
-El LLM **no puede** proponer una acción que las viole; la capa de reglas la rechaza antes de ejecutar:
+The LLM **cannot** propose an action that violates them; the rules layer rejects it before execution:
 
-| id | Regla |
+| id | Rule |
 | --- | --- |
-| `sin-doble-asignacion` | Un recurso solo atiende a un elemento a la vez; reasignar exige liberar primero. |
-| `hospital-prioridad-energia` | Mientras un hospital esté `critico` y sin respaldo de energía, los generadores solo pueden asignarse a él. |
-| `hospital-plazo-energia` | Si un hospital supera su límite de minutos sin energía, solo se permite actuar sobre él o sobre la subestación de origen (si está `critico`). |
-| `ups-critica-actuar` | Con `carga_ups` por debajo del umbral de actuación (15) está prohibido esperar: hay que asignar recurso o escalar. |
+| `no-double-assignment` | A resource serves one element at a time; reassigning requires releasing it first. |
+| `hospital-power-priority` | While a hospital is `critical` and without power backup, generators can only be assigned to it. |
+| `hospital-power-deadline` | If a hospital exceeds its limit of minutes without power, only acting on it or on the origin substation (if `critical`) is allowed. |
+| `critical-ups-act` | With `ups_load` below the act threshold (15) waiting is forbidden: a resource must be assigned or the issue escalated. |
 
-Notas de aplicación:
+Application notes:
 
-- `contactar` **nunca** se bloquea (comunicar no consume recursos físicos).
-- Cuando dos reglas bloqueantes aplican, gana la **más estricta** (p. ej. con hospital `critico` sin respaldo, un generador no puede ir a la subestación aunque el hospital haya superado su plazo: manda `hospital-prioridad-energia`).
+- `contact` is **never** blocked (communicating consumes no physical resources).
+- When two blocking rules apply, the **stricter one** wins (e.g. with a hospital `critical` without backup, a generator cannot go to the substation even if the hospital has exceeded its deadline: `hospital-power-priority` rules).
 
-## 7. Triggers de replanificación
+## 7. Re-plan triggers
 
-Disparan **replanteamiento completo** (abandonar el plan actual), no solo ajuste incremental:
+They trigger a **full re-plan** (abandon the current plan), not just incremental adjustment:
 
-1. Un evento hace que un elemento crítico **cruce un umbral de severidad**.
-2. Una acción en marcha **falla o no cumple su ETA**.
-3. Un hospital **supera su límite de minutos sin energía**.
+1. An event makes a critical element **cross a severity threshold**.
+2. An action in progress **fails or misses its ETA**.
+3. A hospital **exceeds its limit of minutes without power**.
 
-El resto de ticks (5–10 s) son solo ajustes incrementales: reordenar colas por `calcularPrioridad`, actualizar estados, reasignar recursos liberados.
+The remaining ticks (5–10 s) are only incremental adjustments: reordering queues by `calculatePriority`, updating states, reassigning released resources.

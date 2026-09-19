@@ -1,0 +1,26 @@
+[
+  {
+    "id": "hist-sub-001",
+    "type": "substation",
+    "title": "Cascading failure from overload after a heat wave — July 2026",
+    "summary": "A grid overload driven by cooling demand triggered a cascading failure that hit several dependent elements in under 10 minutes.",
+    "outcome": "The repair took 45 minutes because the origin substation was not identified until 15 minutes in. Lesson: when several elements fail almost simultaneously, first check whether they share the same origin substation before treating them as independent incidents.",
+    "date": "2026-07-11"
+  },
+  {
+    "id": "hist-sub-002",
+    "type": "substation",
+    "title": "Partial restoration that created a false sense of resolution — March 2026",
+    "summary": "Grid voltage partially recovered (60%) after a first repair, which led the system to lower the incident's priority before the repair was complete.",
+    "outcome": "The grid went down again 20 minutes later, creating a second crisis peak. Lesson: do not close or deprioritize a substation incident until grid voltage stays stable above 90% for at least 5 minutes.",
+    "date": "2026-03-28"
+  },
+  {
+    "id": "hist-sub-003",
+    "type": "substation",
+    "title": "Crew diverted mid-route by a new priority — May 2026",
+    "summary": "A crew already en route to the substation was redirected to a hospital by a sudden emergency, delaying the substation repair.",
+    "outcome": "The substation repair was delayed 22 minutes, prolonging the crisis for every element depending on it. Lesson: diverting a crew heading to the root cause (substation) is only justified if the new destination is more critical than fixing the blackout's origin for everyone else.",
+    "date": "2026-05-19"
+  }
+]

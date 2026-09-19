@@ -1,56 +1,56 @@
 {
-  "titulo": "Apagón regional — Getafe, Comunidad de Madrid",
-  "duracionSegundos": 300,
+  "title": "Regional blackout — Getafe, Community of Madrid",
+  "durationSeconds": 300,
   "elements": [
     {
       "id": "sub-01",
-      "type": "subestacion",
-      "name": "Subestación Getafe-Sur",
+      "type": "substation",
+      "name": "Getafe-Sur Substation",
       "lat": 40.3057,
       "lng": -3.7327,
       "status": "normal",
-      "criticidad": 70
+      "criticality": 70
     },
     {
       "id": "dc-01",
       "type": "datacenter",
-      "name": "CPD Metropolitano Getafe",
+      "name": "Getafe Metropolitan Datacenter",
       "lat": 40.295,
       "lng": -3.72,
       "status": "normal",
-      "criticidad": 60
+      "criticality": 60
     },
     {
       "id": "hosp-01",
       "type": "hospital",
-      "name": "Hospital Regional Getafe-Sur",
+      "name": "Getafe-Sur Regional Hospital",
       "lat": 40.31,
       "lng": -3.71,
       "status": "normal",
-      "criticidad": 95
+      "criticality": 95
     }
   ],
   "resources": [
     {
-      "id": "cuadrilla-1",
-      "type": "cuadrilla",
-      "status": "disponible",
+      "id": "crew-1",
+      "type": "crew",
+      "status": "available",
       "assignedElementId": null,
       "lat": 40.302,
       "lng": -3.722
     },
     {
-      "id": "generador-1",
-      "type": "generador",
-      "status": "disponible",
+      "id": "generator-1",
+      "type": "generator",
+      "status": "available",
       "assignedElementId": null,
       "lat": 40.302,
       "lng": -3.722
     },
     {
-      "id": "generador-2",
-      "type": "generador",
-      "status": "disponible",
+      "id": "generator-2",
+      "type": "generator",
+      "status": "available",
       "assignedElementId": null,
       "lat": 40.302,
       "lng": -3.722
@@ -60,13 +60,13 @@
     {
       "atSeconds": 0,
       "kind": "sensor_event",
-      "nota": "Momento 1 — apagón inicial en la subestación de origen.",
+      "note": "Moment 1 — initial blackout at the origin substation.",
       "payload": {
         "id": "evt-001",
         "elementId": "sub-01",
-        "metric": "tension_red",
+        "metric": "grid_voltage",
         "value": 12,
-        "severidad": 90
+        "severity": 90
       }
     },
     {
@@ -75,21 +75,21 @@
       "payload": {
         "id": "evt-002",
         "elementId": "dc-01",
-        "metric": "carga_ups",
+        "metric": "ups_load",
         "value": 35,
-        "severidad": 25
+        "severity": 25
       }
     },
     {
       "atSeconds": 40,
       "kind": "sensor_event",
-      "nota": "Momento 2 — el datacenter empieza a sobrecalentarse, UPS con batería limitada.",
+      "note": "Moment 2 — the datacenter starts overheating, UPS on limited battery.",
       "payload": {
         "id": "evt-003",
         "elementId": "dc-01",
-        "metric": "temperatura",
+        "metric": "temperature",
         "value": 41,
-        "severidad": 55
+        "severity": 55
       }
     },
     {
@@ -98,30 +98,30 @@
       "payload": {
         "id": "evt-004",
         "elementId": "dc-01",
-        "metric": "carga_ups",
+        "metric": "ups_load",
         "value": 12,
-        "severidad": 75
+        "severity": 75
       }
     },
     {
       "atSeconds": 90,
       "kind": "sensor_event",
-      "nota": "Momento 3 — el hospital pierde el generador de respaldo: conflicto de recursos, llamada de voz en vivo.",
+      "note": "Moment 3 — the hospital loses its backup generator: resource conflict, live voice call.",
       "payload": {
         "id": "evt-005",
         "elementId": "hosp-01",
-        "metric": "bateria_generador",
+        "metric": "generator_battery",
         "value": 18,
-        "severidad": 85
+        "severity": 85
       }
     },
     {
       "atSeconds": 150,
       "kind": "narrative",
-      "nota": "Momento 4 — la cuadrilla enviada no cumple su ETA / el datacenter empeora: dispara replanteamiento completo.",
+      "note": "Moment 4 — the dispatched crew misses its ETA / the datacenter worsens: triggers a full re-plan.",
       "payload": {
-        "resourceId": "cuadrilla-1",
-        "evento": "eta_incumplida"
+        "resourceId": "crew-1",
+        "event": "eta_missed"
       }
     },
     {
@@ -130,21 +130,21 @@
       "payload": {
         "id": "evt-006",
         "elementId": "dc-01",
-        "metric": "temperatura",
+        "metric": "temperature",
         "value": 48,
-        "severidad": 70
+        "severity": 70
       }
     },
     {
       "atSeconds": 240,
       "kind": "sensor_event",
-      "nota": "Momento 5 — la subestación se repara, vuelve la energía, se cierra el incidente.",
+      "note": "Moment 5 — the substation is repaired, power comes back, the incident is closed.",
       "payload": {
         "id": "evt-007",
         "elementId": "sub-01",
-        "metric": "tension_red",
+        "metric": "grid_voltage",
         "value": 98,
-        "severidad": 5
+        "severity": 5
       }
     },
     {
@@ -153,9 +153,9 @@
       "payload": {
         "id": "evt-008",
         "elementId": "dc-01",
-        "metric": "carga_ups",
+        "metric": "ups_load",
         "value": 90,
-        "severidad": 5
+        "severity": 5
       }
     },
     {
@@ -164,9 +164,9 @@
       "payload": {
         "id": "evt-009",
         "elementId": "hosp-01",
-        "metric": "bateria_generador",
+        "metric": "generator_battery",
         "value": 95,
-        "severidad": 5
+        "severity": 5
       }
     }
   ]

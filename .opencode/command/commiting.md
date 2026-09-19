@@ -11,7 +11,7 @@ Create a git commit whose message follows this project's convention.
 
 - `type`: one of `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `style`, `perf`, `ci`, `build` — pick the one that best matches the change.
 - `message`: imperative, lowercase, in **English**, **under 60 characters** total (including the `type: ` prefix).
-- Keep domain/business terms (e.g. proper nouns, entity or scenario names from the business domain like `apagón-madrid`, `subestación`) in their original language — do not translate them.
+- Write the message fully in English, consistent with the repo's English-only rule.
 - No body, no bullet points, no trailing period, unless the user explicitly asks for more detail.
 
 ## Steps
@@ -19,7 +19,7 @@ Create a git commit whose message follows this project's convention.
 1. Run `git status` and `git diff --stat` (both staged and unstaged) to see what changed.
 2. If there are unstaged changes, ask the user directly in chat whether to commit **all** changed files or **only** what's already staged — do not assume or infer the answer. Skip the question only if everything is already staged. If nothing is staged and there are unstaged changes, still ask which files to include (committing nothing isn't an option).
 3. Pick the right `type` based on the nature of the change.
-4. Draft a message under 60 chars total, in English, preserving domain-specific terms as-is.
+4. Draft a message under 60 chars total, in English, writing everything in English.
 5. Stage the relevant files according to the user's answer (avoid `git add -A`; add specific paths).
 6. Commit with the message.
 7. Run `git status` to confirm the commit succeeded.
@@ -29,7 +29,7 @@ Create a git commit whose message follows this project's convention.
 - `feat: add booking confirmation endpoint`
 - `fix: prevent duplicate incidente entries`
 - `data: add historical incidentes datasets`
-- `docs: document apagón-madrid scenario`
+- `docs: document madrid-blackout scenario`
 - `chore: remove unused .gitkeep placeholders`
 
 Arguments (if any), such as a hint about scope: $ARGUMENTS

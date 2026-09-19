@@ -22,11 +22,11 @@ const ICONS: Record<string, string> = {
     '<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6V3z" fill="currentColor"/>',
   datacenter:
     '<path d="M4 5h16v4H4V5zm0 6h16v4H4v-4zm0 6h16v4H4v-4z" fill="currentColor"/>',
-  subestacion:
+  substation:
     '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/>',
-  cuadrilla:
+  crew:
     '<path d="M3 7h11a4 4 0 0 1 4 3h1a2 2 0 0 1 2 2v3h-2.1a3 3 0 0 1-5.8 0H9.9a3 3 0 0 1-5.8 0H2V9a2 2 0 0 1 1-2z" fill="currentColor"/>',
-  generador:
+  generator:
     '<path d="M4 7h15v3h2v4h-2v3H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zm3 3v4h2v-4H7z" fill="currentColor"/>',
 }
 
@@ -75,15 +75,15 @@ function applyVariant(entry: MarkerEntry, variant: string) {
 }
 
 interface MapViewProps {
-  elementos: ElementView[]
-  recursos: ResourceView[]
+  elements: ElementView[]
+  resources: ResourceView[]
   selectedElementId: string | null
   onSelectElement: (id: string) => void
 }
 
 export function MapView({
-  elementos,
-  recursos,
+  elements,
+  resources,
   selectedElementId,
   onSelectElement,
 }: MapViewProps) {
@@ -124,7 +124,7 @@ export function MapView({
     const store = markersRef.current
     const alive = new Set<string>()
 
-    recursos.forEach((r) => {
+    resources.forEach((r) => {
       alive.add(r.id)
       const entry = store.get(r.id)
       if (entry) {
@@ -135,7 +135,7 @@ export function MapView({
           {
             kind: 'resource',
             variant: r.status,
-            icon: ICONS[r.type] ?? ICONS.generador,
+            icon: ICONS[r.type] ?? ICONS.generator,
             label: r.id,
           },
           false,
@@ -150,7 +150,7 @@ export function MapView({
       }
     })
 
-    elementos.forEach((el) => {
+    elements.forEach((el) => {
       alive.add(el.id)
       const selected = el.id === selectedElementId
       const entry = store.get(el.id)
@@ -185,7 +185,7 @@ export function MapView({
         store.delete(id)
       }
     }
-  }, [elementos, recursos, selectedElementId, onSelectElement, ready])
+  }, [elements, resources, selectedElementId, onSelectElement, ready])
 
   useEffect(() => {
     const map = mapRef.current
@@ -193,14 +193,14 @@ export function MapView({
     const prev = prevSelectedRef.current
     prevSelectedRef.current = selectedElementId
     if (prev === selectedElementId || !selectedElementId) return
-    const el = elementos.find((e) => e.id === selectedElementId)
+    const el = elements.find((e) => e.id === selectedElementId)
     if (!el) return
     map.flyTo({
       center: [el.lng, el.lat],
       zoom: Math.max(map.getZoom(), 14.2),
       duration: 800,
     })
-  }, [selectedElementId, elementos, ready])
+  }, [selectedElementId, elements, ready])
 
   return <div className="map" ref={containerRef} />
 }

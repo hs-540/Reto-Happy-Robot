@@ -5,330 +5,330 @@ import type {
   ResourceType,
   SensorMetric,
 } from "./index.js";
-import reglasJson from "./rules.json" with { type: "json" };
+import rulesJson from "./rules.json" with { type: "json" };
 
-/* ─── Contrato del catálogo (rules.json es la fuente única de datos) ─── */
+/* ─── Catalog contract (rules.json is the single source of data) ─── */
 
-export const IDS_REGLAS_BLOQUEANTES = [
-  "sin-doble-asignacion",
-  "hospital-prioridad-energia",
-  "hospital-plazo-energia",
-  "ups-critica-actuar",
+export const BLOCKING_RULE_IDS = [
+  "no-double-assignment",
+  "hospital-power-priority",
+  "hospital-power-deadline",
+  "critical-ups-act",
 ] as const;
 
-export type ReglaBloqueanteId = (typeof IDS_REGLAS_BLOQUEANTES)[number];
+export type BlockingRuleId = (typeof BLOCKING_RULE_IDS)[number];
 
-export interface ReglaBloqueante {
-  id: ReglaBloqueanteId;
-  regla: string;
+export interface BlockingRule {
+  id: BlockingRuleId;
+  rule: string;
 }
 
-export interface UmbralesMetrica {
-  /** "bajo": peor cuanto más bajo el valor (p. ej. carga_ups). "alto": peor cuanto más alto (p. ej. temperatura) */
-  direccion: "bajo" | "alto";
-  /** corte de entrada a `degradado` (valor incluido) */
-  degradado: number;
-  /** corte de entrada a `critico` (valor incluido) */
-  critico: number;
+export interface MetricThresholds {
+  /** "low": the lower the value the worse (e.g. ups_load). "high": the higher the worse (e.g. temperature) */
+  direction: "low" | "high";
+  /** entry cut into `degraded` (inclusive) */
+  degraded: number;
+  /** entry cut into `critical` (inclusive) */
+  critical: number;
 }
 
-export interface ReglasCatalogo {
-  severidad: { umbralDegradado: number; umbralCritico: number };
-  resolucion: { segundosEstables: number; tensionEstable: number };
-  umbralesMetrica: Record<SensorMetric, UmbralesMetrica>;
-  limitesSinEnergiaMin: Record<ElementType, number>;
-  ups: { actuar: number; emergencia: number; bateriaCritica: number };
-  recursos: { capacidad: Record<ResourceType, number> };
-  prioridad: {
-    ordenTipos: readonly ElementType[];
-    pesoCriticidad: number;
-    pesoStatus: Record<ElementStatus, number>;
-    pesoTipo: Record<ElementType, number>;
-    pesoMinutoSinEnergia: number;
-    maxMinutosContabilizados: number;
+export interface RulesCatalog {
+  severity: { degradedThreshold: number; criticalThreshold: number };
+  resolution: { stableSeconds: number; stableVoltage: number };
+  metricThresholds: Record<SensorMetric, MetricThresholds>;
+  maxMinutesWithoutPower: Record<ElementType, number>;
+  ups: { act: number; emergency: number; criticalBattery: number };
+  resources: { capacity: Record<ResourceType, number> };
+  priority: {
+    typeOrder: readonly ElementType[];
+    criticalityWeight: number;
+    statusWeight: Record<ElementStatus, number>;
+    typeWeight: Record<ElementType, number>;
+    minuteWithoutPowerWeight: number;
+    maxCountedMinutes: number;
   };
-  reglasBloqueantes: readonly ReglaBloqueante[];
-  triggersReplan: readonly string[];
+  blockingRules: readonly BlockingRule[];
+  replanTriggers: readonly string[];
 }
 
-/* ─── Validación al cargar: fail fast si el JSON se edita mal ─── */
+/* ─── Validation on load: fail fast if the JSON is edited incorrectly ─── */
 
-const TIPOS_ELEMENTO: readonly ElementType[] = ["datacenter", "hospital", "subestacion"];
-const TIPOS_RECURSO: readonly ResourceType[] = ["cuadrilla", "generador"];
-const METRICAS: readonly SensorMetric[] = [
-  "temperatura",
-  "carga_ups",
-  "bateria_generador",
-  "cobertura_red",
-  "tension_red",
+const ELEMENT_TYPES: readonly ElementType[] = ["datacenter", "hospital", "substation"];
+const RESOURCE_TYPES: readonly ResourceType[] = ["crew", "generator"];
+const METRICS: readonly SensorMetric[] = [
+  "temperature",
+  "ups_load",
+  "generator_battery",
+  "network_coverage",
+  "grid_voltage",
 ];
-const STATUS: readonly ElementStatus[] = ["normal", "degradado", "critico", "resuelto"];
+const STATUSES: readonly ElementStatus[] = ["normal", "degraded", "critical", "resolved"];
 
-function assertRegistroNumerico(
-  registro: Record<string, unknown>,
-  claves: readonly string[],
-  campo: string,
+function assertNumericRecord(
+  record: Record<string, unknown>,
+  keys: readonly string[],
+  field: string,
 ): void {
-  const invalidas = claves.filter(
-    (k) => !(k in registro) || typeof registro[k] !== "number" || !Number.isFinite(registro[k]),
+  const invalid = keys.filter(
+    (k) => !(k in record) || typeof record[k] !== "number" || !Number.isFinite(record[k]),
   );
-  if (invalidas.length > 0) {
-    throw new Error(`rules.json: claves numéricas inválidas o ausentes en ${campo}: ${invalidas.join(", ")}`);
+  if (invalid.length > 0) {
+    throw new Error(`rules.json: invalid or missing numeric keys in ${field}: ${invalid.join(", ")}`);
   }
 }
 
-function assertReglas(r: ReglasCatalogo): void {
-  assertRegistroNumerico(r.limitesSinEnergiaMin, TIPOS_ELEMENTO, "limitesSinEnergiaMin");
-  assertRegistroNumerico(r.prioridad.pesoTipo, TIPOS_ELEMENTO, "prioridad.pesoTipo");
-  assertRegistroNumerico(r.prioridad.pesoStatus, STATUS, "prioridad.pesoStatus");
-  assertRegistroNumerico(r.recursos.capacidad, TIPOS_RECURSO, "recursos.capacidad");
-  assertRegistroNumerico(r.severidad, ["umbralDegradado", "umbralCritico"], "severidad");
-  assertRegistroNumerico(r.ups, ["actuar", "emergencia", "bateriaCritica"], "ups");
-  if (r.severidad.umbralDegradado >= r.severidad.umbralCritico) {
-    throw new Error("rules.json: umbralDegradado debe ser menor que umbralCritico");
+function assertRules(r: RulesCatalog): void {
+  assertNumericRecord(r.maxMinutesWithoutPower, ELEMENT_TYPES, "maxMinutesWithoutPower");
+  assertNumericRecord(r.priority.typeWeight, ELEMENT_TYPES, "priority.typeWeight");
+  assertNumericRecord(r.priority.statusWeight, STATUSES, "priority.statusWeight");
+  assertNumericRecord(r.resources.capacity, RESOURCE_TYPES, "resources.capacity");
+  assertNumericRecord(r.severity, ["degradedThreshold", "criticalThreshold"], "severity");
+  assertNumericRecord(r.ups, ["act", "emergency", "criticalBattery"], "ups");
+  if (r.severity.degradedThreshold >= r.severity.criticalThreshold) {
+    throw new Error("rules.json: degradedThreshold must be lower than criticalThreshold");
   }
-  for (const metrica of METRICAS) {
-    const u = r.umbralesMetrica[metrica] as unknown as Record<string, unknown>;
+  for (const metric of METRICS) {
+    const t = r.metricThresholds[metric] as unknown as Record<string, unknown>;
     if (
-      !u ||
-      (u.direccion !== "bajo" && u.direccion !== "alto") ||
-      typeof u.degradado !== "number" ||
-      typeof u.critico !== "number"
+      !t ||
+      (t.direction !== "low" && t.direction !== "high") ||
+      typeof t.degraded !== "number" ||
+      typeof t.critical !== "number"
     ) {
-      throw new Error(`rules.json: umbralesMetrica.${metrica} inválido`);
+      throw new Error(`rules.json: metricThresholds.${metric} is invalid`);
     }
   }
-  const ids = r.reglasBloqueantes.map((b) => b.id);
-  const desconocidos = ids.filter((id) => !IDS_REGLAS_BLOQUEANTES.includes(id));
-  const duplicados = ids.filter((id, i) => ids.indexOf(id) !== i);
-  if (desconocidos.length > 0 || duplicados.length > 0) {
+  const ids = r.blockingRules.map((b) => b.id);
+  const unknown = ids.filter((id) => !BLOCKING_RULE_IDS.includes(id));
+  const duplicated = ids.filter((id, i) => ids.indexOf(id) !== i);
+  if (unknown.length > 0 || duplicated.length > 0) {
     throw new Error(
-      `rules.json: reglasBloqueantes con ids desconocidos (${desconocidos.join(", ")}) o duplicados (${duplicados.join(", ")})`,
+      `rules.json: blockingRules with unknown ids (${unknown.join(", ")}) or duplicates (${duplicated.join(", ")})`,
     );
   }
 }
 
-export const REGLAS_PARA_AGENTE: ReglasCatalogo = reglasJson as unknown as ReglasCatalogo;
-assertReglas(REGLAS_PARA_AGENTE);
+export const AGENT_RULES: RulesCatalog = rulesJson as unknown as RulesCatalog;
+assertRules(AGENT_RULES);
 
-/* ─── Constantes derivadas del catálogo (consumidas por el motor y el agente) ─── */
+/* ─── Constants derived from the catalog (consumed by the engine and the agent) ─── */
 
-export const UMBRAL_DEGRADADO = REGLAS_PARA_AGENTE.severidad.umbralDegradado;
-export const UMBRAL_CRITICO = REGLAS_PARA_AGENTE.severidad.umbralCritico;
+export const DEGRADED_THRESHOLD = AGENT_RULES.severity.degradedThreshold;
+export const CRITICAL_THRESHOLD = AGENT_RULES.severity.criticalThreshold;
 
-export const SEGUNDOS_ESTABLE_RESUELTO = REGLAS_PARA_AGENTE.resolucion.segundosEstables;
-export const TENSION_ESTABLE_RESUELTO = REGLAS_PARA_AGENTE.resolucion.tensionEstable;
+export const RESOLVED_STABLE_SECONDS = AGENT_RULES.resolution.stableSeconds;
+export const RESOLVED_STABLE_VOLTAGE = AGENT_RULES.resolution.stableVoltage;
 
-export const MAX_MINUTOS_SIN_ENERGIA: Record<ElementType, number> =
-  REGLAS_PARA_AGENTE.limitesSinEnergiaMin;
+export const MAX_MINUTES_WITHOUT_POWER: Record<ElementType, number> =
+  AGENT_RULES.maxMinutesWithoutPower;
 
-export const UMBRAL_UPS_ACTUAR = REGLAS_PARA_AGENTE.ups.actuar;
-export const UMBRAL_UPS_EMERGENCIA = REGLAS_PARA_AGENTE.ups.emergencia;
-export const UMBRAL_BATERIA_CRITICA = REGLAS_PARA_AGENTE.ups.bateriaCritica;
+export const UPS_ACT_THRESHOLD = AGENT_RULES.ups.act;
+export const UPS_EMERGENCY_THRESHOLD = AGENT_RULES.ups.emergency;
+export const CRITICAL_BATTERY_THRESHOLD = AGENT_RULES.ups.criticalBattery;
 
-export const UMBRALES_METRICA: Record<SensorMetric, UmbralesMetrica> =
-  REGLAS_PARA_AGENTE.umbralesMetrica;
+export const METRIC_THRESHOLDS: Record<SensorMetric, MetricThresholds> =
+  AGENT_RULES.metricThresholds;
 
-export const CAPACIDAD_RECURSOS: Record<ResourceType, number> =
-  REGLAS_PARA_AGENTE.recursos.capacidad;
+export const RESOURCE_CAPACITY: Record<ResourceType, number> =
+  AGENT_RULES.resources.capacity;
 
-export const ORDEN_PRIORIDAD: readonly ElementType[] = REGLAS_PARA_AGENTE.prioridad.ordenTipos;
+export const PRIORITY_ORDER: readonly ElementType[] = AGENT_RULES.priority.typeOrder;
 
-export const TRIGGERS_REPLAN: readonly string[] = REGLAS_PARA_AGENTE.triggersReplan;
+export const REPLAN_TRIGGERS: readonly string[] = AGENT_RULES.replanTriggers;
 
-export const REGLAS_BLOQUEANTES: readonly ReglaBloqueante[] =
-  REGLAS_PARA_AGENTE.reglasBloqueantes;
+export const BLOCKING_RULES: readonly BlockingRule[] =
+  AGENT_RULES.blockingRules;
 
-/* ─── Prioridad numérica: pesos del catálogo, misma fórmula documentada en RULES.md ─── */
+/* ─── Numeric priority: weights from the catalog, same formula documented in RULES.md ─── */
 
-export interface ElementoPrioridad {
+export interface PriorityElement {
   type: ElementType;
   status: ElementStatus;
-  /** 0-100, impacto de negocio de perder el elemento */
-  criticidad: number;
-  /** segundos sin energía de red ni respaldo fiable */
-  sinEnergiaSegundos: number;
+  /** 0-100, business impact of losing the element */
+  criticality: number;
+  /** seconds without grid power or reliable backup */
+  secondsWithoutPower: number;
 }
 
-export function calcularPrioridad(e: ElementoPrioridad): number {
-  const p = REGLAS_PARA_AGENTE.prioridad;
-  const minutos = Math.min(Math.max(e.sinEnergiaSegundos, 0) / 60, p.maxMinutosContabilizados);
+export function calculatePriority(e: PriorityElement): number {
+  const p = AGENT_RULES.priority;
+  const minutes = Math.min(Math.max(e.secondsWithoutPower, 0) / 60, p.maxCountedMinutes);
   const score =
-    p.pesoCriticidad * e.criticidad +
-    p.pesoStatus[e.status] +
-    p.pesoTipo[e.type] +
-    p.pesoMinutoSinEnergia * minutos;
+    p.criticalityWeight * e.criticality +
+    p.statusWeight[e.status] +
+    p.typeWeight[e.type] +
+    p.minuteWithoutPowerWeight * minutes;
   return Math.round(score * 10) / 10;
 }
 
-/* ─── Derivación de status ─── */
+/* ─── Status derivation ─── */
 
-const RANGO_STATUS = ["normal", "degradado", "critico"] as const;
+const STATUS_RANK = ["normal", "degraded", "critical"] as const;
 
-type StatusSinResuelto = Extract<ElementStatus, (typeof RANGO_STATUS)[number]>;
+type StatusWithoutResolved = Extract<ElementStatus, (typeof STATUS_RANK)[number]>;
 
-function peorStatus(a: StatusSinResuelto, b: StatusSinResuelto): StatusSinResuelto {
-  return RANGO_STATUS.indexOf(a) >= RANGO_STATUS.indexOf(b) ? a : b;
+function worstStatus(a: StatusWithoutResolved, b: StatusWithoutResolved): StatusWithoutResolved {
+  return STATUS_RANK.indexOf(a) >= STATUS_RANK.indexOf(b) ? a : b;
 }
 
-export function derivarStatus(severidad: number): StatusSinResuelto {
-  if (severidad >= UMBRAL_CRITICO) return "critico";
-  if (severidad >= UMBRAL_DEGRADADO) return "degradado";
+export function deriveStatus(severity: number): StatusWithoutResolved {
+  if (severity >= CRITICAL_THRESHOLD) return "critical";
+  if (severity >= DEGRADED_THRESHOLD) return "degraded";
   return "normal";
 }
 
-export function derivarStatusMetrica(
-  metrica: SensorMetric,
-  valor: number,
-): StatusSinResuelto {
-  const umbrales = UMBRALES_METRICA[metrica];
-  const critico =
-    umbrales.direccion === "bajo" ? valor <= umbrales.critico : valor >= umbrales.critico;
-  const degradado =
-    umbrales.direccion === "bajo" ? valor <= umbrales.degradado : valor >= umbrales.degradado;
-  if (critico) return "critico";
-  if (degradado) return "degradado";
+export function deriveMetricStatus(
+  metric: SensorMetric,
+  value: number,
+): StatusWithoutResolved {
+  const thresholds = METRIC_THRESHOLDS[metric];
+  const critical =
+    thresholds.direction === "low" ? value <= thresholds.critical : value >= thresholds.critical;
+  const degraded =
+    thresholds.direction === "low" ? value <= thresholds.degraded : value >= thresholds.degraded;
+  if (critical) return "critical";
+  if (degraded) return "degraded";
   return "normal";
 }
 
-/** status final de un elemento: el peor entre la severidad del último evento y sus métricas crudas */
-export function derivarStatusElemento(
-  severidad: number,
-  metricas: Partial<Record<SensorMetric, number>>,
-): StatusSinResuelto {
-  let status = derivarStatus(severidad);
-  for (const [metrica, valor] of Object.entries(metricas) as [SensorMetric, number][]) {
-    status = peorStatus(status, derivarStatusMetrica(metrica, valor));
+/** final status of an element: the worst between the last event's severity and its raw metrics */
+export function deriveElementStatus(
+  severity: number,
+  metrics: Partial<Record<SensorMetric, number>>,
+): StatusWithoutResolved {
+  let status = deriveStatus(severity);
+  for (const [metric, value] of Object.entries(metrics) as [SensorMetric, number][]) {
+    status = worstStatus(status, deriveMetricStatus(metric, value));
   }
   return status;
 }
 
-/* ─── Validación de acciones contra las reglas bloqueantes ─── */
+/* ─── Action validation against the blocking rules ─── */
 
-export type AccionMotorTipo = "contactar" | "asignar_recurso" | "esperar";
+export type EngineActionType = "contact" | "assign_resource" | "wait";
 
-export interface IntentoAccion {
-  tipo: AccionMotorTipo;
+export interface ActionAttempt {
+  type: EngineActionType;
   elementId: string;
-  /** requerido si tipo === "asignar_recurso" */
-  recursoId?: string;
+  /** required if type === "assign_resource" */
+  resourceId?: string;
 }
 
-export interface ElementoValidacion {
+export interface ValidatableElement {
   id: string;
   type: ElementType;
   status: ElementStatus;
-  metricas: Partial<Record<SensorMetric, number>>;
-  /** segundos sin energía de red ni respaldo fiable (0 si tiene suministro) */
-  sinEnergiaSegundos: number;
+  metrics: Partial<Record<SensorMetric, number>>;
+  /** seconds without grid power or reliable backup (0 if powered) */
+  secondsWithoutPower: number;
 }
 
-export interface RecursoValidacion {
+export interface ValidatableResource {
   id: string;
   type: ResourceType;
   status: ResourceStatus;
   assignedElementId: string | null;
 }
 
-export interface ContextoValidacion {
-  elementos: ElementoValidacion[];
-  recursos: RecursoValidacion[];
+export interface ValidationContext {
+  elements: ValidatableElement[];
+  resources: ValidatableResource[];
 }
 
-export type ResultadoValidacion =
-  | { permitido: true }
-  | { permitido: false; regla: ReglaBloqueanteId; razon: string };
+export type ValidationResult =
+  | { allowed: true }
+  | { allowed: false; rule: BlockingRuleId; reason: string };
 
 /**
- * Valida una acción propuesta contra las reglas bloqueantes.
- * `contactar` nunca se bloquea (comunicar no consume recursos físicos).
+ * Validates a proposed action against the blocking rules.
+ * `contact` is never blocked (communicating consumes no physical resources).
  */
-export function validarAccion(
-  intento: IntentoAccion,
-  contexto: ContextoValidacion,
-): ResultadoValidacion {
-  if (intento.tipo === "contactar") return { permitido: true };
+export function validateAction(
+  attempt: ActionAttempt,
+  context: ValidationContext,
+): ValidationResult {
+  if (attempt.type === "contact") return { allowed: true };
 
-  const elementosPorId = new Map(contexto.elementos.map((e) => [e.id, e]));
-  const hospitalesEnRiesgo = contexto.elementos.filter(
+  const elementsById = new Map(context.elements.map((e) => [e.id, e]));
+  const hospitalsAtRisk = context.elements.filter(
     (e) =>
       e.type === "hospital" &&
-      e.status === "critico" &&
-      e.sinEnergiaSegundos > 0 &&
-      !contexto.recursos.some(
-        (r) => r.type === "generador" && r.assignedElementId === e.id,
+      e.status === "critical" &&
+      e.secondsWithoutPower > 0 &&
+      !context.resources.some(
+        (r) => r.type === "generator" && r.assignedElementId === e.id,
       ),
   );
-  const hospitalEnPlazo = contexto.elementos.find(
+  const hospitalPastDeadline = context.elements.find(
     (e) =>
       e.type === "hospital" &&
-      e.sinEnergiaSegundos > MAX_MINUTOS_SIN_ENERGIA.hospital * 60,
+      e.secondsWithoutPower > MAX_MINUTES_WITHOUT_POWER.hospital * 60,
   );
 
-  if (intento.tipo === "asignar_recurso") {
-    if (!intento.recursoId) {
+  if (attempt.type === "assign_resource") {
+    if (!attempt.resourceId) {
       return {
-        permitido: false,
-        regla: "sin-doble-asignacion",
-        razon: "asignar_recurso requiere recursoId",
+        allowed: false,
+        rule: "no-double-assignment",
+        reason: "assign_resource requires resourceId",
       };
     }
-    const recurso = contexto.recursos.find((r) => r.id === intento.recursoId);
-    if (!recurso) {
+    const resource = context.resources.find((r) => r.id === attempt.resourceId);
+    if (!resource) {
       return {
-        permitido: false,
-        regla: "sin-doble-asignacion",
-        razon: `recurso inexistente: ${intento.recursoId}`,
+        allowed: false,
+        rule: "no-double-assignment",
+        reason: `nonexistent resource: ${attempt.resourceId}`,
       };
     }
-    if (recurso.status !== "disponible") {
+    if (resource.status !== "available") {
       return {
-        permitido: false,
-        regla: "sin-doble-asignacion",
-        razon: `${recurso.id} no está disponible (status ${recurso.status}); libéralo antes de reasignar`,
+        allowed: false,
+        rule: "no-double-assignment",
+        reason: `${resource.id} is not available (status ${resource.status}); release it before reassigning`,
       };
     }
-    const objetivo = elementosPorId.get(intento.elementId);
-    if (objetivo && recurso.type === "generador" && objetivo.type !== "hospital") {
-      const hospitalAlQueSirve = hospitalesEnRiesgo[0];
-      if (hospitalAlQueSirve) {
+    const target = elementsById.get(attempt.elementId);
+    if (target && resource.type === "generator" && target.type !== "hospital") {
+      const hospitalAtRisk = hospitalsAtRisk[0];
+      if (hospitalAtRisk) {
         return {
-          permitido: false,
-          regla: "hospital-prioridad-energia",
-          razon: `${hospitalAlQueSirve.id} está critico sin respaldo de energía: los generadores solo pueden ir a él`,
+          allowed: false,
+          rule: "hospital-power-priority",
+          reason: `${hospitalAtRisk.id} is critical without power backup: generators can only go to it`,
         };
       }
     }
-    if (hospitalEnPlazo && objetivo && objetivo.id !== hospitalEnPlazo.id) {
-      const destinoValido =
-        objetivo.type === "subestacion" && objetivo.status === "critico";
-      if (!destinoValido) {
+    if (hospitalPastDeadline && target && target.id !== hospitalPastDeadline.id) {
+      const validTarget =
+        target.type === "substation" && target.status === "critical";
+      if (!validTarget) {
         return {
-          permitido: false,
-          regla: "hospital-plazo-energia",
-          razon: `${hospitalEnPlazo.id} lleva ${Math.floor(hospitalEnPlazo.sinEnergiaSegundos / 60)} min sin energía (límite ${MAX_MINUTOS_SIN_ENERGIA.hospital}): solo se permite actuar sobre él o sobre la subestación de origen`,
+          allowed: false,
+          rule: "hospital-power-deadline",
+          reason: `${hospitalPastDeadline.id} has been ${Math.floor(hospitalPastDeadline.secondsWithoutPower / 60)} min without power (limit ${MAX_MINUTES_WITHOUT_POWER.hospital}): only acting on it or on the origin substation is allowed`,
         };
       }
     }
-    return { permitido: true };
+    return { allowed: true };
   }
 
-  // tipo === "esperar"
-  const objetivo = elementosPorId.get(intento.elementId);
-  if (hospitalEnPlazo && objetivo && objetivo.id !== hospitalEnPlazo.id) {
+  // type === "wait"
+  const target = elementsById.get(attempt.elementId);
+  if (hospitalPastDeadline && target && target.id !== hospitalPastDeadline.id) {
     return {
-      permitido: false,
-      regla: "hospital-plazo-energia",
-      razon: `${hospitalEnPlazo.id} lleva ${Math.floor(hospitalEnPlazo.sinEnergiaSegundos / 60)} min sin energía (límite ${MAX_MINUTOS_SIN_ENERGIA.hospital}): no se puede esperar en ${objetivo.id}`,
+      allowed: false,
+      rule: "hospital-power-deadline",
+      reason: `${hospitalPastDeadline.id} has been ${Math.floor(hospitalPastDeadline.secondsWithoutPower / 60)} min without power (limit ${MAX_MINUTES_WITHOUT_POWER.hospital}): waiting on ${target.id} is not allowed`,
     };
   }
-  const cargaUps = objetivo?.metricas.carga_ups;
-  if (objetivo && cargaUps !== undefined && cargaUps < UMBRAL_UPS_ACTUAR) {
+  const upsLoad = target?.metrics.ups_load;
+  if (target && upsLoad !== undefined && upsLoad < UPS_ACT_THRESHOLD) {
     return {
-      permitido: false,
-      regla: "ups-critica-actuar",
-      razon: `${objetivo.id} con carga_ups ${cargaUps}% < ${UMBRAL_UPS_ACTUAR}%: esperar está prohibido, hay que asignar recurso o escalar (hist-dc-002)`,
+      allowed: false,
+      rule: "critical-ups-act",
+      reason: `${target.id} with ups_load ${upsLoad}% < ${UPS_ACT_THRESHOLD}%: waiting is forbidden, a resource must be assigned or the issue escalated (hist-dc-002)`,
     };
   }
-  return { permitido: true };
+  return { allowed: true };
 }

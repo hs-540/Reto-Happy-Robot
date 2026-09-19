@@ -3,41 +3,41 @@ import type { Action } from "@swarmup/shared";
 import { z } from "zod";
 import type { Feed } from "./feed.js";
 
-/** Variantes del cuerpo de POST /api/control; `payload` obligatorio en `inyectar` */
-export const esquemaControl = z.discriminatedUnion("accion", [
-  z.object({ accion: z.literal("iniciar") }),
-  z.object({ accion: z.literal("reiniciar") }),
-  z.object({ accion: z.literal("pausar") }),
-  z.object({ accion: z.literal("reanudar") }),
-  z.object({ accion: z.literal("inyectar"), payload: SensorEventSchema.omit({ id: true }) }),
+/** Variants of the POST /api/control body; `payload` required for `inject` */
+export const controlSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("start") }),
+  z.object({ action: z.literal("reset") }),
+  z.object({ action: z.literal("pause") }),
+  z.object({ action: z.literal("resume") }),
+  z.object({ action: z.literal("inject"), payload: SensorEventSchema.omit({ id: true }) }),
 ]);
 
-export interface RegistroAcciones {
-  /** Punto de enganche del motor de decisión: registra la acción ya ejecutada, sin gate humano */
-  proponer(datos: Omit<Action, "id" | "status" | "timestamp">): Action;
+export interface ActionRegistry {
+  /** Hook of the decision engine: records the action as already executed, no human gate */
+  record(data: Omit<Action, "id" | "status" | "timestamp">): Action;
 }
 
-export function crearRegistroAcciones(feed: Feed): RegistroAcciones {
-  let contador = 0;
+export function createActionRegistry(feed: Feed): ActionRegistry {
+  let counter = 0;
 
   return {
-    proponer(datos) {
-      contador += 1;
-      const accion: Action = {
-        ...datos,
-        id: `act-${String(contador).padStart(3, "0")}`,
-        status: "ejecutada",
+    record(data) {
+      counter += 1;
+      const action: Action = {
+        ...data,
+        id: `act-${String(counter).padStart(3, "0")}`,
+        status: "executed",
         timestamp: new Date().toISOString(),
       };
-      feed.publicar({
-        kind: "accion",
-        elementId: accion.targetElementId,
-        actionId: accion.id,
-        tipo: accion.type,
-        estado: accion.status,
-        mensaje: accion.mensaje,
+      feed.publish({
+        kind: "action",
+        elementId: action.targetElementId,
+        actionId: action.id,
+        type: action.type,
+        status: action.status,
+        message: action.message,
       });
-      return accion;
+      return action;
     },
   };
 }

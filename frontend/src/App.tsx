@@ -6,42 +6,42 @@ import { ResourceBar } from './components/ResourceBar'
 import { useCrisis } from './hooks/useCrisis'
 import './App.css'
 
-const TICK_SEGUNDOS = 5
+const TICK_SECONDS = 5
 
 function App() {
-  const { topology, state, agent, feed, refrescar } = useCrisis()
+  const { topology, state, agent, feed, refresh } = useCrisis()
   const [selectedElementId, setSelectedElementId] = useState<string | null>('hosp-01')
 
   if (!topology || !state) {
     return (
-      <div className="conectando">
-        <p className="muted">Conectando con el backend…</p>
+      <div className="connecting">
+        <p className="muted">Connecting to the backend…</p>
       </div>
     )
   }
 
-  const nombresElemento = Object.fromEntries(
-    topology.elementos.map((e) => [e.id, e.name]),
+  const elementNames = Object.fromEntries(
+    topology.elements.map((e) => [e.id, e.name]),
   )
 
   return (
     <div className="app">
       <HeaderBar
-        titulo={topology.crisis.titulo}
+        title={topology.crisis.title}
         tick={state.tick}
-        reloj={state.relojSimulacion}
-        pausado={state.pausado}
-        iniciado={state.iniciado}
-        onControlOk={refrescar}
-        segundoActual={state.tick * TICK_SEGUNDOS}
-        duracionSegundos={topology.crisis.duracionSegundos}
-        momentos={topology.crisis.momentos}
-        ultimoSeq={state.ultimoSeq}
-        elementos={state.elementos}
+        clock={state.simulationClock}
+        paused={state.paused}
+        started={state.started}
+        onControlOk={refresh}
+        currentSecond={state.tick * TICK_SECONDS}
+        durationSeconds={topology.crisis.durationSeconds}
+        moments={topology.crisis.moments}
+        lastSeq={state.lastSeq}
+        elements={state.elements}
       />
       <MapView
-        elementos={state.elementos}
-        recursos={state.recursos}
+        elements={state.elements}
+        resources={state.resources}
         selectedElementId={selectedElementId}
         onSelectElement={setSelectedElementId}
       />
@@ -50,12 +50,12 @@ function App() {
         feed={feed}
         selectedElementId={selectedElementId}
         onSelectElement={setSelectedElementId}
-        nombresElemento={nombresElemento}
+        elementNames={elementNames}
       />
       <ResourceBar
-        recursos={state.recursos}
-        elementos={state.elementos}
-        nombresElemento={nombresElemento}
+        resources={state.resources}
+        elements={state.elements}
+        elementNames={elementNames}
         selectedElementId={selectedElementId}
         onSelectElement={setSelectedElementId}
       />

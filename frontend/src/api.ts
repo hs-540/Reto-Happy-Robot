@@ -19,10 +19,10 @@ export const getState = () => getJson<StateView>('/api/state')
 
 export const getAgent = () => getJson<AgentView>('/api/agent')
 
-/** Solo lo nuevo: el cliente acumula por `seq` (CONTRACT.md, regla de oro 6) */
+/** Only what's new: the client accumulates by `seq` (CONTRACT.md, golden rule 6) */
 export const getFeed = (since: number) => getJson<FeedResponse>(`/api/feed?since=${since}`)
 
-/** Acción del operador: la respuesta del POST es el feedback, no espera al poll */
+/** Operator action: the POST response is the feedback, it does not wait for the poll */
 export async function postControl(body: ControlBody): Promise<ControlResponse> {
   const res = await fetch('/api/control', {
     method: 'POST',

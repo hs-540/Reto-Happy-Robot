@@ -4,183 +4,183 @@ import type {
   ControlResponse,
   FeedResponse,
   HealthResponse,
-  HistoricoIncidente,
+  HistoricalIncident,
   StateView,
   TopologyView,
 } from "@swarmup/shared";
-import { cargarHistorico } from "@swarmup/shared";
-import { crearAgente } from "./agente.js";
+import { loadHistory } from "@swarmup/shared";
+import { createAgent } from "./agent.js";
 import { config, redactSecrets } from "./config.js";
-import { crearRegistroAcciones, esquemaControl } from "./control.js";
-import { crearFeed, parsearSince } from "./feed.js";
-import { aTopologia, cargarGuion } from "./guion.js";
-import { crearClienteLlm } from "./llm.js";
-import { crearMundo } from "./mundo.js";
-import { arrancarChroma } from "./rag/chroma.js";
-import { crearRagHistorico, type RagHistorico } from "./rag/historico.js";
-import { crearSimulacion, type CierreIncidente } from "./sim.js";
+import { createActionRegistry, controlSchema } from "./control.js";
+import { createFeed, parseSince } from "./feed.js";
+import { toTopology, loadScript } from "./script.js";
+import { createLlmClient } from "./llm.js";
+import { createWorld } from "./world.js";
+import { startChroma } from "./rag/chroma.js";
+import { createHistoryRag, type HistoryRag } from "./rag/history.js";
+import { createSimulation, type IncidentClosure } from "./sim.js";
 
-const raiz = new URL("../../", import.meta.url);
-const guion = cargarGuion(new URL("data/scripts/apagon-madrid.json", raiz));
-const feed = crearFeed();
-const mundo = crearMundo(guion);
+const repoRoot = new URL("../../", import.meta.url);
+const script = loadScript(new URL("data/scripts/madrid-blackout.json", repoRoot));
+const feed = createFeed();
+const world = createWorld(script);
 
-/** Chroma local (RAG): si no arranca, la demo sigue sin cierre del bucle */
-const ragListo: Promise<RagHistorico | null> = arrancarChroma({
-  ruta: config.chroma.path,
-  puerto: config.chroma.port,
+/** Local Chroma (RAG): if it does not start, the demo goes on without loop closure */
+const ragReady: Promise<HistoryRag | null> = startChroma({
+  path: config.chroma.path,
+  port: config.chroma.port,
 })
   .then((chroma) =>
-    crearRagHistorico({ cliente: chroma.cliente, llm: crearClienteLlm(config.llm.gateways) }),
+    createHistoryRag({ client: chroma.client, llm: createLlmClient(config.llm.gateways) }),
   )
   .catch((err: unknown) => {
     console.error(
-      `[rag] Chroma no disponible, los incidentes resueltos no se registrarán: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
+      `[rag] Chroma unavailable, resolved incidents will not be recorded: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
     );
     return null;
   });
 
-function alResolver(cierre: CierreIncidente): void {
-  void ragListo.then((rag) => {
+function onResolved(closure: IncidentClosure): void {
+  void ragReady.then((rag) => {
     if (!rag) return;
     rag
-      .registrarCierre(cierre)
-      .then(() => console.log(`[rag] cierre registrado en el histórico: ${cierre.elementoId}`))
+      .recordClosure(closure)
+      .then(() => console.log(`[rag] closure recorded in the history: ${closure.elementId}`))
       .catch((err: unknown) => {
         console.error(
-          `[rag] no se pudo registrar el cierre de ${cierre.elementoId}: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
+          `[rag] could not record the closure of ${closure.elementId}: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
         );
       });
   });
 }
 
-const sim = crearSimulacion(guion, Date.now(), feed, mundo, alResolver);
-const registroAcciones = crearRegistroAcciones(feed);
-const topologia: TopologyView = aTopologia(guion);
+const sim = createSimulation(script, Date.now(), feed, world, onResolved);
+const actionRegistry = createActionRegistry(feed);
+const topology: TopologyView = toTopology(script);
 
-/** Histórico pre-cargado por tipo de sitio: contexto del agente desde el primer tick */
-const historico: HistoricoIncidente[] = ["hospital", "datacenter", "subestacion"].flatMap((tipo) =>
-  cargarHistorico(new URL(`data/history/${tipo}/incidentes.json`, raiz).pathname),
+/** History pre-loaded per site type: agent context from the first tick */
+const history: HistoricalIncident[] = ["hospital", "datacenter", "substation"].flatMap((type) =>
+  loadHistory(new URL(`data/history/${type}/incidents.json`, repoRoot).pathname),
 );
 
-const agente = crearAgente({
-  mundo,
+const agent = createAgent({
+  world,
   feed,
-  llm: crearClienteLlm(config.llm.gateways),
-  registroAcciones,
-  historico,
-  segundos: () => sim.segundos(),
+  llm: createLlmClient(config.llm.gateways),
+  actionRegistry,
+  history,
+  seconds: () => sim.seconds(),
 });
 
 /**
- * Un tick del sistema: la sim aplica los eventos del guion vencidos y el mundo
- * avanza el estado físico sobre esa foto. Los eventos que devuelve `mundo` son
- * triggers de replanificación (RULES.md §7) y los consumirá el motor de decisión.
+ * One tick of the system: the sim applies the script's due events and the world
+ * advances the physical state over that snapshot. The events returned by `world`
+ * are replan triggers (RULES.md §7) and the decision engine consumes them.
  */
-function avanzar(): void {
-  sim.avanzar(Date.now());
-  const eventos = mundo.avanzar(sim.segundos(), sim.estado().elementos);
-  for (const ev of eventos) {
-    if (ev.tipo === "llegada") {
-      feed.publicar({ kind: "sistema", mensaje: `${ev.recursoId} ha llegado a ${ev.elementId}` });
-    } else if (ev.tipo === "eta_incumplida") {
-      feed.publicar({
-        kind: "sistema",
-        mensaje: `${ev.recursoId} no cumple su ETA hacia ${ev.elementId} (+${ev.retrasoSeg}s)`,
+function advance(): void {
+  sim.advance(Date.now());
+  const events = world.advance(sim.seconds(), sim.state().elements);
+  for (const ev of events) {
+    if (ev.type === "arrival") {
+      feed.publish({ kind: "system", message: `${ev.resourceId} has arrived at ${ev.elementId}` });
+    } else if (ev.type === "eta_missed") {
+      feed.publish({
+        kind: "system",
+        message: `${ev.resourceId} misses its ETA to ${ev.elementId} (+${ev.delaySeconds}s)`,
       });
     } else {
-      feed.publicar({
-        kind: "sistema",
-        mensaje: `${ev.elementId} supera su límite sin energía (${ev.minutosSinEnergia} min)`,
+      feed.publish({
+        kind: "system",
+        message: `${ev.elementId} exceeds its limit without power (${ev.minutesWithoutPower} min)`,
       });
     }
   }
-  // el motor decide sobre la foto ya avanzada; no se espera a que termine
-  void agente.observar(estadoCompleto(), eventos);
+  // the engine decides over the already-advanced snapshot; it does not wait for it to finish
+  void agent.observe(fullState(), events);
 }
 
-/** `atencion` es derivada y la calcula el backend (CONTRACT.md, regla de oro 5) */
-function estadoCompleto(): StateView {
-  const estado = sim.estado();
+/** `attention` is derived and computed by the backend (CONTRACT.md, golden rule 4) */
+function fullState(): StateView {
+  const state = sim.state();
   return {
-    ...estado,
-    elementos: estado.elementos.map((e) => ({ ...e, atencion: agente.atencion(e.id) })),
+    ...state,
+    elements: state.elements.map((e) => ({ ...e, attention: agent.attention(e.id) })),
   };
 }
 
 const app = express();
 app.use(express.json());
 
-function respuestaError(error: string): ControlResponse {
+function errorResponse(error: string): ControlResponse {
   return { ok: false, error };
 }
 
 app.get("/api/topology", (_req, res) => {
-  res.json(topologia);
+  res.json(topology);
 });
 
 app.get("/api/state", (_req, res) => {
-  avanzar();
-  res.json(estadoCompleto());
+  advance();
+  res.json(fullState());
 });
 
 app.get("/api/agent", (_req, res) => {
-  avanzar();
-  const vista: AgentView = { ...agente.vista(), tick: sim.tick(), pausado: sim.pausado };
-  res.json(vista);
+  advance();
+  const view: AgentView = { ...agent.view(), tick: sim.tick(), paused: sim.paused };
+  res.json(view);
 });
 
 app.get("/api/feed", (req, res) => {
-  const since = parsearSince(req.query.since);
+  const since = parseSince(req.query.since);
   if (since === null) {
-    res.status(400).json({ error: "since debe ser un entero >= 0" });
+    res.status(400).json({ error: "since must be an integer >= 0" });
     return;
   }
-  const respuesta: FeedResponse = { items: feed.desde(since), ultimoSeq: feed.ultimoSeq() };
-  res.json(respuesta);
+  const response: FeedResponse = { items: feed.since(since), lastSeq: feed.lastSeq() };
+  res.json(response);
 });
 
 app.get("/api/health", (_req, res) => {
-  avanzar();
+  advance();
   const health: HealthResponse = {
     status: "ok",
     tick: sim.tick(),
-    pausado: sim.pausado,
-    iniciado: sim.iniciado,
+    paused: sim.paused,
+    started: sim.started,
   };
   res.json(health);
 });
 
 app.post("/api/control", (req, res) => {
-  avanzar();
-  const parsed = esquemaControl.safeParse(req.body);
+  advance();
+  const parsed = controlSchema.safeParse(req.body);
   if (!parsed.success) {
-    const detalles = parsed.error.issues
+    const details = parsed.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("; ");
-    res.status(400).json(respuestaError(`cuerpo inválido: ${detalles}`));
+    res.status(400).json(errorResponse(`invalid body: ${details}`));
     return;
   }
   const body = parsed.data;
-  switch (body.accion) {
-    case "iniciar":
-      sim.iniciar(Date.now());
+  switch (body.action) {
+    case "start":
+      sim.start(Date.now());
       break;
-    case "reiniciar":
-      sim.reiniciar();
-      agente.reiniciar();
+    case "reset":
+      sim.reset();
+      agent.reset();
       break;
-    case "pausar":
-      sim.pausar();
+    case "pause":
+      sim.pause();
       break;
-    case "reanudar":
-      sim.reanudar();
+    case "resume":
+      sim.resume();
       break;
-    case "inyectar":
+    case "inject":
       try {
-        sim.inyectar(body.payload);
+        sim.inject(body.payload);
       } catch (err) {
-        res.status(400).json(respuestaError(err instanceof Error ? err.message : String(err)));
+        res.status(400).json(errorResponse(err instanceof Error ? err.message : String(err)));
         return;
       }
       break;
@@ -190,13 +190,13 @@ app.post("/api/control", (req, res) => {
 
 const errorHandler: express.ErrorRequestHandler = (err, _req, res, _next) => {
   console.error(`[backend] ${redactSecrets(err instanceof Error ? err.message : String(err))}`);
-  res.status(500).json({ error: "Error interno del servidor" });
+  res.status(500).json({ error: "Internal server error" });
 };
 
 app.use(errorHandler);
 
-setInterval(avanzar, config.tickMs);
+setInterval(advance, config.tickMs);
 
 app.listen(config.port, () => {
-  console.log(`Backend escuchando en http://localhost:${config.port}`);
+  console.log(`Backend listening at http://localhost:${config.port}`);
 });
