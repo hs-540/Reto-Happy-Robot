@@ -81,6 +81,12 @@ prompt so the agent can reason about preconditions; the machine-enforced version
 of `requires` for generators is the `generator-without-fuel` blocking rule in
 `shared/src/rules.json`.
 
+`appliesTo` is a hard boundary, not advice: `world.assign` refuses any
+assignment whose (resource, site type) pair is not in the catalog, so a tanker
+cannot be parked on a substation it can never help. The agent checks the same
+boundary when validating a proposal and hands the rejection back to the model
+with the reason.
+
 **`contacts`**: the twelve people the agent can reach. Each has an `id` (the
 handle the LLM uses), `name`, `role`, a `phone` HappyRobot dials, and either a
 `resourceId` (they lead that resource) or an `elementId` (they answer for that

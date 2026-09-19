@@ -67,11 +67,18 @@ test("once it arrives there is no journey left, only work", () => {
   assert.equal(estimate.totalSeconds, estimate.workSeconds);
 });
 
-test("a resource sent where its remedy does not apply gets no countdown", () => {
+test("a resource whose remedy does not apply to the site is refused outright", () => {
   const w = world();
-  // remedies.json declares no tanker remedy for a substation: it fixes nothing
-  // there, and a counter ticking down to nothing would be a lie
-  assert.equal(w.assign("tanker-1", "sub-01", 0).ok, true);
+  // remedies.json declares no tanker remedy for a substation: sending it there
+  // would park it for the rest of the run with nothing to fix
+  const result = w.assign("tanker-1", "sub-01", 0);
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : result.reason, /no remedy for sub-01/);
+  assert.equal(
+    w.resources().find((r) => r.id === "tanker-1")?.status,
+    "available",
+    "the resource is not committed to a trip it cannot finish",
+  );
   assert.equal(w.repairEstimate("sub-01", 0), null);
 });
 

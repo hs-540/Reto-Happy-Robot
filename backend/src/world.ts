@@ -544,6 +544,18 @@ export function createWorld(
       const destination = coordinates.get(elementId);
       if (!destination) return { ok: false, reason: `nonexistent element: ${elementId}` };
 
+      // A resource whose declared remedy does not cover this kind of site cannot
+      // be sent there: it would arrive, apply nothing and sit `assigned` forever
+      // (the release loop skips a resource with no remedy). The remedies catalog
+      // is the source of truth, not the agent's prose.
+      const elementType = typeOf.get(elementId);
+      if (elementType && !remedyFor(r.type, elementType)) {
+        return {
+          ok: false,
+          reason: `${r.type} has no remedy for ${elementId} (${elementType}): check the remedies catalog`,
+        };
+      }
+
       // Real navigation: shortest path over the street network, with the
       // journey distance measured along the roads, not over the blocks
       const origin: LatLng = { lat: r.lat, lng: r.lng };

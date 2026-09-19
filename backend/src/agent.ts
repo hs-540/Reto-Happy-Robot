@@ -657,6 +657,7 @@ export function createAgent(options: AgentOptions): Agent {
   }
 
   function isLegal(action: ProposedAction, state: StateView): boolean {
+    if (!resolvedRemedyApplies(action, state)) return false;
     return validateAction(
       {
         type: action.type,
@@ -667,11 +668,33 @@ export function createAgent(options: AgentOptions): Agent {
     ).allowed;
   }
 
+  /**
+   * Whether the resource's remedy actually covers the target site type. This is
+   * the same check `world.assign` enforces at execution: without it the model
+   * can send a tanker to a substation, the assignment "succeeds" and the
+   * resource is parked for the rest of the run with nothing to fix.
+   */
+  function resolvedRemedyApplies(action: ProposedAction, state: StateView): boolean {
+    if (action.type !== "assign_resource" || !action.resourceId) return true;
+    const resourceType = state.resources.find((r) => r.id === action.resourceId)?.type;
+    const elementType = state.elements.find((e) => e.id === action.elementId)?.type;
+    if (!resourceType || !elementType) return false;
+    return remedyApplies(resourceType, elementType);
+  }
+
   function collectRejections(output: AgentOutput, state: StateView): string[] {
     const context = world.context(state.elements);
     const reasons: string[] = [];
     for (const d of output.decisions) {
       for (const a of d.actions) {
+        if (!resolvedRemedyApplies(a, state)) {
+          const rt = state.resources.find((r) => r.id === a.resourceId)?.type;
+          const et = state.elements.find((e) => e.id === a.elementId)?.type;
+          reasons.push(
+            `[remedy-not-applicable] assigning ${a.resourceId} (${rt}) to ${a.elementId} (${et}): the remedies catalog declares no remedy of that resource for that site type`,
+          );
+          continue;
+        }
         const verdict = validateAction(
           { type: a.type, elementId: a.elementId, resourceId: a.resourceId ?? undefined },
           context,
