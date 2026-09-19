@@ -2,6 +2,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { z } from "zod";
 import type {
   AgentPlan,
+  Directive,
   ElementView,
   HistoricalIncident,
   Remedies,
@@ -71,6 +72,14 @@ export const AgentOutputSchema = z.object({
       actions: z.array(ProposedActionSchema),
     }),
   ),
+  /** one entry per directive marked AWAITING YOUR ANSWER, same id */
+  directiveResponses: z.array(
+    z.object({
+      directiveId: z.string(),
+      decision: z.enum(["acknowledged", "rejected"]),
+      reasoning: z.string(),
+    }),
+  ),
 });
 
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
@@ -114,7 +123,10 @@ function summariseRules(): string {
 const SYSTEM_PROMPT = `You are the autonomous coordinator of a regional blackout crisis in the Community of Madrid.
 
 You manage critical sites (hospital, substation, datacenter) with LIMITED, shared resources.
-You decide alone: nobody will ask your permission or correct you between decisions.
+You decide alone: no human confirms your actions before they run. But you are SUPERVISED: the
+crisis operator can pin sites and issue orders between your deliberations (see OPERATOR
+DIRECTIVES). You answer every directive; the hard rules still outrank any order, and if you
+overrule the operator you must do it with facts, never with taste.
 
 YOUR JOB IN EVERY DELIBERATION
 1. Separate signal from noise. You receive RAW SIGNALS from social media, emergency calls,
@@ -147,6 +159,12 @@ YOUR JOB IN EVERY DELIBERATION
      plain language and a concrete timeframe; a crew chief gets an order with its reason.
 5. If the best decision is to move nothing, use "wait" AND JUSTIFY IT. An agent that explains
    why it does not act is worth more than one that acts out of inertia.
+6. ANSWER YOUR OPERATOR. Directives marked AWAITING YOUR ANSWER in OPERATOR DIRECTIVES must
+   each appear in "directiveResponses" with their id, decision "acknowledged" or "rejected",
+   and a one-sentence reasoning (in Spanish, like the rest of your prose). A pin is a demand
+   for attention: weigh that site first. You may reject a directive, but only with facts —
+   a blocking rule, no applicable resource, a dependency that makes it useless. The operator
+   reads your reasoning on screen.
 
 INVENTORY MANAGEMENT — THE CRISIS IS NOT OVER
 - DO NOT spend all your resources on the first incident. The situation keeps getting worse and
@@ -216,7 +234,12 @@ function repairLine(e: ElementView): string {
   return `\n    FIXED IN ${countdown(r.totalSeconds)} by ${r.resourceId}${via} — ${breakdown}`;
 }
 
-function elementLine(e: ElementView, secondsWithoutPower: number, priority: number): string {
+function elementLine(
+  e: ElementView,
+  secondsWithoutPower: number,
+  priority: number,
+  pinned: boolean,
+): string {
   const sensors = Object.entries(e.sensors)
     .map(([k, v]) => `${k}=${v}`)
     .join(" ");
@@ -224,7 +247,8 @@ function elementLine(e: ElementView, secondsWithoutPower: number, priority: numb
     secondsWithoutPower > 0 ? ` WITHOUT POWER for ${countdown(secondsWithoutPower)}` : "";
   const resource = e.attention.resourceId ? ` (${e.attention.resourceId})` : "";
   const attention = `${ATTENTION[e.attention.state] ?? e.attention.state}${resource}`;
-  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severity=${e.severity} priority=${priority}${power}\n    ${attention}${repairLine(e)}\n    sensors: ${sensors || "no readings"}`;
+  const flag = pinned ? " [PINNED BY THE OPERATOR]" : "";
+  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severity=${e.severity} priority=${priority}${power}${flag}\n    ${attention}${repairLine(e)}\n    sensors: ${sensors || "no readings"}`;
 }
 
 function resourceLine(r: ResourceView): string {
@@ -257,6 +281,18 @@ function contactLine(c: Remedies["contacts"][number]): string {
 
 function reportLine(r: Report): string {
   return `- [${r.source}]${r.elementId ? ` (${r.elementId})` : ""} ${r.text}`;
+}
+
+function directiveLine(d: Directive, nameOf: (id: string) => string): string {
+  const status =
+    d.status === "open"
+      ? "AWAITING YOUR ANSWER"
+      : `${d.status} — "${d.responseReasoning ?? ""}"`;
+  if (d.kind === "priority_pin") {
+    const site = d.elementId ? `${d.elementId} "${nameOf(d.elementId)}"` : "the scenario";
+    return `- [${d.id}] PIN on ${site}${d.text ? `: "${d.text}"` : ""} — ${status}`;
+  }
+  return `- [${d.id}] ORDER: "${d.text}" — ${status}`;
 }
 
 /**
@@ -293,6 +329,8 @@ export interface AgentContext {
   remedies: Remedies;
   /** raw signals since the last deliberation, mostly noise */
   reports: Report[];
+  /** operator directives: pins on sites and orders, some awaiting an answer */
+  directives: Directive[];
   /** past incidents retrieved for this situation, each with why it surfaced */
   history: HistoryEntry[];
   /** why this deliberation was triggered */
@@ -304,6 +342,12 @@ export function buildMessages(
   rejections: string[] = [],
 ): ChatCompletionMessageParam[] {
   const priorityOf = new Map(ctx.priorities.map((p) => [p.elementId, p.score]));
+  const nameOf = new Map(ctx.elements.map((e) => [e.id, e.name]));
+  const pinnedIds = new Set(
+    ctx.directives
+      .filter((d) => d.kind === "priority_pin" && d.status !== "rejected")
+      .map((d) => d.elementId),
+  );
 
   const parts = [
     `CRISIS CLOCK: ${ctx.simulationClock}`,
@@ -313,7 +357,7 @@ export function buildMessages(
     "",
     "SITES (priority = rule-computed clue, higher = more urgent):",
     ...ctx.elements.map((e) =>
-      elementLine(e, ctx.secondsWithoutPower(e.id), priorityOf.get(e.id) ?? 0),
+      elementLine(e, ctx.secondsWithoutPower(e.id), priorityOf.get(e.id) ?? 0, pinnedIds.has(e.id)),
     ),
     "",
     "AVAILABLE RESOURCES — this is everything you have:",
@@ -328,6 +372,14 @@ export function buildMessages(
     "CONTACTS (who you can call or message, and the role they hold):",
     ...ctx.remedies.contacts.map(contactLine),
   ];
+
+  if (ctx.directives.length > 0) {
+    parts.push(
+      "",
+      "OPERATOR DIRECTIVES — your supervisor pins sites and gives orders; answer each one that is AWAITING YOUR ANSWER in \"directiveResponses\":",
+      ...ctx.directives.map((d) => directiveLine(d, (id) => nameOf.get(id) ?? id)),
+    );
+  }
 
   if (ctx.reports.length > 0) {
     parts.push(

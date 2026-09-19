@@ -1,5 +1,11 @@
 import type { SensorMetric } from "./world.js";
-import type { ActionStatus, ActionType, CallOutcome } from "./agent.js";
+import type {
+  ActionStatus,
+  ActionType,
+  CallOutcome,
+  DirectiveDecision,
+  DirectiveKind,
+} from "./agent.js";
 
 export type FeedItemKind =
   | "alarm"
@@ -7,6 +13,8 @@ export type FeedItemKind =
   | "decision"
   | "action"
   | "outcome"
+  | "directive"
+  | "directive_response"
   | "system";
 
 interface FeedBase {
@@ -63,12 +71,31 @@ export interface FeedSystem extends FeedBase {
   message: string;
 }
 
+/** An operator directive reaching the agent: a pin on a site or a free-text order */
+export interface FeedDirective extends FeedBase {
+  kind: "directive";
+  directiveId: string;
+  directive: DirectiveKind;
+  elementId: string | null;
+  text: string;
+}
+
+/** What the agent answered once it deliberated with the directive */
+export interface FeedDirectiveResponse extends FeedBase {
+  kind: "directive_response";
+  directiveId: string;
+  decision: DirectiveDecision;
+  reasoning: string;
+}
+
 export type FeedItem =
   | FeedAlarm
   | FeedReport
   | FeedDecision
   | FeedAction
   | FeedOutcome
+  | FeedDirective
+  | FeedDirectiveResponse
   | FeedSystem;
 
 export interface FeedResponse {
@@ -81,7 +108,10 @@ export type ControlAction =
   | "reset"
   | "pause"
   | "resume"
-  | "inject";
+  | "inject"
+  | "prioritize"
+  | "unprioritize"
+  | "order";
 
 export interface InjectPayload {
   elementId: string;
@@ -90,10 +120,26 @@ export interface InjectPayload {
   severity: number;
 }
 
+/** `prioritize`: raise the priority of one site (the optional note says why) */
+export interface PrioritizePayload {
+  elementId: string;
+  note?: string;
+}
+
+/** `unprioritize`: withdraw the pin on a site */
+export interface UnprioritizePayload {
+  elementId: string;
+}
+
+/** `order`: free-text instruction for the agent, in the operator's words */
+export interface OrderPayload {
+  text: string;
+}
+
 export interface ControlBody {
   action: ControlAction;
-  /** Event to inject (only for the "inject" action) */
-  payload?: InjectPayload;
+  /** Event to inject or directive to send, depending on the action */
+  payload?: InjectPayload | PrioritizePayload | UnprioritizePayload | OrderPayload;
 }
 
 export interface ControlResponse {

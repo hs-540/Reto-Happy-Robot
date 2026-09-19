@@ -102,7 +102,14 @@ function createMarkerNode(
   // its right, vertically centred, so a badge in the corner would land on the
   // site's name. Always rendered, hidden until there is something to count.
   const eta = spec.kind === 'element' ? '<span class="marker__eta" hidden></span>' : ''
-  node.innerHTML = `<span class="marker__dot"><svg viewBox="0 0 24 24" aria-hidden="true">${spec.icon}</svg>${eta}</span><span class="marker__label">${spec.label}</span>`
+  // Same trick for the operator's pin: rendered for elements, shown when pinned
+  const pin =
+    spec.kind === 'element'
+      ? `<span class="marker__pin" hidden><svg viewBox="0 0 24 24" aria-hidden="true">${
+          ICON_PATHS['pin'] ?? ''
+        }</svg></span>`
+      : ''
+  node.innerHTML = `<span class="marker__dot"><svg viewBox="0 0 24 24" aria-hidden="true">${spec.icon}</svg>${eta}${pin}</span><span class="marker__label">${spec.label}</span>`
   if (onClick) node.addEventListener('click', onClick)
   return node
 }
@@ -177,6 +184,8 @@ interface MapViewProps {
   resources: ResourceView[]
   selectedElementId: string | null
   selectedResourceId: string | null
+  /** sites pinned by the operator; the marker wears a pin badge */
+  pinnedIds: Set<string>
   theme: 'dark' | 'light'
   onSelectElement: (id: string | null) => void
   onSelectResource: (id: string | null) => void
@@ -187,6 +196,7 @@ export function MapView({
   resources,
   selectedElementId,
   selectedResourceId,
+  pinnedIds,
   theme,
   onSelectElement,
   onSelectResource,
@@ -302,10 +312,13 @@ export function MapView({
     elements.forEach((el) => {
       alive.add(el.id)
       const selected = el.id === selectedElementId
+      const pinned = pinnedIds.has(el.id)
       const entry = store.get(el.id)
       if (entry) {
         applyVariant(entry, el.status)
         entry.node.classList.toggle('is-selected', selected)
+        const pin = entry.node.querySelector('.marker__pin')
+        if (pin instanceof HTMLElement) pin.hidden = !pinned
         entry.marker.setLngLat([el.lng, el.lat])
         applyCountdown(entry, el.repair, el.id)
       } else {
@@ -327,6 +340,8 @@ export function MapView({
           variant: el.status,
           eta: node.querySelector('.marker__eta'),
         }
+        const pin = node.querySelector('.marker__pin')
+        if (pin instanceof HTMLElement) pin.hidden = !pinned
         applyCountdown(created, el.repair, el.id)
         store.set(el.id, created)
       }
@@ -338,7 +353,7 @@ export function MapView({
         store.delete(id)
       }
     }
-  }, [elements, resources, selectedElementId, selectedResourceId, onSelectElement, onSelectResource, ready])
+  }, [elements, resources, selectedElementId, selectedResourceId, pinnedIds, onSelectElement, onSelectResource, ready])
 
   useEffect(() => {
     const map = mapRef.current

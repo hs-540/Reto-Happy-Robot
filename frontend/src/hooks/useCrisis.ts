@@ -27,6 +27,7 @@ const EMPTY_AGENT: AgentView = {
   currentPlan: null,
   decisions: [],
   actions: [],
+  directives: [],
 }
 
 export function useCrisis() {

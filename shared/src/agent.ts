@@ -41,6 +41,40 @@ export interface Decision {
   actions: Action[];
 }
 
+/**
+ * Operator-to-agent channel. The crisis manager stays autonomous: a directive
+ * is handed to the deliberation, the agent weighs it against the hard rules and
+ * answers it — it can acknowledge it or reject it with facts, never silently.
+ */
+export type DirectiveKind =
+  /** demand for attention on one site, from the map or the sites list */
+  | "priority_pin"
+  /** free-text order in natural language */
+  | "order";
+
+export type DirectiveStatus =
+  /** the agent has not answered it yet */
+  | "open"
+  /** the agent complied */
+  | "acknowledged"
+  /** the agent overruled the operator, with reasoning */
+  | "rejected";
+
+export type DirectiveDecision = "acknowledged" | "rejected";
+
+export interface Directive {
+  id: string;
+  kind: DirectiveKind;
+  /** site the directive is about; null for a free-form order */
+  elementId: string | null;
+  /** what the operator asks, verbatim (a pin carries its optional note here) */
+  text: string;
+  status: DirectiveStatus;
+  /** the agent's answer once a deliberation has processed the directive */
+  responseReasoning: string | null;
+  createdAt: string;
+}
+
 export interface PlanStep {
   id: string;
   description: string;
@@ -62,4 +96,6 @@ export interface AgentView {
   currentPlan: AgentPlan | null;
   decisions: Decision[];
   actions: Action[];
+  /** operator directives, most recent first; orders leave once answered */
+  directives: Directive[];
 }

@@ -55,3 +55,33 @@ test("controlSchema validates the control actions and the inject payload", () =>
   );
   assert.ok(!controlSchema.safeParse({ action: "inject" }).success);
 });
+
+test("controlSchema validates the operator directives", () => {
+  assert.ok(
+    controlSchema.safeParse({
+      action: "prioritize",
+      payload: { elementId: "dc-01", note: "keep it alive" },
+    }).success,
+  );
+  assert.ok(
+    controlSchema.safeParse({ action: "prioritize", payload: { elementId: "dc-01" } }).success,
+    "the note is optional",
+  );
+  assert.ok(!controlSchema.safeParse({ action: "prioritize" }).success);
+  assert.ok(
+    !controlSchema.safeParse({
+      action: "prioritize",
+      payload: { elementId: "dc-01", note: "x".repeat(281) },
+    }).success,
+  );
+
+  assert.ok(controlSchema.safeParse({ action: "unprioritize", payload: { elementId: "dc-01" } }).success);
+  assert.ok(!controlSchema.safeParse({ action: "unprioritize" }).success);
+
+  assert.ok(controlSchema.safeParse({ action: "order", payload: { text: "hold the tanker" } }).success);
+  assert.ok(!controlSchema.safeParse({ action: "order", payload: { text: "" } }).success);
+  assert.ok(
+    !controlSchema.safeParse({ action: "order", payload: { text: "x".repeat(501) } }).success,
+  );
+  assert.ok(!controlSchema.safeParse({ action: "order" }).success);
+});
