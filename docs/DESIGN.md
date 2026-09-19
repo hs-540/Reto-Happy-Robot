@@ -8,8 +8,10 @@
 >
 > Quick index of what changed: two AI gateways → one configurable provider; a
 > human confirmation gate before real actions → removed; 3 element types → 6;
-> 1 crew + 2 generators → also a tanker and a police unit; 4-5 min of script →
-> 1800 s.
+> 1 crew + 2 generators → a 10-unit fleet of crews, generators, tankers and
+> police; 4-5 min of script → 1800 s; one curated timeline → a crisis drawn per
+> run; simulated calls → a real mission hook behind an off-by-default switch;
+> pause/reset as the only human lever → an operator chat that gives orders.
 
 ## Challenge context
 
@@ -70,6 +72,20 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > the new rings degrade around them. Capacity lives in `shared/src/rules.json`
 > (`resources.capacity`); `docs/RULES.md` §4 records the trade-off.
 
+> **Superseded — the timeline is drawn, not written.** A fixed script answers
+> the jury's first question ("is this scripted?") badly, and a start overlay
+> listing the five key moments before they happened answered it worse.
+> `backend/src/scenario.ts` now draws a crisis per seed on every boot and every
+> reset: 8-15 of the 15 catalog sites, a fleet of 4-10 of the 10 units sized to
+> the draw and always at least one unit short of the sites, and ~100-120
+> timeline entries built from 14 failure-arc templates plus a noise pool. The
+> needle — the citizen whose relative is on a home ventilator — is always
+> planted, at a drawn moment. The curated `madrid-blackout.json` survives as the
+> generator's catalog, its fallback when ~20 seeded attempts all fail
+> validation, and the tests' fixture. Moments are revealed through the feed only
+> once they fire. Full design in
+> [`SCENARIO-GENERATION.md`](SCENARIO-GENERATION.md).
+
 ## Decision engine
 
 - **Hybrid**: a **hard rules** layer (non-negotiable constraints, e.g. time limits without power at hospitals) + an **LLM** that reasons and decides within those rules, also generating the natural-language explanation of its prioritization.
@@ -82,21 +98,28 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
   - Decision engine tick: every **5-10 seconds**.
   - Frontend polling: every **2 seconds**.
 
-> **Superseded — resources and replan triggers.** Capacity is now **1 crew + 2
-> generators + 1 tanker + 1 police unit** (`shared/src/rules.json`,
-> `resources.capacity`), which is what the six-site scenario needs. A fourth
-> replan trigger was added: **a contact refuses an action or reports a delay**
-> — the point of making real calls is that the answer can invalidate the plan,
-> and until this existed a refusal changed nothing. Cadence tightened to match
-> the compressed run: `TICK_MS` defaults to 2000 and the frontend polls every
-> 500 ms (`useCrisis.ts`). While the UI is open, the poll — which advances the
-> simulation server-side on every request — is the engine's effective cadence;
-> `TICK_MS` only governs the headless interval.
+> **Superseded — resources, cadence and replan triggers.** Capacity is now
+> **2 crews + 4 generators + 2 tankers + 2 police units** (`shared/src/rules.json`,
+> `resources.capacity`), the catalog a 15-site city needs; each run deploys a
+> drawn subset of it. A fourth replan trigger was added: **a contact refuses an
+> action or reports a delay** — the point of making real calls is that the
+> answer can invalidate the plan, and until this existed a refusal changed
+> nothing. Cadence tightened to match the compressed run: `TICK_MS` defaults to
+> 2000 and the frontend polls every 500 ms (`useCrisis.ts`). While the UI is
+> open, the poll — which advances the simulation server-side on every request —
+> is the engine's effective cadence; `TICK_MS` only governs the headless
+> interval.
 >
 > The deterministic layer also gained a floor the design did not anticipate: if
-> the LLM does not answer inside `DELIBERATION_BUDGET_MS` (75 s), `decideByRules`
-> takes over with the priority formula and the run continues. The demo degrades,
-> it never freezes.
+> the LLM does not answer inside `DELIBERATION_BUDGET_MS`, the contingency
+> playbook (`decideByRules`) takes over with the priority formula, a coverage
+> check and an escalation when no legal move is left, and the run continues. The
+> budget is no longer a hand-written number: it is
+> `max(ATTEMPT_TIMEOUT_MS + 5 s, staleness ceiling)`, where the ceiling is the
+> hospital's 8-minute limit converted at `TIME_SCALE`. A hand-written 75 s once
+> sat under 90 s of legally allowed retrying and killed deliberations at the
+> exact moment they were correcting themselves. The demo degrades, it never
+> freezes.
 
 ## LLM and AI infrastructure
 
@@ -142,6 +165,14 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > filtered by element types, three per turn, if the search fails. Retrieved
 > incidents reach the prompt with a `Retrieved because...` line and the agent
 > cites what it used by id (`historyCitation`).
+>
+> The corpus outgrew the planned 3-5 records: it is **12 curated incidents for
+> each of the six element types**, 72 in all. Three per type left the nearest
+> neighbours of any live situation being the whole type, which is retrieval in
+> name only; twelve, each a distinct failure mode, make the neighbours a real
+> subset. Coverage of all six types also matters now that the scenario is
+> drawn — a seed weighted toward towers and junctions would otherwise leave the
+> learning layer mute.
 
 > **`backend/chroma-data` is kept across runs on purpose.** The write-back loop
 > is the demo's "learning between runs": the second run retrieves the closures
@@ -163,21 +194,49 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
   - Real voice call to a **team member acting a role** (technician/manager) at the script's moment of highest tension (point 3).
   - Background messages/chat to **fixed test contacts** for the rest of the secondary actions.
 
-> **Built, and running simulated for want of a credential.**
+> **Built, and reaching a real phone — behind a switch that is off by default.**
 > `backend/src/happyrobot.ts` holds both clients behind one interface.
-> `createRealClient` posts to `{HAPPYROBOT_BASE_URL}/api/v1/dial/outbound` with a
-> Bearer key; `createSimulatedClient` answers with scripted replies after a
-> channel-dependent delay. `createHappyRobotClient()` picks between them with
-> `credentialUsable()`, so the choice is an env var, not a branch in the engine.
-> The contact list lives in `data/remedies.json` (`contacts`), the agent fires a
-> contact for every communication it decides, and the hang-up returns through
-> `POST /api/call/outcome` → `agent.closeCall()`, where `refused` or
-> `accepted_with_delay` becomes a replan trigger. A platform error closes the
-> call as `no_answer` rather than stalling the crisis.
+> `createRealClient` `POST`s `{ prompt, missionId }` to a **HappyRobot mission
+> hook** (`HAPPYROBOT_WEBHOOK_URL`, with the hook's key as `x-api-key` when it is
+> guarded) and the mission's voice agent places the call: no phone number
+> travels, the mission knows who it calls. `missionId` is the `actionId` of the
+> decision that ordered the call, so dispatch, summary and closure all carry the
+> same id and a call is traceable end to end. `buildPrompt` writes the brief the
+> voice agent improvises from — role, recipient, situation and an explicit ask;
+> measured against the live hook, a bare two-sentence prompt produced a run with
+> no transcript at all.
 >
-> Deliberately simulated by default: starting with no calls at all would leave
-> the whole return path untested, and simulated ones keep it exercised. Setting
-> `HAPPYROBOT_API_KEY` is the only step to real phone calls.
+> This replaced the earlier design of dialling
+> `{HAPPYROBOT_BASE_URL}/api/v1/dial/outbound` with a Bearer key and a phone
+> number from the contact list.
+>
+> **The return path is asynchronous.** On hang-up the hook posts a call-summary
+> event to the events API (a Cloudflare worker with D1, `events-api/`), and
+> `backend/src/outcome-poll.ts` polls it every `EVENTS_POLL_MS`, matches each
+> summary to a dispatched mission and hands it to `agent.closeCall()`, where
+> `refused` or `accepted_with_delay` becomes a replan trigger.
+> `POST /api/call/outcome` remains as the direct path for a hook configured to
+> call straight back into the backend. A platform error closes the call as
+> `no_answer` rather than stalling the crisis.
+>
+> **Real telephony is off unless someone turns it on.**
+> `HAPPYROBOT_REAL_CALLS_ENABLED` is checked before anything else: a call
+> reaches a person and cannot be taken back, so no combination of leftover
+> variables can make a phone ring on its own. With the switch off the simulated
+> client answers with scripted replies and runs the identical chain — queue,
+> closure, replan — so the return path is never untested.
+>
+> **The line is one line.** `backend/src/call-queue.ts` wraps the client with
+> bounded concurrency (`HAPPYROBOT_MAX_CONCURRENT_CALLS`, default 1) and a
+> bounded queue ordered by the urgency of the target site; a call that is stale
+> by the time a slot frees is discarded, and a slot held with no closure for
+> `HAPPYROBOT_CALL_SLOT_TIMEOUT_MS` is released as `no_answer` so a lost webhook
+> cannot deadlock the line. Chat messages consume no line.
+>
+> The contact list lives in `data/remedies.json` (`contacts`), filtered per
+> generation to the sites and units actually drawn. One veto applies to calling:
+> contacts marked `emergencyService` are never dialled
+> (`no-emergency-services-calls`, `RULES.md` §6).
 
 ## Supervision and interface
 
@@ -204,9 +263,32 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > (`#43, no human gate` in `agent.ts` and `control.ts`) and in `CONTRACT.md`
 > (`Action.status` is born `executed`).
 >
-> The frontend ships map, feed, agent panel and injection panel; start,
-> pause/resume and reset are wired — reset has a button in the CommandBar.
-> Manually overriding a decision is still a future extension.
+> The frontend ships map, feed, agent panel, injection panel and an end-of-run
+> report overlay; start, pause/resume and reset are wired — reset has a button
+> in the CommandBar, and it draws a **new** scenario rather than rewinding the
+> current one.
+
+> **Built — overriding a decision is no longer a future extension.** The
+> **Chat** tab of the agent panel (`POST /api/chat`, `backend/src/chat.ts`) is a
+> direct channel to the agent: ask what it is doing and why, re-prioritize a
+> site, order a unit somewhere, or leave a note it carries into later
+> deliberations. The orders are real and bounded:
+>
+> - `prioritize` / `deprioritize` shift the site inside `World.priorities`, the
+>   single ranking the prompt, the contingency playbook, the idle-resource
+>   pairing and the call queue all read, so nothing downstream can disagree
+>   about what comes first. They stand until a reset.
+> - `assign` / `release` move the fleet through the same `world.assign` /
+>   `world.release` the agent uses, **after passing `validateAction`** — the same
+>   hard rules that veto the model's own proposals. A refused order names the
+>   rule that refused it and moves nothing.
+>
+> Orders execute against the world as it is, not the snapshot the model read
+> while thinking, and every turn and accepted order is published to the feed as
+> a `chat` entry: a human intervention that left no trace could not be read back
+> in the log the run is judged on. The operator is a human in the loop, not an
+> exception to the rules — which is the shape the removed confirmation gate was
+> reaching for, without making the model a suggestion box.
 
 ## Project stack and infrastructure
 
@@ -223,9 +305,23 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > `enables_comms`, `enables_transit`, `refuels`) and `remedies.json` (which
 > resource fixes what, in how many minutes, with what prerequisite, plus the
 > contact list). They are facts, never priorities — the judgement stays in the
-> agent. Documented in `data/README.md`. `/shared` also carries the hard-rules
-> catalog (`rules.json` + `rules.ts`), documented in `RULES.md`.
+> agent. Documented in `data/README.md`. A third arrived with street-level
+> routing: `roads.json`, the real Getafe road graph from OpenStreetMap, so a
+> dispatched unit drives streets instead of a straight line. `/shared` also
+> carries the hard-rules catalog (`rules.json` + `rules.ts`), documented in
+> `RULES.md`.
+>
+> There is also a fourth workspace-shaped directory the design did not foresee:
+> `/events-api`, a Cloudflare Worker with D1 that receives the voice agent's
+> call summaries. It deploys on its own and is deliberately **outside** the npm
+> workspaces and the monorepo build — see `events-api/README.md`.
 - **Execution during the demo**: everything **local** (team laptop), no cloud deployment, to minimize failure points from venue network. It still depends on internet for the AI Gateways and HappyRobot (unavoidable).
+
+> **Amended — one piece is deployed.** The events API runs on Cloudflare
+> Workers, because the return path of a real call is a webhook HappyRobot has to
+> be able to reach, and a laptop behind a venue network is not reachable. It is
+> the only deployed component; everything the demo shows still runs locally, and
+> with real calls switched off nothing outside the laptop is contacted at all.
 
 ## Available sponsor credits
 

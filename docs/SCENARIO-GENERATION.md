@@ -2,10 +2,11 @@
 
 > Status: **built** (branch `feat/scenario-generator`, fleet sizing fixed in
 > `fix/scenario-difficulty-band`). The generator is the only scenario source:
-> every boot and every reset draws a seed. Still pending: surfacing the seed
-> (header, feed, `POST /api/control { action: "reset", seed }`), the
-> `SCENARIO_MODE` escape hatch, the moments UI and RAG history for `tower`,
-> `fuel_station` and `junction`.
+> every boot and every reset draws a seed. The moments UI (#101) and the RAG
+> history for `tower`, `fuel_station` and `junction` (#104, deepened to 12
+> incidents per type in #117) are done. Still pending: surfacing the seed
+> (header, feed, `POST /api/control { action: "reset", seed }`) and the
+> `SCENARIO_MODE` escape hatch.
 
 ## Why
 
@@ -99,9 +100,13 @@ and leaving something unattended is always part of the job.
 
 The generator sums the resource-minutes cost of what it drew (from
 `remedies.json` `minutes` plus travel) and then **draws the fleet that keeps
-that demand inside the band of roughly 130-180% of the capacity available in
-the window** (`drawFleet`). Capacity is the scarce side: a smaller world deploys
-fewer units instead of drifting under the band. One unit of every class always
+that demand inside the band of roughly 110-140% of the capacity available in
+the window** (`BAND_MIN` / `BAND_MAX` in `scenario.ts`, applied by `drawFleet`).
+The band was lowered from 1.3-1.8: the fleet starved for units of every class in
+every shape, and a demand at ~110-140% of capacity still forces ranking sites,
+because demand is above capacity and the fleet can never match the site count.
+Capacity is the scarce side: a smaller world deploys fewer units instead of
+drifting under the band. One unit of every class always
 stays (`MIN_FLEET_SIZE = 4`), so every remedy keeps a base to travel from and
 `tanker`/`police` never lose their site. Contacts and topology edges pointing at
 dropped units are filtered out with them. On top of the band, the fleet is
@@ -154,11 +159,13 @@ The start overlay states the crisis type and duration, not what will happen.
 
 ### RAG coverage
 
-`data/history/` covers only `hospital`, `datacenter` and `substation`, and
-`search()` queries the collection of the affected element type. A seed weighted
-toward towers and junctions leaves the learning layer mute. Pending: three
-synthetic historical incidents for `tower`, `fuel_station` and `junction`, in
-the same format.
+`data/history/` now covers **all six element types** — `hospital`, `datacenter`,
+`substation`, `tower`, `fuel_station` and `junction` — with **12 curated
+incidents each** (72 in total), so no seed can leave the learning layer mute
+whichever shape it draws. `search()` queries the collection of the affected
+element type; each type's incidents span several distinct failure modes, so the
+nearest neighbours of a live situation are a real subset rather than the whole
+type (`data/README.md`).
 
 `recordClosure()` writes resolved incidents into Chroma and `sim.reset()` does
 not clear them. That accumulation stays: it is literally the agent learning from
@@ -195,6 +202,8 @@ that load it and the generator's fallback. The generator has its own tests in
 2. ~~**The generator**: site subset, invariants, templates, budget, retry and
    fallback, with its tests.~~ Done; the budget became fleet sizing after the
    first calibration (see Difficulty).
-3. **Seed surfacing** and `SCENARIO_MODE`. Pending.
-4. **Moments UI**. Pending.
-5. **RAG history** for the three missing element types. Pending.
+3. ~~**Moments UI**: notes published as `moment` feed entries, accumulated by the
+   command bar.~~ Done (#101).
+4. ~~**RAG history** for the three missing element types.~~ Done (#104), deepened
+   to 12 incidents per type (#117).
+5. **Seed surfacing** and `SCENARIO_MODE`. Pending — the only two items left.

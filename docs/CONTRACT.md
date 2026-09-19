@@ -11,19 +11,21 @@ then this document gets updated. The issue tracker does not rule.
 | Route | Method | Purpose | Poll |
 |---|---|---|---|
 | `/api/topology` | GET | Elements + base resources + script metadata | once on load |
-| `/api/state` | GET | World + resources (current snapshot) | 2s |
-| `/api/agent` | GET | Current plan, live decisions, actions | 2s |
-| `/api/feed?since=<seq>` | GET | Append-only log (`alarm`/`report`/`decision`/`action`/`outcome`/`system`) | 2s |
+| `/api/state` | GET | World + resources (current snapshot) | 500ms |
+| `/api/agent` | GET | Current plan, live decisions, actions | 500ms |
+| `/api/feed?since=<seq>` | GET | Append-only log (`alarm`/`report`/`decision`/`action`/`outcome`/`chat`/`system`) | 500ms |
 | `/api/control` | POST | `start`/`reset`/`pause`/`resume`/`inject` | — |
-| `/api/chat` | GET | Operator channel: messages, standing orders, `thinking` | 2s |
+| `/api/chat` | GET | Operator channel: messages, standing orders, `thinking` | 500ms |
 | `/api/chat` | POST | An operator turn: talk, re-prioritize, order a unit | — |
 | `/api/call/outcome` | POST | HappyRobot webhook: what the person answered, on hang-up | — |
 | `/api/health` | GET | Connection status | — |
 | `/api/summary` | GET | End-of-run report (totals, LLM tokens, reaction time) | when finished |
 
-`/api/state`, `/api/agent` and `/api/feed` are polled by a single 2 s loop in the
-frontend (`useCrisis.ts`, `POLL_MS = 2000`). `/api/health` is served but the UI
-does not poll it; it is there for a healthcheck from outside.
+`/api/state`, `/api/agent`, `/api/feed` and `/api/chat` are polled by a single
+500 ms loop in the frontend (`useCrisis.ts`, `POLL_MS = 500`). That poll also
+advances the simulation server-side on every request, so while the UI is open it
+— not `TICK_MS` — is the engine's effective cadence. `/api/health` is served but
+the UI does not poll it; it is there for a healthcheck from outside.
 
 ## Golden rules
 
@@ -35,6 +37,11 @@ does not poll it; it is there for a healthcheck from outside.
 6. The feed is consumed as a **`seq`-keyed accumulator** (merge + dedup). That way it can move from polling to SSE without touching the UI.
 
 ## GET /api/topology
+
+Each boot and each reset draws its own crisis (`backend/src/scenario.ts`, see
+[`SCENARIO-GENERATION.md`](SCENARIO-GENERATION.md)), so the element and resource
+lists below are one generation, not a fixed roster: a run carries 8-15 sites and
+4-10 resources. The frontend refetches this route when the tick goes backwards.
 
 `crisis` carries only the title and the duration: the plot never travels in the
 topology. Key moments reach the UI through the **feed** — each timeline event
@@ -323,8 +330,13 @@ Response: `{ "ok": true }`. An invalid body answers `400 {ok:false, error}`.
 - `actionId` refers to an `Action` already published in the feed as `executed`.
 - Anything other than `accepted` becomes a **re-plan trigger**: the plan was
   built on an ETA that no longer holds (`RULES.md` §7).
-- Without a usable `HAPPYROBOT_API_KEY` the simulated client calls the same
-  callback internally, so this shape is exercised either way.
+- With `HAPPYROBOT_REAL_CALLS_ENABLED=false` (the default) the simulated client
+  calls the same callback internally, so this shape is exercised either way.
+- In a real run the closure normally arrives the other way round: the mission
+  hook posts a call summary to the events API and `backend/src/outcome-poll.ts`
+  polls it every `EVENTS_POLL_MS`, matching by `missionId` (the `actionId` the
+  dispatch carried). This route stays as the direct path for a hook configured
+  to call back into the backend.
 
 ## GET /api/health
 
