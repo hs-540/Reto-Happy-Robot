@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { Directive } from '@swarmup/shared'
 import { CommandBar } from './components/CommandBar'
 import { MapView } from './components/MapView'
 import { SitesPanel } from './components/SitesPanel'
@@ -65,6 +66,45 @@ function App() {
     }
   }
 
+  async function prioritize(elementId: string, note?: string) {
+    setPending(true)
+    setError(null)
+    try {
+      await postControl({ action: 'prioritize', payload: { elementId, note } })
+      refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Control error')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function unprioritize(elementId: string) {
+    setPending(true)
+    setError(null)
+    try {
+      await postControl({ action: 'unprioritize', payload: { elementId } })
+      refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Control error')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function issueOrder(text: string) {
+    setPending(true)
+    setError(null)
+    try {
+      await postControl({ action: 'order', payload: { text } })
+      refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Control error')
+    } finally {
+      setPending(false)
+    }
+  }
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -95,6 +135,13 @@ function App() {
 
   const elementNames = Object.fromEntries(topology.elements.map((e) => [e.id, e.name]))
   const criticalityById = Object.fromEntries(topology.elements.map((e) => [e.id, e.criticality]))
+  /** latest pin per site; a rejected one stays visible, overruled, until withdrawn */
+  const pinnedById: Record<string, Directive> = {}
+  for (const d of agent.directives) {
+    if (d.kind === 'priority_pin' && d.elementId && !(d.elementId in pinnedById)) {
+      pinnedById[d.elementId] = d
+    }
+  }
 
   const visibleElements = state.elements.filter(
     (el) => el.type !== 'junction' || el.status !== 'normal',
@@ -108,6 +155,7 @@ function App() {
           resources={state.resources}
           selectedElementId={selectedElementId}
           selectedResourceId={selectedResourceId}
+          pinnedIds={new Set(Object.keys(pinnedById))}
           theme={theme}
           onSelectElement={selectElement}
           onSelectResource={selectResource}
@@ -143,7 +191,11 @@ function App() {
           elements={visibleElements}
           criticalityById={criticalityById}
           selectedElementId={selectedElementId}
+          pinnedById={pinnedById}
+          pending={pending}
           onSelectElement={selectElement}
+          onPrioritize={(id) => prioritize(id)}
+          onUnprioritize={unprioritize}
           onCollapse={() => setSitesOpen(false)}
         />
 
@@ -153,6 +205,9 @@ function App() {
           selectedElementId={selectedElementId}
           onSelectElement={selectElement}
           elementNames={elementNames}
+          pending={pending}
+          onOrder={issueOrder}
+          onUnprioritize={unprioritize}
           onCollapse={() => setAgentOpen(false)}
         />
 

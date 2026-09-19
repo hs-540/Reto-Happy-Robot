@@ -12,9 +12,9 @@ then this document gets updated. The issue tracker does not rule.
 |---|---|---|---|
 | `/api/topology` | GET | Elements + base resources + script metadata | once on load |
 | `/api/state` | GET | World + resources (current snapshot) | 2s |
-| `/api/agent` | GET | Current plan, live decisions, actions | 2s |
-| `/api/feed?since=<seq>` | GET | Append-only log (`alarm`/`report`/`decision`/`action`/`outcome`/`system`) | 2s |
-| `/api/control` | POST | `start`/`reset`/`pause`/`resume`/`inject` | — |
+| `/api/agent` | GET | Current plan, live decisions, actions, operator directives | 2s |
+| `/api/feed?since=<seq>` | GET | Append-only log (`alarm`/`report`/`decision`/`action`/`outcome`/`directive`/`directive_response`/`system`) | 2s |
+| `/api/control` | POST | `start`/`reset`/`pause`/`resume`/`inject`/`prioritize`/`unprioritize`/`order` | — |
 | `/api/call/outcome` | POST | HappyRobot webhook: what the person answered, on hang-up | — |
 | `/api/health` | GET | Connection status | — |
 | `/api/summary` | GET | End-of-run report (totals, LLM tokens, reaction time) | when finished |
@@ -190,12 +190,34 @@ Resource `status`: `available` | `in_transit` | `assigned`.
       ]
     }
   ],
-  "actions": []
+  "actions": [],
+  "directives": [
+    {
+      "id": "dir-001",
+      "kind": "priority_pin",
+      "elementId": "dc-01",
+      "text": "keep the datacenter alive at all costs",
+      "status": "acknowledged",
+      "responseReasoning": "The datacenter already has a resource on its way; I keep it in the objective.",
+      "createdAt": "2026-09-18T10:02:50.000Z"
+    }
+  ]
 }
 ```
 
 `Decision.provokesReplan` marks the ticks that regenerate the global plan. The rest are incremental adjustments.
 `Action.status` is born `queued` for a `voice_call` — the call waits on a line in the call queue — and `executed` when it goes out straight away (a `chat_message`, or a decision's contact action). When the queue dials the call it publishes a second `action` entry with the same `actionId` and status `executed`; a call the queue drops, evicts or finds stale publishes `discarded`. There is still no human confirmation gate.
+
+`directives` is the operator-to-agent channel. The agent stays autonomous: a directive is
+handed to the deliberation, and the agent answers it with `acknowledged` or `rejected` plus
+its reasoning — published to the feed as `directive_response`.
+
+- `kind`: `priority_pin` (a site pinned from the map or the sites list, with an optional
+  note) | `order` (free-text instruction, `elementId` is `null`).
+- `status`: `open` → `acknowledged` | `rejected`. A rejected pin stays visible, overruled,
+  until the operator withdraws it; an answered order leaves the list (one-shot).
+- Any open directive wakes the engine outside the regular cadence and marks the decisions
+  of that tick as `provokesReplan`.
 
 ## GET /api/feed?since=<seq>
 
@@ -217,8 +239,8 @@ Returns only what is new. The frontend accumulates and dedups by `seq`.
 }
 ```
 
-`kind`: `alarm` | `report` | `decision` | `action` | `outcome` | `system`
-(`shared/src/feed.ts`).
+`kind`: `alarm` | `report` | `decision` | `action` | `outcome` | `directive` |
+`directive_response` | `system` (`shared/src/feed.ts`).
 
 - `report` is a **raw signal**, not a reading: social, press, an emergency call
   or a field team. `elementId` may be `null` — attributing it is the agent's job,
@@ -241,10 +263,12 @@ Response:
 { "ok": true }
 ```
 
-`action`: `start` | `reset` | `pause` | `resume` | `inject`.
+`action`: `start` | `reset` | `pause` | `resume` | `inject` | `prioritize` |
+`unprioritize` | `order`.
 The simulation **does not start on boot**: `start` begins the timed script and `reset` returns the world to the reproducible initial state (clock at 0, empty feed, resources and elements re-seeded) and leaves it stopped.
 `pause` freezes the simulation clock and stops the LLM tick.
 `inject` requires `payload` (sensor event without `id`, assigned by the backend); an unknown `elementId` answers `400 {ok:false, error}`.
+`prioritize` requires `payload.elementId` (optional `note`); `unprioritize` requires `payload.elementId`; `order` requires `payload.text` (max 500 chars). Both element actions answer `400` on an unknown id. `prioritize` and `order` wake the agent outside the regular cadence and it answers in the feed (`directive` + `directive_response`).
 An invalid body answers `400 {ok:false, error}`.
 
 ## POST /api/call/outcome
