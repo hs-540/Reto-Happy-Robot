@@ -13,6 +13,12 @@ export interface ContactRequest {
   priority: number;
   /** what has to be conveyed, already written for this recipient */
   message: string;
+  /**
+   * The HappyRobot contact that places this call, assigned by the call queue
+   * from the pool in `CONTACTS` — never by the agent, which decides who to
+   * reach, not which line reaches them. Absent when no pool is configured.
+   */
+  line?: string;
   /** incident context the voice agent uses to improvise */
   context: {
     elementId: string;
@@ -38,6 +44,12 @@ export interface HappyRobotOptions {
   webhookUrl?: string;
   /** Key for the hook's `x-api-key`; empty when the hook is left unguarded */
   apiKey?: string;
+  /**
+   * The callable contacts (CONTACTS). Only its emptiness matters here — which
+   * contact takes which call is the call queue's decision; with none, there is
+   * nobody to dial and the hook is not used at all.
+   */
+  contacts?: string[];
   onClosed: (closure: CallClosure) => void;
   /** A mission the hook accepted (2xx); the outcome poller only closes these */
   onDispatched?: (missionId: string) => void;
@@ -46,8 +58,9 @@ export interface HappyRobotOptions {
 const TIMEOUT_MS = 90_000;
 
 /* ─── Real client ────────────────────────────────────────────────────────
- * POST { prompt, missionId } to the mission hook and its voice agent places the
- * call — no phone number, the mission knows who it calls. A hook guarded on the
+ * POST { prompt, missionId, contact } to the mission hook and its voice agent
+ * places the call — no phone number, the mission resolves the contact it was
+ * given into someone to ring. A hook guarded on the
  * HappyRobot side rejects anything without a valid `x-api-key`, so the key goes
  * on every dispatch when there is one. `missionId` is our `actionId`, the id of
  * the action the orchestrator decided, so a call is traceable end to end:
@@ -93,7 +106,13 @@ function createRealClient(webhookUrl: string, options: HappyRobotOptions): Happy
           // An unguarded hook takes no key; sending an empty one would fail it
           ...(apiKey ? { "x-api-key": apiKey } : {}),
         },
-        body: JSON.stringify({ prompt, missionId: request.actionId }),
+        // No line means no pool was configured; the body is then the one the
+        // hook took before contacts existed, down to the byte.
+        body: JSON.stringify({
+          prompt,
+          missionId: request.actionId,
+          ...(request.line ? { contact: request.line } : {}),
+        }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
         .then((res) => {
@@ -101,7 +120,11 @@ function createRealClient(webhookUrl: string, options: HappyRobotOptions): Happy
           // This only confirms the mission went out. The outcome arrives as a
           // call-summary event in the events-api, picked up by the poller.
           onDispatched?.(request.actionId);
-          console.log(`[happyrobot] mission dispatched for ${request.contact.id}`);
+          console.log(
+            `[happyrobot] mission dispatched for ${request.contact.id}${
+              request.line ? ` on ${request.line}` : ""
+            }`,
+          );
         })
         .catch((err: unknown) => {
           const cause = err instanceof Error ? err.message : String(err);
@@ -183,8 +206,12 @@ function createSimulatedClient(onClosed: HappyRobotOptions["onClosed"]): HappyRo
       attempts.set(request.contact.id, attempt);
       const reply = replyFor(request.contact, attempt);
 
+      // The line is logged here too: with the phones off this console is the
+      // only place the balancer's spread can be watched.
       console.log(
-        `[happyrobot:simulated] ${request.channel} to ${request.contact.id} → ${reply.outcome}`,
+        `[happyrobot:simulated] ${request.channel} to ${request.contact.id}${
+          request.line ? ` on ${request.line}` : ""
+        } → ${reply.outcome}`,
       );
       setTimeout(() => {
         onClosed({ actionId: request.actionId, ...reply });
@@ -194,12 +221,13 @@ function createSimulatedClient(onClosed: HappyRobotOptions["onClosed"]): HappyRo
 }
 
 /**
- * Real telephony takes two things, in this order: somebody asked for it, and
- * there is a hook to ask through. Falling back to the simulated client rather
- * than to no calls at all keeps the whole chain standing — agent, queue,
- * closure and replan all run — so turning the phones on stays an env change.
- * The two refusals log differently on purpose: "off" and "misconfigured" are
- * not the same problem, and whoever reads the console needs to tell them apart.
+ * Real telephony takes three things, in this order: somebody asked for it,
+ * there is a hook to ask through, and there is at least one contact to reach.
+ * Falling back to the simulated client rather than to no calls at all keeps the
+ * whole chain standing — agent, queue, closure and replan all run — so turning
+ * the phones on stays an env change. The three refusals log differently on
+ * purpose: "off", "no hook" and "nobody to call" are not the same problem, and
+ * whoever reads the console needs to tell them apart.
  */
 export function createHappyRobotClient(options: HappyRobotOptions): HappyRobotClient {
   if (!options.enabled) {
@@ -211,6 +239,12 @@ export function createHappyRobotClient(options: HappyRobotOptions): HappyRobotCl
   if (!options.webhookUrl) {
     console.warn(
       "[happyrobot] real calls are ON but no mission hook is configured (HAPPYROBOT_WEBHOOK_URL): communications are simulated",
+    );
+    return createSimulatedClient(options.onClosed);
+  }
+  if (!options.contacts?.length) {
+    console.warn(
+      "[happyrobot] real calls are ON but the contact pool is empty (CONTACTS): there is nobody to dial, the hook is not used and communications are simulated",
     );
     return createSimulatedClient(options.onClosed);
   }
