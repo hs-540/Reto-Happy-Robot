@@ -9,6 +9,8 @@ export interface ContactRequest {
   actionId: string;
   contact: Contact;
   channel: "voice_call" | "chat_message";
+  /** urgency of the target element; the call queue dials the highest first */
+  priority: number;
   /** what has to be conveyed, already written for this recipient */
   message: string;
   /** incident context the voice agent uses to improvise */

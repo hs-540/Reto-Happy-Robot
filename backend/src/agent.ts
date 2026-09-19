@@ -643,6 +643,12 @@ export function createAgent(options: AgentOptions): Agent {
 
     // Communications are a field of their own: they execute every time, even if
     // the model put no `contact` action inside a decision.
+    // Urgency of each site for the call queue: a call not in the ranking gets
+    // the lowest score rather than being rejected.
+    const ranking = world.priorities(state.elements);
+    const lowestScore = ranking[ranking.length - 1]?.score ?? 0;
+    const scoreOf = new Map(ranking.map((r) => [r.elementId, r.score]));
+
     for (const c of output.communications) {
       const contact = contactFor(c.recipient);
       if (!contact) {
@@ -669,6 +675,7 @@ export function createAgent(options: AgentOptions): Agent {
         actionId: action.id,
         contact,
         channel: c.channel,
+        priority: scoreOf.get(action.targetElementId) ?? lowestScore,
         message: c.message,
         context: { elementId: action.targetElementId, situation: c.reason },
       });
