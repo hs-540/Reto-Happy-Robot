@@ -43,7 +43,7 @@ npx wrangler tail
 
 ```bash
 export CLOUDFLARE_API_TOKEN=$(cat .cf-token)
-npx wrangler d1 execute eventos --remote --command "SELECT type, status, created_at FROM events ORDER BY created_at DESC LIMIT 10"
+npx wrangler d1 execute eventos --remote --command "SELECT id, summary, created_at FROM events ORDER BY created_at DESC LIMIT 10"
 ```
 
 ## Al acabar la hackathon
