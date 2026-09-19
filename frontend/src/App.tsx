@@ -29,6 +29,7 @@ function App() {
         duracionSegundos={topology.crisis.duracionSegundos}
         momentos={topology.crisis.momentos}
         ultimoSeq={state.ultimoSeq}
+        elementos={state.elementos}
       />
       <MapView
         elementos={state.elementos}

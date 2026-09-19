@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { GuionMoment } from '@swarmup/shared'
+import type { ElementView, GuionMoment } from '@swarmup/shared'
 import { postControl } from '../api'
+import { InjectionPanel } from './InjectionPanel'
 
 interface HeaderBarProps {
   titulo: string
@@ -13,6 +14,7 @@ interface HeaderBarProps {
   duracionSegundos: number
   momentos: GuionMoment[]
   ultimoSeq: number
+  elementos: ElementView[]
 }
 
 function formatoHora(iso: string): string {
@@ -37,6 +39,7 @@ export function HeaderBar({
   duracionSegundos,
   momentos,
   ultimoSeq,
+  elementos,
 }: HeaderBarProps) {
   const [pendiente, setPendiente] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -99,6 +102,8 @@ export function HeaderBar({
           )}
         </div>
       </div>
+
+      <InjectionPanel elementos={elementos} iniciado={iniciado} onControlOk={onControlOk} />
 
       <div className="timeline" role="presentation">
         <div className="timeline__track">
