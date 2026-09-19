@@ -34,9 +34,13 @@ const envSchema = z.object({
   /** Provider label; only shows up in logs */
   LLM_PROVIDER: z.string().min(1).default("helmcode"),
   /**
-   * Full URL of the HappyRobot mission hook. Its PRESENCE is the real/simulated
-   * switch: unset means the calls are simulated and the demo keeps standing.
+   * Master switch for real telephony. OFF unless someone turns it on: a call
+   * reaches a person and cannot be taken back, so no combination of leftover
+   * variables can make a phone ring on its own. Off, the simulated client runs
+   * the same chain end to end and the hook is never contacted.
    */
+  HAPPYROBOT_REAL_CALLS_ENABLED: z.preprocess(emptyToUndefined, z.stringbool().default(false)),
+  /** Full URL of the HappyRobot mission hook; required once real calls are on */
   HAPPYROBOT_WEBHOOK_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   /**
    * Key for the hook's `x-api-key`. HappyRobot can guard a webhook trigger with
@@ -112,6 +116,7 @@ export const config = deepFreeze({
     gateways: [llmProvider],
   },
   happyrobot: {
+    realCallsEnabled: parsed.data.HAPPYROBOT_REAL_CALLS_ENABLED,
     webhookUrl: parsed.data.HAPPYROBOT_WEBHOOK_URL,
     apiKey: parsed.data.HAPPYROBOT_API_KEY,
     maxConcurrentCalls: parsed.data.HAPPYROBOT_MAX_CONCURRENT_CALLS,

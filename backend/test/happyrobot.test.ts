@@ -16,6 +16,15 @@ function simulatedClient(onClosed: (c: CallClosure) => void) {
   return createHappyRobotClient({ onClosed });
 }
 
+function realClient(overrides: Partial<Parameters<typeof createHappyRobotClient>[0]> = {}) {
+  return createHappyRobotClient({
+    enabled: true,
+    webhookUrl: HOOK_URL,
+    onClosed: () => {},
+    ...overrides,
+  });
+}
+
 function realRequest(overrides: Partial<ContactRequest> = {}): ContactRequest {
   return {
     actionId: "act-001",
@@ -74,6 +83,30 @@ test("when pressed, he accepts with a smaller delay", async () => {
   assert.equal(closures[1].delayMinutes, 8);
 });
 
+test("a hook alone never places a call: the switch has to be on", () => {
+  // A leftover HAPPYROBOT_WEBHOOK_URL in an .env must not be able to ring
+  // anybody. Only an explicit opt-in reaches the phone network.
+  assert.equal(realClient({ enabled: false }).mode, "simulated");
+  assert.equal(realClient({ enabled: undefined }).mode, "simulated");
+  assert.equal(realClient().mode, "real");
+});
+
+test("the switch on with no hook falls back to simulated instead of failing", () => {
+  assert.equal(realClient({ webhookUrl: undefined }).mode, "simulated");
+  assert.equal(realClient({ webhookUrl: "" }).mode, "simulated");
+});
+
+test("a disabled client never touches the network", async () => {
+  const fetchMock = mock.method(globalThis, "fetch", async () => new Response(null));
+  try {
+    realClient({ enabled: false }).contact(realRequest());
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(fetchMock.mock.callCount(), 0, "the hook must not be contacted at all");
+  } finally {
+    fetchMock.mock.restore();
+  }
+});
+
 test("the real client dispatches exactly prompt and missionId to the hook", async () => {
   const dispatches: string[] = [];
   const fetchMock = mock.method(
@@ -83,6 +116,7 @@ test("the real client dispatches exactly prompt and missionId to the hook", asyn
   );
   try {
     const client = createHappyRobotClient({
+      enabled: true,
       webhookUrl: HOOK_URL,
       onClosed: () => {},
       onDispatched: (missionId) => dispatches.push(missionId),
@@ -136,7 +170,7 @@ test("a guarded hook gets its key as x-api-key, an unguarded one gets no header"
       async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 200 }),
     );
     try {
-      const client = createHappyRobotClient({ webhookUrl: HOOK_URL, apiKey, onClosed: () => {} });
+      const client = createHappyRobotClient({ enabled: true, webhookUrl: HOOK_URL, apiKey, onClosed: () => {} });
 
       client.contact(realRequest());
       await new Promise((r) => setTimeout(r, 10));
@@ -167,6 +201,7 @@ test("a hook rejection or a transport failure closes the call as no_answer", asy
     const fetchMock = mock.method(globalThis, "fetch", failure);
     try {
       const client = createHappyRobotClient({
+        enabled: true,
         webhookUrl: HOOK_URL,
         onClosed: (c) => closures.push(c),
         onDispatched: (missionId) => dispatches.push(missionId),

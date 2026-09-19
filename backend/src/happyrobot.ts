@@ -27,7 +27,14 @@ export interface HappyRobotClient {
 }
 
 export interface HappyRobotOptions {
-  /** Full URL of the mission hook; its presence selects the real client */
+  /**
+   * Master switch for real telephony (HAPPYROBOT_REAL_CALLS_ENABLED). Off by
+   * default and checked before anything else: a real call reaches a person and
+   * cannot be taken back, so ringing somebody has to be an explicit decision,
+   * never the consequence of a hook URL left behind in an `.env`.
+   */
+  enabled?: boolean;
+  /** Full URL of the mission hook; required for real calls */
   webhookUrl?: string;
   /** Key for the hook's `x-api-key`; empty when the hook is left unguarded */
   apiKey?: string;
@@ -187,14 +194,25 @@ function createSimulatedClient(onClosed: HappyRobotOptions["onClosed"]): HappyRo
 }
 
 /**
- * Picks a client based on whether the mission hook is configured. Starting with
- * no calls at all is worse than starting with simulated ones: the latter keeps
- * the whole chain standing and turns the integration into an env change.
+ * Real telephony takes two things, in this order: somebody asked for it, and
+ * there is a hook to ask through. Falling back to the simulated client rather
+ * than to no calls at all keeps the whole chain standing — agent, queue,
+ * closure and replan all run — so turning the phones on stays an env change.
+ * The two refusals log differently on purpose: "off" and "misconfigured" are
+ * not the same problem, and whoever reads the console needs to tell them apart.
  */
 export function createHappyRobotClient(options: HappyRobotOptions): HappyRobotClient {
-  if (options.webhookUrl) return createRealClient(options.webhookUrl, options);
-  console.warn(
-    "[happyrobot] no mission hook configured: communications are simulated and the demo stays up",
-  );
-  return createSimulatedClient(options.onClosed);
+  if (!options.enabled) {
+    console.warn(
+      "[happyrobot] real calls are OFF (HAPPYROBOT_REAL_CALLS_ENABLED): communications are simulated and no phone rings",
+    );
+    return createSimulatedClient(options.onClosed);
+  }
+  if (!options.webhookUrl) {
+    console.warn(
+      "[happyrobot] real calls are ON but no mission hook is configured (HAPPYROBOT_WEBHOOK_URL): communications are simulated",
+    );
+    return createSimulatedClient(options.onClosed);
+  }
+  return createRealClient(options.webhookUrl, options);
 }
