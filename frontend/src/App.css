@@ -1658,6 +1658,7 @@
 }
 
 .marker__dot {
+  position: relative; /* anchor for .marker__eta */
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -1676,6 +1677,38 @@
   width: 15px;
   height: 15px;
   fill: currentColor;
+}
+
+/* Repair countdown, pinned under the dot. The label sits to the right and is
+   vertically centred, so this is the only side that stays clear of the name. */
+.marker__eta {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--label-bg);
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+  border-radius: 999px;
+  padding: 2px 6px;
+  pointer-events: auto;
+}
+
+/* Inherited from an upstream repair: true, but not this site's own resource. */
+.marker__eta--inherited {
+  color: var(--muted);
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.marker__eta[hidden] {
+  display: none;
 }
 
 .marker--critical .marker__dot {

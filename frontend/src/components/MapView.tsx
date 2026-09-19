@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { ElementView, ResourceView } from '@swarmup/shared'
+import type { ElementView, RepairEstimate, ResourceView } from '@swarmup/shared'
 import { ICON_PATHS, ELEMENT_ICON, RESOURCE_ICON } from './iconPaths'
+import { formatCountdown } from '../lib/format'
 
 const TILES: Record<'dark' | 'light', string[]> = {
   dark: [
@@ -44,6 +45,8 @@ interface MarkerEntry {
   marker: Marker
   node: HTMLButtonElement
   variant: string
+  /** the repair countdown under the dot; resources do not have one */
+  eta: HTMLElement | null
 }
 
 function markerClassName(spec: MarkerSpec, selected: boolean): string {
@@ -65,7 +68,11 @@ function createMarkerNode(
   const node = document.createElement('button')
   node.type = 'button'
   node.className = markerClassName(spec, selected)
-  node.innerHTML = `<span class="marker__dot"><svg viewBox="0 0 24 24" aria-hidden="true">${spec.icon}</svg></span><span class="marker__label">${spec.label}</span>`
+  // The countdown sits UNDER the dot: the label already occupies the space to
+  // its right, vertically centred, so a badge in the corner would land on the
+  // site's name. Always rendered, hidden until there is something to count.
+  const eta = spec.kind === 'element' ? '<span class="marker__eta" hidden></span>' : ''
+  node.innerHTML = `<span class="marker__dot"><svg viewBox="0 0 24 24" aria-hidden="true">${spec.icon}</svg>${eta}</span><span class="marker__label">${spec.label}</span>`
   if (onClick) node.addEventListener('click', onClick)
   return node
 }
@@ -75,6 +82,28 @@ function applyVariant(entry: MarkerEntry, variant: string) {
   entry.node.classList.remove(`marker--${entry.variant}`)
   entry.node.classList.add(`marker--${variant}`)
   entry.variant = variant
+}
+
+/**
+ * The marker's label is written once and never touched again — a site's name
+ * does not change. The countdown does, every poll, so it gets its own update
+ * path rather than being rebuilt into the node.
+ */
+function applyCountdown(entry: MarkerEntry, repair: RepairEstimate | null, elementId: string) {
+  const eta = entry.eta
+  if (!eta) return
+  // nothing on its way, or already done: the dot's own colour says the rest
+  if (!repair || repair.totalSeconds === 0) {
+    eta.hidden = true
+    return
+  }
+  const inherited = repair.viaElementId !== elementId
+  eta.hidden = false
+  eta.textContent = formatCountdown(repair.totalSeconds)
+  eta.classList.toggle('marker__eta--inherited', inherited)
+  eta.title = inherited
+    ? `Fixed by the repair of ${repair.viaElementId} (${repair.resourceId})`
+    : `${repair.resourceId}: ${formatCountdown(repair.travelSeconds)} travelling + ${formatCountdown(repair.workSeconds)} working`
 }
 
 interface MapViewProps {
@@ -162,6 +191,7 @@ export function MapView({
             .addTo(map),
           node,
           variant: r.status,
+          eta: null,
         })
       }
     })
@@ -174,6 +204,7 @@ export function MapView({
         applyVariant(entry, el.status)
         entry.node.classList.toggle('is-selected', selected)
         entry.marker.setLngLat([el.lng, el.lat])
+        applyCountdown(entry, el.repair, el.id)
       } else {
         const node = createMarkerNode(
           {
@@ -185,13 +216,16 @@ export function MapView({
           selected,
           () => onSelectElement(el.id),
         )
-        store.set(el.id, {
+        const created: MarkerEntry = {
           marker: new Marker({ element: node, anchor: 'center' })
             .setLngLat([el.lng, el.lat])
             .addTo(map),
           node,
           variant: el.status,
-        })
+          eta: node.querySelector('.marker__eta'),
+        }
+        applyCountdown(created, el.repair, el.id)
+        store.set(el.id, created)
       }
     })
 

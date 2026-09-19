@@ -1,16 +1,7 @@
 import type { ElementView, RepairEstimate } from '@swarmup/shared'
 import { Icon } from './icons'
 import { ELEMENT_ICON } from './iconPaths'
-import { severityTier } from '../lib/format'
-
-/**
- * Crisis seconds, not wall-clock ones: the simulation runs faster than real
- * time and this counter belongs to the scenario, like the header clock.
- */
-function countdown(seconds: number): string {
-  const total = Math.max(Math.round(seconds), 0)
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
-}
+import { formatCountdown, severityTier } from '../lib/format'
 
 /**
  * How long until the site stops being a problem. "On site" only says somebody
@@ -28,10 +19,10 @@ function RepairCountdown({ repair, elementId }: { repair: RepairEstimate; elemen
       title={
         inherited
           ? `Fixed by the repair of ${repair.viaElementId} (${repair.resourceId})`
-          : `${countdown(repair.travelSeconds)} travelling + ${countdown(repair.workSeconds)} working`
+          : `${formatCountdown(repair.travelSeconds)} travelling + ${formatCountdown(repair.workSeconds)} working`
       }
     >
-      fixed in {countdown(repair.totalSeconds)}
+      fixed in {formatCountdown(repair.totalSeconds)}
       {inherited && ` · via ${repair.viaElementId}`}
     </span>
   )
