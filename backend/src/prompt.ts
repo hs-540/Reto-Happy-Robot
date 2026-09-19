@@ -58,6 +58,36 @@ export type SalidaAgente = z.infer<typeof SalidaAgenteSchema>;
 
 /* ─── Construcción del prompt ─────────────────────────────────────────── */
 
+/**
+ * El catálogo en prosa compacta. Volcar `JSON.stringify(REGLAS_PARA_AGENTE)`
+ * metía sus comentarios internos y su anidamiento en CADA llamada, y era el
+ * bloque que más engordaba el prompt — y con él la latencia.
+ */
+function resumirReglas(): string {
+  const r = REGLAS_PARA_AGENTE;
+  const metricas = Object.entries(r.umbralesMetrica)
+    .filter(([k]) => !k.startsWith("$"))
+    .map(([m, u]) => `${m} ${u.direccion === "bajo" ? "peor cuanto menor" : "peor cuanto mayor"}: degradado ${u.degradado}, critico ${u.critico}`)
+    .join("; ");
+  const limites = Object.entries(r.limitesSinEnergiaMin)
+    .filter(([k]) => !k.startsWith("$"))
+    .map(([t, m]) => `${t} ${m}min`)
+    .join(", ");
+  const pesos = Object.entries(r.prioridad.pesoTipo)
+    .map(([t, p]) => `${t} ${p}`)
+    .join(", ");
+  const bloqueantes = r.reglasBloqueantes.map((b) => `  [${b.id}] ${b.regla}`).join("\n");
+  return [
+    `Severidad: >=${r.severidad.umbralCritico} critico, >=${r.severidad.umbralDegradado} degradado.`,
+    `Umbrales por métrica — ${metricas}.`,
+    `Máximo sin energía por tipo — ${limites}.`,
+    `UPS: por debajo de ${r.ups.actuar}% está prohibido esperar; ${r.ups.emergencia}% es emergencia.`,
+    `Prioridad = 0.5*criticidad + peso(status) + peso(tipo) + 2*min(minutosSinEnergia,15). Pesos de tipo: ${pesos}.`,
+    "REGLAS BLOQUEANTES (proponer algo que las viole se rechaza):",
+    bloqueantes,
+  ].join("\n");
+}
+
 const SISTEMA = `Eres el coordinador autónomo de una crisis por apagón regional en la Comunidad de Madrid.
 
 Gestionas sitios críticos (hospital, subestación, datacenter) con recursos LIMITADOS y compartidos.
@@ -72,8 +102,16 @@ TU TRABAJO EN CADA DELIBERACIÓN
    Encontrarlo es la parte de tu trabajo que nadie más puede hacer.
 2. Prioriza con los medios QUE QUEDAN, no con los que harían falta.
 3. Decide acciones concretas. "Monitorizar la situación" no es una acción.
-4. Comunica de forma selectiva: un responsable de hospital, un jefe de cuadrilla y un
-   operador de datacenter NO necesitan el mismo mensaje. Redacta cada uno para quien lo recibe.
+4. COMUNICA. Coordinar es hablar con gente, no solo mover camiones. Si un sitio está
+   critico o degradado, o si una acción depende de alguien, EMITE una acción "contactar"
+   con su canal, su destinatario de la lista de CONTACTOS y el mensaje ya redactado.
+   - Un paso del plan NO es una comunicación. Escribir "avisar al hospital" o "solicitar
+     confirmación al jefe de brigada" como paso del plan no avisa a nadie: no sale de tu
+     cabeza. Si quieres que alguien se entere, la acción "contactar" es el único camino.
+   - Cada destinatario necesita algo distinto. A la responsable del hospital le das plazos
+     e instrucciones operativas; al operador del CPD, datos técnicos secos; a una ciudadana
+     preocupada, lenguaje llano y un plazo concreto; al jefe de brigada, una orden con su
+     porqué. El mismo hecho se cuenta de tres maneras distintas según quién escucha.
 5. Si la mejor decisión es no mover nada, usa "esperar" Y JUSTIFÍCALO. Un agente que explica
    por qué no actúa vale más que uno que actúa por inercia.
 
@@ -108,7 +146,7 @@ viola, se rechaza y te lo devuelvo con el motivo para que lo corrijas. El catál
 de umbrales, pesos y reglas bloqueantes va abajo en JSON.
 
 CATÁLOGO DE REGLAS
-${JSON.stringify(REGLAS_PARA_AGENTE)}`;
+${resumirReglas()}`;
 
 function lineaElemento(e: ElementView, sinEnergiaSeg: number, prioridad: number): string {
   const sensores = Object.entries(e.sensores)

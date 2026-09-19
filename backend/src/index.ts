@@ -104,6 +104,14 @@ function avanzar(): void {
         kind: "sistema",
         mensaje: `${ev.recursoId} surte efecto en ${ev.elementId}: ${ev.efecto}`,
       });
+    } else if (ev.tipo === "recuperacion") {
+      // silenciosa: no ensucia el feed, pero el mundo mejora de verdad
+      sim.inyectar({
+        elementId: ev.elementId,
+        metric: ev.metric,
+        value: ev.value,
+        severidad: ev.severidad,
+      });
     } else if (ev.tipo === "eta_incumplida") {
       feed.publicar({
         kind: "sistema",

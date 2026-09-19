@@ -99,6 +99,13 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
 
   /* ─── Percepción: ¿ha cambiado algo que merezca pensar? ─────────────── */
 
+  /** Motivos que exigen abandonar el plan, no solo ajustarlo (RULES.md §7) */
+  const PREFIJOS_REPLAN = ["no cumple su ETA", "ha superado su límite", "La llamada", "pasa de"];
+
+  function esReplan(motivos: string[]): boolean {
+    return motivos.some((m) => PREFIJOS_REPLAN.some((p) => m.includes(p)));
+  }
+
   function motivosDeliberacion(estado: StateView, eventos: EventoMundo[]): string[] {
     const motivos: string[] = [];
 
@@ -151,7 +158,19 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
       };
     }
 
-    const libre = estado.recursos.find((r) => r.status === "disponible");
+    // Un recurso solo sirve si su remedio aplica a este tipo de sitio: mandar
+    // una cisterna a un hospital sin luz es gastar el viaje y se ve fatal.
+    const tipoObjetivo = estado.elementos.find((e) => e.id === objetivo.elementId)?.type;
+    const libre = estado.recursos.find(
+      (r) =>
+        r.status === "disponible" &&
+        remedios.remedios.some(
+          (rem) =>
+            rem.recurso === r.type &&
+            tipoObjetivo !== undefined &&
+            (rem.aplicableA as readonly string[]).includes(tipoObjetivo),
+        ),
+    );
     const accion: AccionPropuesta =
       libre &&
       validarAccion(
@@ -273,7 +292,7 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
 
   /* ─── Ejecución ──────────────────────────────────────────────────────── */
 
-  function ejecutar(salida: SalidaAgente, estado: StateView): void {
+  function ejecutar(salida: SalidaAgente, estado: StateView, provocaReplan: boolean): void {
     const ahora = estado.relojSimulacion;
 
     if (salida.evaluacion.descartados.length > 0) {
@@ -283,7 +302,6 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
       });
     }
 
-    const provocaReplan = salida.decisiones.length > 0;
     plan = {
       objetivo: salida.objetivo,
       pasos: salida.pasos.map((p, i) => ({
@@ -366,7 +384,7 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
           });
           salida = decidirPorReglas(estado, motivos);
         }
-        ejecutar(salida, estado);
+        ejecutar(salida, estado, esReplan(motivos));
       } finally {
         deliberando = false;
       }

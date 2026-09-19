@@ -32,6 +32,27 @@ const UMBRAL_CONGESTION_ALTA = 10;
 /** Severidad a la que queda un elemento cuyo remedio se ha aplicado del todo */
 const SEVERIDAD_RESUELTA = 5;
 
+/** Cada cuántos segundos de crisis se emite un paso de recuperación */
+const PASO_RECUPERACION_SEG = 60;
+
+/**
+ * Con la red restaurada, un sitio no se queda congelado en su peor lectura: las
+ * baterías se recargan, el CPD se enfría y el atasco se disuelve. Cada métrica
+ * converge hacia su valor sano a este ritmo, por minuto de crisis.
+ * `combustible` NO está aquí a propósito: un depósito no se llena solo, hace
+ * falta la cisterna.
+ */
+const RECUPERACION: Partial<Record<SensorMetric, { objetivo: number; ritmo: number }>> = {
+  bateria_torre: { objetivo: 95, ritmo: 12 },
+  bateria_generador: { objetivo: 95, ritmo: 10 },
+  carga_ups: { objetivo: 95, ritmo: 15 },
+  temperatura: { objetivo: 22, ritmo: 6 },
+  congestion: { objetivo: 3, ritmo: 8 },
+};
+
+/** Tensión a partir de la cual se considera que el sitio tiene red de nuevo */
+const TENSION_CON_RED = 90;
+
 /**
  * Cambios del mundo que el agente debe observar. Los tres primeros son
  * triggers de replanificación (RULES.md §7); `llegada` es ajuste incremental.
@@ -40,6 +61,14 @@ export type EventoMundo =
   | { tipo: "llegada"; recursoId: string; elementId: string }
   | { tipo: "eta_incumplida"; recursoId: string; elementId: string; retrasoSeg: number }
   | { tipo: "plazo_superado"; elementId: string; minutosSinEnergia: number }
+  /** Con la red de vuelta, una métrica propia avanza hacia su valor sano */
+  | {
+      tipo: "recuperacion";
+      elementId: string;
+      metric: SensorMetric;
+      value: number;
+      severidad: number;
+    }
   /**
    * Un remedio ha terminado de aplicarse. Lleva las lecturas que el mundo real
    * pasaría a reportar: la simulación las aplica como si vinieran del sensor,
@@ -129,6 +158,8 @@ export function crearMundo(
   const plazoAvisado = new Set<string>();
   /** eventos emitidos fuera del tick; los drena el siguiente `avanzar` */
   const pendientes: EventoMundo[] = [];
+  /** último segundo en que se emitió un paso de recuperación, por elemento */
+  const ultimaRecuperacion = new Map<string, number>();
   let ultimoSegundo = 0;
 
   function sembrar(): void {
@@ -153,6 +184,7 @@ export function crearMundo(
     sinEnergia.clear();
     for (const e of guion.elements) sinEnergia.set(e.id, 0);
     plazoAvisado.clear();
+    ultimaRecuperacion.clear();
     pendientes.length = 0;
     ultimoSegundo = 0;
   }
@@ -269,6 +301,39 @@ export function crearMundo(
             elementId: r.assignedElementId ?? "",
           });
         }
+      }
+
+      // Con la red de vuelta, las métricas propias dejan de estar congeladas en
+      // su peor lectura y convergen hacia su valor sano. Sin esto la demo acaba
+      // con tres sitios en rojo aunque el agente lo haya resuelto todo.
+      for (const e of elementos) {
+        const tension = e.sensores.tension_red;
+        if (tension === undefined || tension < TENSION_CON_RED) continue;
+        const desde = ultimaRecuperacion.get(e.id) ?? -Infinity;
+        if (segundos - desde < PASO_RECUPERACION_SEG) continue;
+
+        let emitido = false;
+        for (const [clave, cfg] of Object.entries(RECUPERACION)) {
+          const metrica = clave as SensorMetric;
+          const actual = e.sensores[metrica];
+          if (actual === undefined) continue;
+          const sube = cfg.objetivo > actual;
+          const baja = cfg.objetivo < actual;
+          if (!sube && !baja) continue;
+          const siguiente = sube
+            ? Math.min(actual + cfg.ritmo, cfg.objetivo)
+            : Math.max(actual - cfg.ritmo, cfg.objetivo);
+          const restante = Math.abs(cfg.objetivo - siguiente) / Math.abs(cfg.objetivo || 1);
+          eventos.push({
+            tipo: "recuperacion",
+            elementId: e.id,
+            metric: metrica,
+            value: Math.round(siguiente),
+            severidad: Math.round(Math.min(restante * 100, 25)),
+          });
+          emitido = true;
+        }
+        if (emitido) ultimaRecuperacion.set(e.id, segundos);
       }
 
       // Un recurso desplegado tarda los minutos de su remedio en surtir efecto.
