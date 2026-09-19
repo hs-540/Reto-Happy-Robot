@@ -22,5 +22,77 @@
     "summary": "Sensors detected a gradual grid voltage drop 40 minutes before the total outage. The generator was dispatched preventively instead of waiting for the full failure.",
     "outcome": "The generator was already operational when the real outage hit, avoiding any interruption. Lesson: act on degradation trends, not only on thresholds already reached.",
     "date": "2026-05-03"
+  },
+  {
+    "id": "hist-hosp-004",
+    "type": "hospital",
+    "title": "Generator could not enter the restricted hospital wing — February 2026",
+    "summary": "A portable generator reached the hospital but the service entrance to the critical wing required a security escort that had not been arranged. The generator waited at the gate while the generator_battery kept falling and grid_voltage stayed low.",
+    "outcome": "The escort arrived after 15 minutes and the generator was connected with the battery at 13%. Lesson: arrange the security escort for a hospital generator before dispatch; an arriving generator still needs to reach the critical wing.",
+    "date": "2026-02-17"
+  },
+  {
+    "id": "hist-hosp-005",
+    "type": "hospital",
+    "title": "Generator sent to the wrong hospital site — April 2026",
+    "summary": "The dispatch used a district name shared by two hospitals and the generator was driven to the wrong one, while the intended hospital's generator_battery kept falling and its grid_voltage was already critical.",
+    "outcome": "The generator was redirected 11 minutes late. Lesson: name the hospital by site id, not by district, when dispatching; a generator at the wrong campus cannot hold a generator_battery.",
+    "date": "2026-04-07"
+  },
+  {
+    "id": "hist-hosp-006",
+    "type": "hospital",
+    "title": "Backup battery estimate ignored the added ventilator load — June 2026",
+    "summary": "The generator_battery was expected to last 40 minutes, but the estimate did not include the ventilators and monitors that the blackout brought onto backup. The battery fell faster than planned.",
+    "outcome": "The critical wing was on battery at 6% when the second generator arrived. Lesson: recalculate generator_battery autonomy with the life-support load included and dispatch before it falls below 30%.",
+    "date": "2026-06-11"
+  },
+  {
+    "id": "hist-hosp-007",
+    "type": "hospital",
+    "title": "Diversion of a crew left the hospital without its repair — August 2026",
+    "summary": "A crew repairing the hospital's backup supply was pulled to a substation failure. The hospital then lost its generator_battery earlier than the plan assumed and its grid_voltage did not recover.",
+    "outcome": "The hospital declared a critical state for 19 minutes. Lesson: do not divert a crew from a hospital whose generator_battery is already low; a hospital without backup is the highest human cost of a diversion.",
+    "date": "2026-08-13"
+  },
+  {
+    "id": "hist-hosp-008",
+    "type": "hospital",
+    "title": "Fuel delivery to the hospital arrived after the generator stopped — October 2026",
+    "summary": "A tanker was assigned to refuel the hospital generator but was routed through the congested junction and arrived after the generator_battery had already run out.",
+    "outcome": "The generator stopped for 7 minutes until the tanker reached it. Lesson: route hospital fuel around known congestion and refuel before generator_battery reaches 20%, not when the gauge is already critical.",
+    "date": "2026-10-05"
+  },
+  {
+    "id": "hist-hosp-009",
+    "type": "hospital",
+    "title": "Faulty sensor reported a healthy hospital while the wing was dark — November 2026",
+    "summary": "A faulty grid_voltage sensor at the hospital reported a normal reading, so the wing was not escalated until a field report described the outage directly and the generator_battery was already low.",
+    "outcome": "The response started 12 minutes late. Lesson: corroborate a single healthy grid_voltage reading with reports from the wing; a faulty sensor must not mask a real outage.",
+    "date": "2026-11-16"
+  },
+  {
+    "id": "hist-hosp-010",
+    "type": "hospital",
+    "title": "Preventive generator dispatch on a voltage trend — December 2026",
+    "summary": "The hospital grid_voltage declined gradually for 30 minutes without reaching the critical threshold, and a generator was dispatched on the trend alone before the generator_battery was needed.",
+    "outcome": "The generator was running when the voltage collapsed and no critical equipment stopped. Lesson: a sustained grid_voltage decline at a hospital justifies a preventive generator, because a life-support interruption has no recovery time.",
+    "date": "2026-12-02"
+  },
+  {
+    "id": "hist-hosp-011",
+    "type": "hospital",
+    "title": "Two hospitals competed for the same generator — January 2026",
+    "summary": "Two hospitals lost grid power at once and only one generator was free. It was assigned by district order rather than by generator_battery remaining, so the site with less autonomy waited.",
+    "outcome": "The site with the lower generator_battery slipped into a critical state. Lesson: when two hospitals compete for one generator, assign it by the lower generator_battery and the higher severity, not by proximity or district order.",
+    "date": "2026-01-09"
+  },
+  {
+    "id": "hist-hosp-012",
+    "type": "hospital",
+    "title": "Backup battery was already degraded before the blackout — March 2026",
+    "summary": "The hospital's generator_battery had been reporting steadily lower peak values for weeks, but the degradation was not reviewed until the blackout exposed it.",
+    "outcome": "The generator_battery held half its rated time and the response ran short. Lesson: treat a slowly degrading generator_battery as an incident in itself; a blackout only reveals the capacity a hospital already lost.",
+    "date": "2026-03-30"
   }
 ]

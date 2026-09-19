@@ -123,12 +123,16 @@ tests' fixture.
 
 ## `history/<type>/` — pre-loaded RAG history
 
-Three synthetic incidents per element type (`hospital`, `datacenter`,
-`substation`), written before the event so the agent has historical context from
-its very first tick. Several hard rules exist *because* of one of these records —
-`hist-sub-002` (a partial restoration that looked like a fix) is why `resolved`
-demands 60 s of stable voltage, and `hist-dc-002` (a UPS drained while waiting)
-is why `critical-ups-act` forbids waiting.
+Twelve synthetic incidents per element type (`hospital`, `datacenter`,
+`substation`, `tower`, `fuel_station`, `junction`), written before the event so
+the agent has historical context from its very first tick. Each type covers
+several distinct failure modes — access blocked, wrong autonomy estimate, a
+resource sent to the wrong site, a cascading dependency, a faulty sensor, a
+preventive response — so the nearest neighbours of a live situation are a real
+subset and not the whole type. Several hard rules exist *because* of one of these
+records — `hist-sub-002` (a partial restoration that looked like a fix) is why
+`resolved` demands 60 s of stable voltage, and `hist-dc-002` (a UPS drained while
+waiting) is why `critical-ups-act` forbids waiting.
 
 `npm run rag:preload` vectorizes them into Chroma, one collection per type
 (idempotent: upsert by incident id, re-running does not duplicate).
