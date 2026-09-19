@@ -50,7 +50,8 @@ export function CommandBar({
 }: CommandBarProps) {
   const pill = statusPill(live, started, paused, finished)
   const progress = durationSeconds > 0 ? Math.min(100, (currentSecond / durationSeconds) * 100) : 0
-  const currentMoment = [...moments].reverse().find((m) => m.atSeconds <= currentSecond)
+  const pastMoments = started ? moments.filter((m) => m.atSeconds <= currentSecond) : []
+  const currentMoment = pastMoments[pastMoments.length - 1]
 
   return (
     <header className="command glass">
@@ -158,14 +159,14 @@ export function CommandBar({
           aria-valuemax={100}
         >
           <div className="timeline__fill" style={{ width: `${progress}%` }} />
-          {moments.map((m, i) => (
+          {pastMoments.map((m) => (
             <div
               key={m.atSeconds}
-              className={`timeline__mark ${m.atSeconds <= currentSecond && started ? 'is-past' : ''}`}
+              className="timeline__mark is-past"
               style={{ left: `${durationSeconds > 0 ? (m.atSeconds / durationSeconds) * 100 : 0}%` }}
               title={`${formatElapsed(m.atSeconds)} · ${m.title}`}
             >
-              {i + 1}
+              {moments.indexOf(m) + 1}
             </div>
           ))}
           <div
