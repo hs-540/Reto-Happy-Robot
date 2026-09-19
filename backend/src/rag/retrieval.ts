@@ -52,10 +52,38 @@ function matchReason(type: ElementType, sites: readonly ElementView[]): string {
 }
 
 /**
+ * Cut a ranked list down to `limit` while guaranteeing the curated lessons a
+ * floor. A deep history of closures can rank nearer than the seeded incidents —
+ * closures are short, recent and all look like the live situation — and without
+ * a floor they evict every entry that carries an actionable `outcome`. Half the
+ * budget (rounded up) is reserved for `curated`; the remaining slots go to the
+ * best overall, dedup by id, so the total never exceeds `limit`. The reserve is
+ * a floor, not a quota: curated hits can still fill more when they rank best.
+ */
+function withCuratedReserve(
+  ranked: readonly { hit: RetrievedIncident; type: ElementType }[],
+  limit: number,
+): { hit: RetrievedIncident; type: ElementType }[] {
+  const reserved = Math.ceil(limit / 2);
+  const chosen = new Map<string, { hit: RetrievedIncident; type: ElementType }>();
+  for (const entry of ranked) {
+    if (chosen.size >= reserved) break;
+    if (entry.hit.source !== "curated") continue;
+    chosen.set(entry.hit.incident.id, entry);
+  }
+  for (const entry of ranked) {
+    if (chosen.size >= limit) break;
+    if (!chosen.has(entry.hit.incident.id)) chosen.set(entry.hit.incident.id, entry);
+  }
+  return [...chosen.values()];
+}
+
+/**
  * Nearest past incidents for every affected element type, merged into one
  * ranked list. Each collection returns at most `limit`, and the merge is cut by
  * distance: the per-turn budget is measured (see MAX_HISTORY_PER_TURN), so
  * retrieving more than fits means ranking and cutting, not growing the prompt.
+ * The cut reserves room for the curated lessons (see `withCuratedReserve`).
  */
 export async function retrieveHistory(params: {
   rag: HistoryRag;
@@ -82,7 +110,8 @@ export async function retrieveHistory(params: {
     }
   }
 
-  return [...best.values()]
+  const ranked = [...best.values()].sort((a, b) => a.hit.distance - b.hit.distance);
+  return withCuratedReserve(ranked, limit)
     .sort((a, b) => a.hit.distance - b.hit.distance)
     .slice(0, limit)
     .map(({ hit, type }) => ({

@@ -239,6 +239,13 @@ test("when an incident is resolved a single closure is delivered per element", (
   assert.equal(closures[0]?.elementId, "sub-01");
   assert.equal(closures[0]?.type, "substation");
   assert.equal(closures[0]?.maxSeverity, 90);
+  // The closure carries what the next run needs: who resolved the incident and
+  // how long it lasted, not only the peak severity.
+  assert.equal(closures[0]?.resolvedBy, "crew-1");
+  assert.ok(
+    (closures[0]?.durationSeconds ?? 0) > 0,
+    "the incident duration must be measured from its onset",
+  );
 
   const ids = closures.map((c) => c.elementId);
   assert.deepEqual(ids, [...new Set(ids)], "each element delivers a single closure");

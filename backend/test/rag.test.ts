@@ -5,10 +5,10 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { ChromaClient } from "chromadb";
-import { loadHistory, type ElementView } from "@swarmup/shared";
+import { loadHistory, type ElementView, type HistoricalIncident } from "@swarmup/shared";
 import type { LlmClient } from "../src/llm.js";
 import { startChroma, type LocalChroma } from "../src/rag/chroma.js";
-import { createHistoryRag } from "../src/rag/history.js";
+import { createHistoryRag, type HistoryRag, type RetrievedIncident } from "../src/rag/history.js";
 import { retrieveHistory } from "../src/rag/retrieval.js";
 import type { IncidentClosure } from "../src/sim.js";
 
@@ -74,6 +74,10 @@ test("the search for a hospital only returns incidents from the hospital collect
     res.some(({ incident }) => incident.id === "hist-hosp-001"),
     "the pre-loaded history must be among the results",
   );
+  assert.ok(
+    res.every(({ source }) => source === "curated"),
+    "documents seeded from data/history are curated, not closures",
+  );
 });
 
 test("loop closure records the resolved incident and does not duplicate re-closures", async () => {
@@ -82,6 +86,8 @@ test("loop closure records the resolved incident and does not duplicate re-closu
     type: "substation",
     name: "Getafe-Sur Substation",
     maxSeverity: 90,
+    durationSeconds: 740,
+    resolvedBy: "crew-1",
     clock: "2026-09-19T10:05:00.000Z",
   };
 
@@ -94,10 +100,13 @@ test("loop closure records the resolved incident and does not duplicate re-closu
   assert.equal(afterRepeat, 4);
 
   const res = await rag.search("substation", "blackout resolved at the substation", 10);
-  assert.ok(
-    res.some(({ incident }) => incident.id.startsWith("closure-sub-01-")),
-    "the vectorized closure must be retrievable",
-  );
+  const hit = res.find(({ incident }) => incident.id.startsWith("closure-sub-01-"));
+  assert.ok(hit, "the vectorized closure must be retrievable");
+  // Distinguishable from the seeded lessons, and worth retrieving: it names the
+  // resource and the incident's duration instead of only the peak severity.
+  assert.equal(hit.source, "closure");
+  assert.match(hit.incident.summary, /resolved by crew-1/);
+  assert.match(hit.incident.summary, /12m20s/);
 });
 
 const substationView: ElementView = {
@@ -139,4 +148,49 @@ test("what one run closed, the next run retrieves through the agent's path", asy
     entries.every(({ retrievedFor }) => retrievedFor.includes("sub-01")),
     "every entry states why it surfaced, so the model can cite it",
   );
+});
+
+test("a deep history of closures cannot crowd out the curated lessons", async () => {
+  // Closures embed the live situation verbatim, so in Chroma they can rank
+  // NEARER than the hand-written lessons. Without a reserve, the nearest three
+  // would take the whole budget and no actionable outcome would reach the
+  // prompt. The curations below are deliberately the worst matches.
+  const literal = (id: string): HistoricalIncident => ({
+    id,
+    type: "substation",
+    title: `Incident ${id}`,
+    summary: `Summary of ${id}`,
+    outcome: `Outcome of ${id}`,
+    date: "2026-05-01",
+  });
+  const closures: RetrievedIncident[] = Array.from({ length: 4 }, (_, i) => ({
+    incident: literal(`closure-sub-${i}`),
+    distance: 0.01 * (i + 1),
+    source: "closure",
+  }));
+  const curated: RetrievedIncident[] = Array.from({ length: 2 }, (_, i) => ({
+    incident: literal(`hist-sub-${i}`),
+    distance: 0.9 + i * 0.01,
+    source: "curated",
+  }));
+  const stub: HistoryRag = {
+    preload: async () => 0,
+    recordClosure: async () => {},
+    search: async () => [...closures, ...curated],
+  };
+
+  const entries = await retrieveHistory({
+    rag: stub,
+    reasons: ["sub-01 goes critical"],
+    sites: [substationView],
+    limit: 3,
+  });
+
+  const ids = entries.map((e) => e.incident.id);
+  assert.equal(entries.length, 3, "the per-turn budget is still respected");
+  assert.ok(
+    ids.includes("hist-sub-0") && ids.includes("hist-sub-1"),
+    `both curated lessons must survive, got ${ids.join(", ")}`,
+  );
+  assert.ok(ids.includes("closure-sub-0"), "the best closure still fills the free slot");
 });

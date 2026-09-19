@@ -7,9 +7,18 @@ import {
 import type { LlmClient } from "../llm.js";
 import type { IncidentClosure } from "../sim.js";
 
+/**
+ * Where a memory document comes from. `curated` is the hand-written history
+ * shipped in `data/history`; `closure` is the write-back of a resolved incident
+ * from an earlier run. They share a collection, so retrieval has to tell them
+ * apart to keep the actionable lessons from being crowded out by write-backs.
+ */
+export type IncidentSource = "closure" | "curated";
+
 export interface RetrievedIncident {
   incident: HistoricalIncident;
   distance: number;
+  source: IncidentSource;
 }
 
 export interface HistoryRag {
@@ -35,6 +44,7 @@ async function upload(
   collection: Collection,
   incidents: readonly HistoricalIncident[],
   llm: LlmClient,
+  source: IncidentSource,
 ): Promise<void> {
   if (incidents.length === 0) return;
   const texts = incidents.map(documentText);
@@ -43,8 +53,23 @@ async function upload(
     ids: incidents.map((i) => i.id),
     embeddings,
     documents: texts,
-    metadatas: incidents.map((i) => ({ ...i })),
+    // `source` rides beside the incident, not inside it: `HistoricalIncident` is
+    // zod and strips unknown keys, so it would be lost on the way back.
+    metadatas: incidents.map((i) => ({ ...i, source })),
   });
+}
+
+/**
+ * Documents persisted before this field existed carry no `source`; the seeded
+ * history is the only writer that predates it, so absent means `curated`.
+ */
+function sourceFrom(metadata: Metadata | null): IncidentSource {
+  return metadata?.source === "closure" ? "closure" : "curated";
+}
+
+/** `754` → `12m34s`: a closure reads as an operations fact, not raw seconds */
+function durationLabel(seconds: number): string {
+  return `${Math.floor(seconds / 60)}m${String(Math.floor(seconds % 60)).padStart(2, "0")}s`;
 }
 
 function incidentFrom(metadata: Metadata | null, id: string): HistoricalIncident | null {
@@ -69,7 +94,7 @@ export function createHistoryRag(deps: { client: ChromaClient; llm: LlmClient })
     let total = 0;
     for (const [type, list] of byType) {
       const collection = await collectionFor(client, type);
-      await upload(collection, list, llm);
+      await upload(collection, list, llm, "curated");
       total += await collection.count();
     }
     return total;
@@ -77,16 +102,22 @@ export function createHistoryRag(deps: { client: ChromaClient; llm: LlmClient })
 
   async function recordClosure(closure: IncidentClosure): Promise<void> {
     const date = new Date().toISOString().slice(0, 10);
+    // The summary has to be worth retrieving: a closure that only restates the
+    // peak severity gives the next run nothing it can act on, so it names who
+    // resolved it and how long the incident lasted.
+    const resolution = closure.resolvedBy
+      ? `resolved by ${closure.resolvedBy}`
+      : "resolved without an attributed resource";
     // deterministic id per element and day: closing the same incident again does not duplicate
     const incident: HistoricalIncident = {
       id: `closure-${closure.elementId}-${date}`,
       type: closure.type,
       title: `Incident closure at ${closure.name} — ${date}`,
-      summary: `${closure.type} incident resolved during the operation; maximum severity reached ${Math.round(closure.maxSeverity)}/100.`,
+      summary: `${closure.type} incident at ${closure.name} ${resolution} after ${durationLabel(closure.durationSeconds)}; maximum severity reached ${Math.round(closure.maxSeverity)}/100.`,
       outcome: `Element stable and deemed resolved at simulation clock ${closure.clock}.`,
       date,
     };
-    await upload(await collectionFor(client, closure.type), [incident], llm);
+    await upload(await collectionFor(client, closure.type), [incident], llm, "closure");
   }
 
   async function search(
@@ -102,9 +133,10 @@ export function createHistoryRag(deps: { client: ChromaClient; llm: LlmClient })
     const retrieved: RetrievedIncident[] = [];
     for (const [i, id] of ids.entries()) {
       const distance = res.distances[0]?.[i];
-      const incident = incidentFrom(res.metadatas[0]?.[i] ?? null, id);
+      const metadata = res.metadatas[0]?.[i] ?? null;
+      const incident = incidentFrom(metadata, id);
       if (distance === null || distance === undefined || incident === null) continue;
-      retrieved.push({ incident, distance });
+      retrieved.push({ incident, distance, source: sourceFrom(metadata) });
     }
     return retrieved;
   }

@@ -143,6 +143,18 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > incidents reach the prompt with a `Retrieved because...` line and the agent
 > cites what it used by id (`historyCitation`).
 
+> **`backend/chroma-data` is kept across runs on purpose.** The write-back loop
+> is the demo's "learning between runs": the second run retrieves the closures
+> of the first, and `sim.reset()` deliberately does not clear the collections.
+> A demo session therefore accumulates closures — the feature, not a leak. To
+> keep the generic write-backs from crowding out the hand-written lessons, every
+> document carries a `source` (`curated` for `data/history`, `closure` for a
+> write-back) and retrieval reserves half the per-turn budget for `curated`
+> (`backend/src/rag/retrieval.ts`). For a clean slate before a presentation,
+> stop the backend and remove the directory: `rm -rf backend/chroma-data`. The
+> next boot recreates it and re-seeds the curated history (idempotent upsert by
+> id), so the run starts with no closures.
+
 ## Real actions (HappyRobot)
 
 - **MVP**: **voice call** + **message/chat**.

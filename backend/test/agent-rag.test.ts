@@ -186,7 +186,7 @@ test("a deliberation searches the memory and injects what it retrieves", async (
   const calls: SearchCall[] = [];
   const prompts: string[] = [];
   const rag = stubRag(calls, async (type) => [
-    { incident: incident(`mem-${type}-1`, type), distance: 0.2 },
+    { incident: incident(`mem-${type}-1`, type), distance: 0.2, source: "curated" },
   ]);
   const agent = agentWith(Promise.resolve(rag), prompts);
 
@@ -216,10 +216,10 @@ test("one search per affected type, merged and ranked by distance", async () => 
   const rag = stubRag(calls, async (type) =>
     type === "hospital"
       ? [
-          { incident: incident("close-hosp", "hospital"), distance: 0.1 },
-          { incident: incident("far-hosp", "hospital"), distance: 0.9 },
+          { incident: incident("close-hosp", "hospital"), distance: 0.1, source: "curated" },
+          { incident: incident("far-hosp", "hospital"), distance: 0.9, source: "curated" },
         ]
-      : [{ incident: incident("close-sub", "substation"), distance: 0.2 }],
+      : [{ incident: incident("close-sub", "substation"), distance: 0.2, source: "curated" }],
   );
   const agent = agentWith(Promise.resolve(rag), prompts);
 
@@ -245,6 +245,7 @@ test("the per-turn history cap holds even if the memory over-answers", async () 
     Array.from({ length: 10 }, (_, i) => ({
       incident: incident(`mem-${type}-${i}`, type),
       distance: i / 10,
+      source: "curated" as const,
     })),
   );
   const agent = agentWith(Promise.resolve(rag), prompts);
