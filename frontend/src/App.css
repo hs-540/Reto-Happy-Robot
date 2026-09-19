@@ -1219,6 +1219,32 @@
   -webkit-backdrop-filter: blur(14px);
   box-shadow: var(--shadow-md);
   --c: var(--muted);
+  --uc: var(--accent);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.unit:hover {
+  border-color: color-mix(in srgb, var(--uc) 40%, var(--border));
+}
+
+.unit.is-selected {
+  border-color: color-mix(in srgb, var(--uc) 55%, transparent);
+  background: color-mix(in srgb, var(--uc) 10%, var(--glass-strong));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--uc) 35%, transparent),
+    var(--shadow-md);
+}
+
+.unit__swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--uc);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--uc) 22%, transparent);
 }
 
 .unit--available {
@@ -1624,7 +1650,8 @@
 }
 
 .marker--resource {
-  cursor: default;
+  cursor: pointer;
+  --uc: var(--accent);
 }
 
 .marker__dot {
@@ -1697,7 +1724,8 @@
 
 .marker--element:hover .marker__label,
 .marker--element.is-selected .marker__label,
-.marker--resource:hover .marker__label {
+.marker--resource:hover .marker__label,
+.marker--resource.is-selected .marker__label {
   display: block;
 }
 
@@ -1710,7 +1738,8 @@
 }
 
 .marker--element.is-selected .marker__dot,
-.marker--element:hover .marker__dot {
+.marker--element:hover .marker__dot,
+.marker--resource.is-selected .marker__dot {
   transform: scale(1.18);
 }
 
@@ -1719,6 +1748,17 @@
     0 0 0 3px color-mix(in srgb, var(--accent) 65%, transparent),
     0 0 0 9px color-mix(in srgb, var(--accent) 18%, transparent),
     0 4px 12px -2px rgba(0, 0, 0, 0.65);
+}
+
+.marker--resource.is-selected .marker__dot {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--uc) 65%, transparent),
+    0 0 0 9px color-mix(in srgb, var(--uc) 18%, transparent),
+    0 4px 12px -2px rgba(0, 0, 0, 0.65);
+}
+
+.marker--resource.is-selected .marker__label {
+  border-color: var(--uc);
 }
 
 .marker.is-selected .marker__label {

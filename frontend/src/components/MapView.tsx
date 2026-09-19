@@ -4,6 +4,7 @@ import type { StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { ElementView, ResourceView } from '@swarmup/shared'
 import { ICON_PATHS, ELEMENT_ICON, RESOURCE_ICON } from './iconPaths'
+import { resourceColor } from '../lib/palette'
 const TILES: Record<'dark' | 'light', string[]> = {
   dark: [
     'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
@@ -23,7 +24,7 @@ interface RouteCollection {
   type: 'FeatureCollection'
   features: {
     type: 'Feature'
-    properties: Record<string, never>
+    properties: { color: string }
     geometry: { type: 'LineString'; coordinates: [number, number][] }
   }[]
 }
@@ -47,18 +48,16 @@ const STYLE: StyleSpecification = {
   layers: [
     { id: 'carto', type: 'raster', source: 'carto' },
     {
-      id: 'route-casing',
-      type: 'line',
-      source: 'routes',
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#0b1220', 'line-width': 7, 'line-opacity': 0.45 },
-    },
-    {
       id: 'route-line',
       type: 'line',
       source: 'routes',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#4da3ff', 'line-width': 3, 'line-opacity': 0.9 },
+      paint: {
+        'line-color': ['to-color', ['get', 'color']],
+        'line-width': 2.5,
+        'line-opacity': 0.9,
+        'line-dasharray': [0.1, 2],
+      },
     },
   ],
 }
@@ -111,16 +110,20 @@ interface MapViewProps {
   elements: ElementView[]
   resources: ResourceView[]
   selectedElementId: string | null
+  selectedResourceId: string | null
   theme: 'dark' | 'light'
   onSelectElement: (id: string | null) => void
+  onSelectResource: (id: string | null) => void
 }
 
 export function MapView({
   elements,
   resources,
   selectedElementId,
+  selectedResourceId,
   theme,
   onSelectElement,
+  onSelectResource,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -170,14 +173,20 @@ export function MapView({
     const store = markersRef.current
     const alive = new Set<string>()
 
-    /** Resources draw the street polyline they are following */
+    /** Selected resource or the target site of the selection draw their route */
     const source = map.getSource('routes')
     if (source && 'setData' in source) {
       const features = resources
-        .filter((r) => r.route && r.route.length >= 2)
+        .filter(
+          (r) =>
+            r.route &&
+            r.route.length >= 2 &&
+            (r.id === selectedResourceId ||
+              (r.assignedElementId !== null && r.assignedElementId === selectedElementId)),
+        )
         .map((r) => ({
           type: 'Feature' as const,
-          properties: {},
+          properties: { color: resourceColor(r.id) },
           geometry: {
             type: 'LineString' as const,
             coordinates: r.route!.map((p) => [p.lng, p.lat] as [number, number]),
@@ -191,9 +200,11 @@ export function MapView({
 
     resources.forEach((r) => {
       alive.add(r.id)
+      const selected = r.id === selectedResourceId
       const entry = store.get(r.id)
       if (entry) {
         applyVariant(entry, r.status)
+        entry.node.classList.toggle('is-selected', selected)
         entry.marker.setLngLat([r.lng, r.lat])
       } else {
         const node = createMarkerNode(
@@ -203,8 +214,10 @@ export function MapView({
             icon: ICON_PATHS[RESOURCE_ICON[r.type] ?? 'generator'] ?? '',
             label: r.id,
           },
-          false,
+          selected,
+          () => onSelectResource(r.id),
         )
+        node.style.setProperty('--uc', resourceColor(r.id))
         store.set(r.id, {
           marker: new Marker({ element: node, anchor: 'center' })
             .setLngLat([r.lng, r.lat])
@@ -250,7 +263,7 @@ export function MapView({
         store.delete(id)
       }
     }
-  }, [elements, resources, selectedElementId, onSelectElement, ready])
+  }, [elements, resources, selectedElementId, selectedResourceId, onSelectElement, onSelectResource, ready])
 
   useEffect(() => {
     const map = mapRef.current

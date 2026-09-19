@@ -31,6 +31,7 @@ function Loading() {
 function App() {
   const { topology, state, agent, feed, live, refresh } = useCrisis()
   const [selectedElementId, setSelectedElementId] = useState<string | null>('hosp-01')
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
   const [injectOpen, setInjectOpen] = useState(false)
   const [sitesOpen, setSitesOpen] = useState(true)
   const [agentOpen, setAgentOpen] = useState(true)
@@ -39,6 +40,16 @@ function App() {
   const [error, setError] = useState<string | null>(null)
 
   const ready = state.elements.length > 0 && topology.elements.length > 0
+
+  function selectElement(id: string | null) {
+    setSelectedElementId(id)
+    setSelectedResourceId(null)
+  }
+
+  function selectResource(id: string | null) {
+    setSelectedResourceId(id)
+    setSelectedElementId(null)
+  }
 
   async function runControl(action: 'start' | 'pause' | 'resume' | 'reset') {
     setPending(true)
@@ -91,8 +102,10 @@ function App() {
           elements={state.elements}
           resources={state.resources}
           selectedElementId={selectedElementId}
+          selectedResourceId={selectedResourceId}
           theme={theme}
-          onSelectElement={setSelectedElementId}
+          onSelectElement={selectElement}
+          onSelectResource={selectResource}
         />
       </div>
 
@@ -124,7 +137,7 @@ function App() {
           elements={state.elements}
           criticalityById={criticalityById}
           selectedElementId={selectedElementId}
-          onSelectElement={setSelectedElementId}
+          onSelectElement={selectElement}
           onCollapse={() => setSitesOpen(false)}
         />
 
@@ -132,12 +145,17 @@ function App() {
           agent={agent}
           feed={feed}
           selectedElementId={selectedElementId}
-          onSelectElement={setSelectedElementId}
+          onSelectElement={selectElement}
           elementNames={elementNames}
           onCollapse={() => setAgentOpen(false)}
         />
 
-        <ResourcesDock resources={state.resources} elementNames={elementNames} />
+        <ResourcesDock
+          resources={state.resources}
+          elementNames={elementNames}
+          selectedResourceId={selectedResourceId}
+          onSelectResource={selectResource}
+        />
       </div>
 
       {!sitesOpen && (
