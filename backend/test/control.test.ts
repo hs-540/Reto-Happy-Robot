@@ -6,14 +6,17 @@ import { createFeed } from "../src/feed.js";
 function setup() {
   const feed = createFeed();
   const registry = createActionRegistry(feed);
-  const proposeCall = () =>
-    registry.record({
-      type: "voice_call",
-      targetElementId: "hosp-01",
-      recipient: "hospital_manager",
-      message: "We will cut power for 10 min to connect the generator.",
-    });
-  return { feed, registry, proposeCall };
+  const propose = (status: "queued" | "executed") =>
+    registry.record(
+      {
+        type: status === "queued" ? "voice_call" : "chat_message",
+        targetElementId: "hosp-01",
+        recipient: "hospital_manager",
+        message: "We will cut power for 10 min to connect the generator.",
+      },
+      status,
+    );
+  return { feed, registry, propose };
 }
 
 function actionStatuses(feed: ReturnType<typeof createFeed>): string[] {
@@ -23,13 +26,15 @@ function actionStatuses(feed: ReturnType<typeof createFeed>): string[] {
     .map((i) => (i.kind === "action" ? i.status : ""));
 }
 
-test("every action is recorded as already executed, no human gate", () => {
-  const { feed, proposeCall } = setup();
+test("actions are recorded with the born status the caller states, no human gate", () => {
+  const { feed, propose } = setup();
 
-  const action = proposeCall();
-  assert.equal(action.status, "executed");
-  assert.ok(action.id.startsWith("act-"));
-  assert.deepEqual(actionStatuses(feed), ["executed"]);
+  const queuedCall = propose("queued");
+  assert.equal(queuedCall.status, "queued");
+  assert.ok(queuedCall.id.startsWith("act-"));
+  const message = propose("executed");
+  assert.equal(message.status, "executed");
+  assert.deepEqual(actionStatuses(feed), ["queued", "executed"]);
 });
 
 test("controlSchema validates the control actions and the inject payload", () => {

@@ -643,6 +643,12 @@ export function createAgent(options: AgentOptions): Agent {
 
     // Communications are a field of their own: they execute every time, even if
     // the model put no `contact` action inside a decision.
+    // Urgency of each site for the call queue: a call not in the ranking gets
+    // the lowest score rather than being rejected.
+    const ranking = world.priorities(state.elements);
+    const lowestScore = ranking[ranking.length - 1]?.score ?? 0;
+    const scoreOf = new Map(ranking.map((r) => [r.elementId, r.score]));
+
     for (const c of output.communications) {
       const contact = contactFor(c.recipient);
       if (!contact) {
@@ -657,18 +663,23 @@ export function createAgent(options: AgentOptions): Agent {
       const fingerprint = `${contact.id}|${c.message.trim()}`;
       if (warningsSent.has(fingerprint)) continue;
       warningsSent.add(fingerprint);
-      const action = actionRegistry.record({
-        type: c.channel,
-        targetElementId: anchorToSite(c.elementId, state),
-        recipient: contact.id,
-        message: c.message,
-      });
+      const action = actionRegistry.record(
+        {
+          type: c.channel,
+          targetElementId: anchorToSite(c.elementId, state),
+          recipient: contact.id,
+          message: c.message,
+        },
+        // a voice call waits on a line in the call queue; a message goes out now
+        c.channel === "voice_call" ? "queued" : "executed",
+      );
       actions = [action, ...actions].slice(0, MAX_DECISIONS);
       // Here the system leaves the laptop: a real phone rings.
       happyrobot.contact({
         actionId: action.id,
         contact,
         channel: c.channel,
+        priority: scoreOf.get(action.targetElementId) ?? lowestScore,
         message: c.message,
         context: { elementId: action.targetElementId, situation: c.reason },
       });
@@ -697,15 +708,18 @@ export function createAgent(options: AgentOptions): Agent {
               : `Could not assign ${a.resourceId}: ${result.reason}`,
           });
         } else if (a.type === "contact" && a.channel) {
-          // No human gate (#43): the registry stamps it as executed and publishes it
-          const action = actionRegistry.record({
-            type: a.channel,
-            targetElementId: a.elementId,
-            // same recovery as the communications field: the panel shows the id
-            // of whoever it really is, not whatever prose the model wrote
-            recipient: (a.recipient ? contactFor(a.recipient)?.id : undefined) ?? undefined,
-            message: a.message,
-          });
+          // No human gate (#43): recorded as executed and published
+          const action = actionRegistry.record(
+            {
+              type: a.channel,
+              targetElementId: a.elementId,
+              // same recovery as the communications field: the panel shows the id
+              // of whoever it really is, not whatever prose the model wrote
+              recipient: (a.recipient ? contactFor(a.recipient)?.id : undefined) ?? undefined,
+              message: a.message,
+            },
+            "executed",
+          );
           actions = [action, ...actions].slice(0, MAX_DECISIONS);
           decision.actions.push(action);
         }
@@ -798,6 +812,8 @@ export function createAgent(options: AgentOptions): Agent {
 
     closeCall(closure): void {
       const action = actions.find((a) => a.id === closure.actionId);
+      // a closure can only arrive for a call that went out
+      if (action && action.status === "queued") action.status = "executed";
       feed.publish({
         kind: "outcome",
         elementId: action?.targetElementId ?? null,

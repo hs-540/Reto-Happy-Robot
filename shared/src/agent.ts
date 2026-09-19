@@ -1,6 +1,10 @@
 export type ActionType = "voice_call" | "chat_message";
 
-export type ActionStatus = "executed";
+/**
+ * A voice call is born `queued` while it waits for a line in the call queue,
+ * `executed` once dialled and `discarded` when the queue dropped or evicted it.
+ */
+export type ActionStatus = "queued" | "executed" | "discarded";
 
 export interface Action {
   id: string;

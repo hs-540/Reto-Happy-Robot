@@ -199,7 +199,7 @@ Resource `status`: `available` | `in_transit` | `assigned`.
 ```
 
 `Decision.provokesReplan` marks the ticks that regenerate the global plan. The rest are incremental adjustments.
-`Action.status` is born directly as `executed`: the agent's actions run without a human confirmation gate.
+`Action.status` is born `queued` for a `voice_call` — the call waits on a line in the call queue — and `executed` when it goes out straight away (a `chat_message`, or a decision's contact action). When the queue dials the call it publishes a second `action` entry with the same `actionId` and status `executed`; a call the queue drops, evicts or finds stale publishes `discarded`. There is still no human confirmation gate.
 
 ## GET /api/feed?since=<seq>
 
@@ -211,11 +211,13 @@ Returns only what is new. The frontend accumulates and dedups by `seq`.
     { "seq": 18, "ts": "2026-09-18T10:03:40.000Z", "kind": "alarm", "elementId": "dc-01", "metric": "temperature", "value": 48, "severity": 70 },
     { "seq": 19, "ts": "2026-09-18T10:03:41.000Z", "kind": "decision", "elementId": "dc-01", "decisionId": "dec-005", "priority": 2, "reasoning": "Reassigning resources to the datacenter…", "provokesReplan": false },
     { "seq": 20, "ts": "2026-09-18T10:03:42.000Z", "kind": "action", "elementId": "dc-01", "actionId": "act-008", "type": "chat_message", "status": "executed", "message": "Preventive shutdown of the hot aisles." },
-    { "seq": 21, "ts": "2026-09-18T10:03:43.000Z", "kind": "system", "message": "Full re-plan: crew misses its ETA." },
-    { "seq": 22, "ts": "2026-09-18T10:03:44.000Z", "kind": "report", "source": "emergency_call", "text": "My father is on a home ventilator and the power is out", "elementId": null },
-    { "seq": 23, "ts": "2026-09-18T10:04:31.000Z", "kind": "outcome", "elementId": "sub-01", "actionId": "act-007", "outcome": "refused", "delayMinutes": 22, "summary": "The crew chief refuses to abandon the repair half-done." }
+    { "seq": 21, "ts": "2026-09-18T10:03:42.000Z", "kind": "action", "elementId": "hosp-01", "actionId": "act-009", "type": "voice_call", "status": "queued", "message": "The hospital is minutes from its limit: the crew must leave now." },
+    { "seq": 22, "ts": "2026-09-18T10:03:50.000Z", "kind": "action", "elementId": "hosp-01", "actionId": "act-009", "type": "voice_call", "status": "executed", "message": "The hospital is minutes from its limit: the crew must leave now." },
+    { "seq": 23, "ts": "2026-09-18T10:03:43.000Z", "kind": "system", "message": "Full re-plan: crew misses its ETA." },
+    { "seq": 24, "ts": "2026-09-18T10:03:44.000Z", "kind": "report", "source": "emergency_call", "text": "My father is on a home ventilator and the power is out", "elementId": null },
+    { "seq": 25, "ts": "2026-09-18T10:04:31.000Z", "kind": "outcome", "elementId": "sub-01", "actionId": "act-007", "outcome": "refused", "delayMinutes": 22, "summary": "The crew chief refuses to abandon the repair half-done." }
   ],
-  "lastSeq": 23
+  "lastSeq": 25
 }
 ```
 
