@@ -44,10 +44,58 @@
       "note": "Traffic lights out and nobody directing: any journey through the area takes up to twice as long. Regulating the junction returns travel times to normal."
     },
     {
+      "from": "sub-02",
+      "to": "hosp-02",
+      "type": "supplies",
+      "note": "The El Bercial hospital hangs off the north substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-02",
+      "to": "dc-02",
+      "type": "supplies",
+      "note": "The east datacenter hangs off the same north ring."
+    },
+    {
+      "from": "sub-02",
+      "to": "tower-02",
+      "type": "supplies",
+      "note": "The east tower hangs off the north ring; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-02",
+      "to": "fuel-02",
+      "type": "supplies",
+      "note": "The M-409 pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-03",
+      "to": "hosp-03",
+      "type": "supplies",
+      "note": "The east medical centre hangs off the west substation."
+    },
+    {
+      "from": "sub-03",
+      "to": "tower-03",
+      "type": "supplies",
+      "note": "The Las Margaritas tower hangs off the west substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-03",
+      "to": "junction-02",
+      "type": "supplies",
+      "note": "The España roundabout lights hang off the west substation."
+    },
+    {
       "from": "fuel-01",
       "to": "tanker-1",
       "type": "refuels",
       "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-02",
+      "to": "tanker-2",
+      "type": "refuels",
+      "note": "The second tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
     }
   ]
 }

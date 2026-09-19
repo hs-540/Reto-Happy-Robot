@@ -55,6 +55,87 @@
       "lng": -3.7156,
       "status": "normal",
       "criticality": 35
+    },
+    {
+      "id": "sub-02",
+      "type": "substation",
+      "name": "Getafe-Norte Substation",
+      "lat": 40.3148,
+      "lng": -3.7182,
+      "status": "normal",
+      "criticality": 65
+    },
+    {
+      "id": "sub-03",
+      "type": "substation",
+      "name": "Las Margaritas Substation",
+      "lat": 40.3012,
+      "lng": -3.7437,
+      "status": "normal",
+      "criticality": 60
+    },
+    {
+      "id": "hosp-02",
+      "type": "hospital",
+      "name": "El Bercial University Hospital",
+      "lat": 40.3181,
+      "lng": -3.7358,
+      "status": "normal",
+      "criticality": 90
+    },
+    {
+      "id": "hosp-03",
+      "type": "hospital",
+      "name": "Getafe East Medical Centre",
+      "lat": 40.3036,
+      "lng": -3.7041,
+      "status": "normal",
+      "criticality": 85
+    },
+    {
+      "id": "dc-02",
+      "type": "datacenter",
+      "name": "Los Ángeles Edge Datacenter",
+      "lat": 40.3061,
+      "lng": -3.7062,
+      "status": "normal",
+      "criticality": 55
+    },
+    {
+      "id": "tower-02",
+      "type": "tower",
+      "name": "Getafe East Comms Tower",
+      "lat": 40.3139,
+      "lng": -3.7038,
+      "status": "normal",
+      "criticality": 70
+    },
+    {
+      "id": "tower-03",
+      "type": "tower",
+      "name": "Las Margaritas Telecoms Tower",
+      "lat": 40.2991,
+      "lng": -3.7473,
+      "status": "normal",
+      "criticality": 65
+    },
+    {
+      "id": "fuel-02",
+      "type": "fuel_station",
+      "name": "M-409 Service Station",
+      "lat": 40.3169,
+      "lng": -3.7136,
+      "status": "normal",
+      "criticality": 45
+    },
+    {
+      "id": "junction-02",
+      "type": "junction",
+      "name": "Av. España Roundabout Junction",
+      "lat": 40.3081,
+      "lng": -3.7262,
+      "status": "normal",
+      "criticality": 40
     }
   ],
   "resources": [
@@ -97,6 +178,46 @@
       "assignedElementId": null,
       "lat": 40.3062,
       "lng": -3.7191
+    },
+    {
+      "id": "crew-2",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.3041,
+      "lng": -3.7247
+    },
+    {
+      "id": "generator-3",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.3112,
+      "lng": -3.721
+    },
+    {
+      "id": "generator-4",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.3112,
+      "lng": -3.721
+    },
+    {
+      "id": "tanker-2",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.3126,
+      "lng": -3.7168
+    },
+    {
+      "id": "police-2",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.3147,
+      "lng": -3.7238
     }
   ],
   "timeline": [
@@ -230,6 +351,17 @@
     },
     {
       "atSeconds": 66,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-019",
+        "elementId": "sub-02",
+        "metric": "grid_voltage",
+        "value": 20,
+        "severity": 85
+      }
+    },
+    {
+      "atSeconds": 66,
       "kind": "report",
       "payload": {
         "id": "rep-005",
@@ -259,6 +391,16 @@
       }
     },
     {
+      "atSeconds": 90,
+      "kind": "report",
+      "payload": {
+        "id": "rep-036",
+        "source": "social",
+        "text": "The whole of El Bercial district is dark, not just the centre",
+        "elementId": null
+      }
+    },
+    {
       "atSeconds": 96,
       "kind": "report",
       "payload": {
@@ -276,6 +418,17 @@
         "source": "field",
         "text": "Patrol 14 reports: traffic lights out on Av. Juan Carlos I, slow-moving traffic",
         "elementId": "junction-01"
+      }
+    },
+    {
+      "atSeconds": 102,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-020",
+        "elementId": "hosp-02",
+        "metric": "grid_voltage",
+        "value": 10,
+        "severity": 80
       }
     },
     {
@@ -299,6 +452,17 @@
       }
     },
     {
+      "atSeconds": 126,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-021",
+        "elementId": "dc-02",
+        "metric": "grid_voltage",
+        "value": 9,
+        "severity": 75
+      }
+    },
+    {
       "atSeconds": 144,
       "kind": "sensor_event",
       "payload": {
@@ -307,6 +471,16 @@
         "metric": "ups_load",
         "value": 35,
         "severity": 25
+      }
+    },
+    {
+      "atSeconds": 150,
+      "kind": "report",
+      "payload": {
+        "id": "rep-037",
+        "source": "field",
+        "text": "Getafe-Norte substation: breaker bank tripped, no restoration ETA",
+        "elementId": "sub-02"
       }
     },
     {
@@ -320,6 +494,17 @@
       }
     },
     {
+      "atSeconds": 156,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-022",
+        "elementId": "tower-02",
+        "metric": "grid_voltage",
+        "value": 8,
+        "severity": 70
+      }
+    },
+    {
       "atSeconds": 186,
       "kind": "report",
       "payload": {
@@ -327,6 +512,27 @@
         "source": "social",
         "text": "My router has had no signal for 20 minutes",
         "elementId": null
+      }
+    },
+    {
+      "atSeconds": 186,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-023",
+        "elementId": "fuel-02",
+        "metric": "grid_voltage",
+        "value": 8,
+        "severity": 60
+      }
+    },
+    {
+      "atSeconds": 198,
+      "kind": "report",
+      "payload": {
+        "id": "rep-038",
+        "source": "emergency_call",
+        "text": "Caller says the El Bercial hospital is switching everything over to generators",
+        "elementId": "hosp-02"
       }
     },
     {
@@ -340,6 +546,17 @@
       }
     },
     {
+      "atSeconds": 222,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-024",
+        "elementId": "junction-02",
+        "metric": "congestion",
+        "value": 18,
+        "severity": 55
+      }
+    },
+    {
       "atSeconds": 228,
       "kind": "report",
       "payload": {
@@ -347,6 +564,16 @@
         "source": "press",
         "text": "Interview request for the 3pm news bulletin",
         "elementId": null
+      }
+    },
+    {
+      "atSeconds": 234,
+      "kind": "report",
+      "payload": {
+        "id": "rep-039",
+        "source": "social",
+        "text": "Is that smoke coming from the edge datacenter by Los Ángeles? Hard to tell",
+        "elementId": "dc-02"
       }
     },
     {
@@ -372,6 +599,17 @@
       }
     },
     {
+      "atSeconds": 264,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-025",
+        "elementId": "hosp-03",
+        "metric": "grid_voltage",
+        "value": 10,
+        "severity": 80
+      }
+    },
+    {
       "atSeconds": 276,
       "kind": "sensor_event",
       "payload": {
@@ -383,6 +621,16 @@
       }
     },
     {
+      "atSeconds": 282,
+      "kind": "report",
+      "payload": {
+        "id": "rep-040",
+        "source": "field",
+        "text": "Traffic lights out at the España roundabout, jams forming on every approach",
+        "elementId": "junction-02"
+      }
+    },
+    {
       "atSeconds": 294,
       "kind": "report",
       "payload": {
@@ -390,6 +638,58 @@
         "source": "field",
         "text": "Datacenter technician confirms a hot aisle in row B",
         "elementId": "dc-01"
+      }
+    },
+    {
+      "atSeconds": 300,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-026",
+        "elementId": "tower-03",
+        "metric": "grid_voltage",
+        "value": 8,
+        "severity": 65
+      }
+    },
+    {
+      "atSeconds": 312,
+      "kind": "report",
+      "payload": {
+        "id": "rep-041",
+        "source": "press",
+        "text": "Local radio asks whether the western districts are affected too",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 324,
+      "kind": "report",
+      "payload": {
+        "id": "rep-042",
+        "source": "faulty_sensor",
+        "text": "Temperature probe H-2 at the east medical centre reads -3 °C — impossible",
+        "elementId": "hosp-03"
+      }
+    },
+    {
+      "atSeconds": 336,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-027",
+        "elementId": "sub-03",
+        "metric": "grid_voltage",
+        "value": 25,
+        "severity": 80
+      }
+    },
+    {
+      "atSeconds": 348,
+      "kind": "report",
+      "payload": {
+        "id": "rep-043",
+        "source": "field",
+        "text": "Las Margaritas substation operators confirm a total outage on the west ring",
+        "elementId": "sub-03"
       }
     },
     {
@@ -404,6 +704,17 @@
       }
     },
     {
+      "atSeconds": 366,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-028",
+        "elementId": "junction-02",
+        "metric": "grid_voltage",
+        "value": 0,
+        "severity": 50
+      }
+    },
+    {
       "atSeconds": 378,
       "kind": "report",
       "payload": {
@@ -411,6 +722,16 @@
         "source": "field",
         "text": "Intermittent mobile coverage in the north; some calls are not getting through",
         "elementId": "tower-01"
+      }
+    },
+    {
+      "atSeconds": 396,
+      "kind": "report",
+      "payload": {
+        "id": "rep-044",
+        "source": "social",
+        "text": "No mobile coverage in Las Margaritas since the blackout began",
+        "elementId": "tower-03"
       }
     },
     {
@@ -466,6 +787,17 @@
       }
     },
     {
+      "atSeconds": 510,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-029",
+        "elementId": "dc-02",
+        "metric": "ups_load",
+        "value": 18,
+        "severity": 55
+      }
+    },
+    {
       "atSeconds": 540,
       "kind": "sensor_event",
       "note": "Moment 4 — the hospital loses its backup generator: a direct conflict over resources.",
@@ -509,6 +841,17 @@
       }
     },
     {
+      "atSeconds": 600,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-030",
+        "elementId": "hosp-02",
+        "metric": "fuel",
+        "value": 20,
+        "severity": 65
+      }
+    },
+    {
       "atSeconds": 606,
       "kind": "report",
       "payload": {
@@ -516,6 +859,16 @@
         "source": "press",
         "text": "Can you confirm an incident at the Regional Hospital?",
         "elementId": null
+      }
+    },
+    {
+      "atSeconds": 624,
+      "kind": "report",
+      "payload": {
+        "id": "rep-045",
+        "source": "emergency_call",
+        "text": "Dialysis patient asks whether the El Bercial hospital still has power",
+        "elementId": "hosp-02"
       }
     },
     {
@@ -547,6 +900,81 @@
         "source": "field",
         "text": "A-42 service station: pumps have no power, unable to dispense",
         "elementId": "fuel-01"
+      }
+    },
+    {
+      "atSeconds": 684,
+      "kind": "report",
+      "payload": {
+        "id": "rep-046",
+        "source": "field",
+        "text": "M-409 service station: pumps dead, ambulances queuing for diesel",
+        "elementId": "fuel-02"
+      }
+    },
+    {
+      "atSeconds": 690,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-031",
+        "elementId": "tower-02",
+        "metric": "tower_battery",
+        "value": 30,
+        "severity": 55
+      }
+    },
+    {
+      "atSeconds": 720,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-032",
+        "elementId": "fuel-02",
+        "metric": "fuel",
+        "value": 25,
+        "severity": 45
+      }
+    },
+    {
+      "atSeconds": 756,
+      "kind": "report",
+      "payload": {
+        "id": "rep-047",
+        "source": "social",
+        "text": "The lights at the east medical centre keep flickering, is anyone on it?",
+        "elementId": "hosp-03"
+      }
+    },
+    {
+      "atSeconds": 780,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-033",
+        "elementId": "hosp-03",
+        "metric": "generator_battery",
+        "value": 22,
+        "severity": 75
+      }
+    },
+    {
+      "atSeconds": 840,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-034",
+        "elementId": "junction-02",
+        "metric": "congestion",
+        "value": 26,
+        "severity": 62
+      }
+    },
+    {
+      "atSeconds": 876,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-035",
+        "elementId": "tower-03",
+        "metric": "tower_battery",
+        "value": 28,
+        "severity": 50
       }
     },
     {
@@ -600,6 +1028,17 @@
       }
     },
     {
+      "atSeconds": 1002,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-036",
+        "elementId": "dc-02",
+        "metric": "temperature",
+        "value": 44,
+        "severity": 65
+      }
+    },
+    {
       "atSeconds": 1008,
       "kind": "report",
       "payload": {
@@ -642,12 +1081,108 @@
       }
     },
     {
+      "atSeconds": 1092,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-037",
+        "elementId": "hosp-02",
+        "metric": "generator_battery",
+        "value": 20,
+        "severity": 80
+      }
+    },
+    {
+      "atSeconds": 1098,
+      "kind": "report",
+      "payload": {
+        "id": "rep-048",
+        "source": "press",
+        "text": "Council press office asks how many substations are actually down",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 1158,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-038",
+        "elementId": "tower-02",
+        "metric": "tower_battery",
+        "value": 18,
+        "severity": 78
+      }
+    },
+    {
+      "atSeconds": 1224,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-039",
+        "elementId": "hosp-03",
+        "metric": "fuel",
+        "value": 14,
+        "severity": 72
+      }
+    },
+    {
+      "atSeconds": 1260,
+      "kind": "report",
+      "payload": {
+        "id": "rep-049",
+        "source": "emergency_call",
+        "text": "Crowd building at the España roundabout crossing, vehicles cannot move",
+        "elementId": "junction-02"
+      }
+    },
+    {
+      "atSeconds": 1290,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-040",
+        "elementId": "tower-03",
+        "metric": "tower_battery",
+        "value": 17,
+        "severity": 76
+      }
+    },
+    {
+      "atSeconds": 1356,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-041",
+        "elementId": "dc-02",
+        "metric": "ups_load",
+        "value": 12,
+        "severity": 68
+      }
+    },
+    {
+      "atSeconds": 1422,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-042",
+        "elementId": "sub-03",
+        "metric": "grid_voltage",
+        "value": 18,
+        "severity": 85
+      }
+    },
+    {
       "atSeconds": 1458,
       "kind": "report",
       "payload": {
         "id": "rep-034",
         "source": "social",
         "text": "THE POWER IS BACK 🎉",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 1470,
+      "kind": "report",
+      "payload": {
+        "id": "rep-050",
+        "source": "social",
+        "text": "Still no power on our street, going on nine hours",
         "elementId": null
       }
     },

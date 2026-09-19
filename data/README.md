@@ -7,7 +7,7 @@ the JSON, leaving the agent decorative.
 
 | File | What it is | Loaded by |
 | --- | --- | --- |
-| `scripts/madrid-blackout.json` | The timed event script | `loadScript` (`backend/src/script.ts`) |
+| `scripts/madrid-blackout.json` | The timed event script: 15 places, 10 resources and the timeline that breaks them | `loadScript` (`backend/src/script.ts`) |
 | `topology.json` | Dependency graph of the scenario | `loadTopology` (`shared/src/loaders.ts`) |
 | `remedies.json` | What fixes what, and who to call | `loadRemedies` |
 | `roads.json` | Routable graph of the real Getafe street network (© OpenStreetMap contributors): `nodes` are `[lat, lng]` pairs, `edges` are directed node pairs (oneway streets only allow their real direction). Regenerate with the Overpass API; keep the largest connected component. | `loadRoads` (`shared/src/loaders.ts`) |
@@ -17,7 +17,8 @@ the JSON, leaving the agent decorative.
 
 A flat list of `edges` (`from`, `to`, `type`, `note`). `to` may be `"*"` when the
 edge affects the whole scenario. This graph is what turns a set of failing sites
-into an actual problem: without it, six incidents are six independent chores.
+into an actual problem: without it, fifteen incidents are fifteen independent
+chores.
 
 | Edge type | Meaning | Enforced by |
 | --- | --- | --- |
@@ -29,11 +30,16 @@ into an actual problem: without it, six incidents are six independent chores.
 What the current graph says, and why each edge earns its place:
 
 - **`sub-01` supplies `hosp-01`, `dc-01`, `tower-01`, `fuel-01`, `junction-01`.**
-  This is the whole shape of the scenario. Repairing the substation takes 18
+  This is the whole shape of the central ring. Repairing the substation takes 18
   minutes and restores **five** dependents at once, while a generator takes 5
   minutes and saves one. The agent has to decide between the slow fix with the
   widest coverage and the fast patch it can afford right now — and the hospital
   clock (8 minutes) is shorter than the repair.
+- **`sub-02` supplies `hosp-02`, `dc-02`, `tower-02`, `fuel-02`** (north ring) and
+  **`sub-03` supplies `hosp-03`, `tower-03`, `junction-02`** (west ring). Three
+  substations can fail but only **two crews** exist: whichever ring the agent
+  leaves for later stays dark, and every dependent on it keeps burning its own
+  clock.
 - **`tower-01` enables_comms `*`.** The tower runs on its own batteries while the
   grid is down. If it dies, the coordinator loses every channel to every person:
   the agent's only lever over humans is gone. That is why `tower` weighs almost
@@ -41,8 +47,9 @@ What the current graph says, and why each edge earns its place:
 - **`junction-01` enables_transit `*`.** Traffic lights out and nobody directing:
   every journey takes twice as long. Sending the police unit there saves nobody
   directly and makes every other resource arrive on time.
-- **`fuel-01` refuels `tanker-1`.** The pumps are electric. With the station
-  down, once the tanker runs dry it can no longer refuel generators.
+- **`fuel-01` refuels `tanker-1`, `fuel-02` refuels `tanker-2`.** The pumps are
+  electric. With the stations down, once a tanker runs dry it can no longer
+  refuel generators.
 
 `enables_comms` and `refuels` are **not simulated**: `world.ts` does not cut
 communications when the tower falls, and does not empty the tanker. Both edges
@@ -74,7 +81,7 @@ prompt so the agent can reason about preconditions; the machine-enforced version
 of `requires` for generators is the `generator-without-fuel` blocking rule in
 `shared/src/rules.json`.
 
-**`contacts`**: the seven people the agent can reach. Each has an `id` (the
+**`contacts`**: the twelve people the agent can reach. Each has an `id` (the
 handle the LLM uses), `name`, `role`, a `phone` HappyRobot dials, and either a
 `resourceId` (they lead that resource) or an `elementId` (they answer for that
 site). `$note` carries how they behave — the crew chief, for instance, can refuse
@@ -90,11 +97,12 @@ dropped with a note in the feed rather than dialled.
 ## `scripts/` — the event script
 
 `madrid-blackout.json` is the timed timeline of the Madrid regional blackout:
-`title`, `durationSeconds` (1800) and 54 entries, each with `atSeconds`, a
-`kind` and a `payload`.
+`title`, `durationSeconds` (1800) and 93 entries, each with `atSeconds`, a
+`kind` and a `payload`. It covers **15 places** and **10 resources** — fewer
+resources than places with problems, so triage is unavoidable.
 
-- `sensor_event` (18) — a reading: `elementId`, `metric`, `value`, `severity`.
-- `report` (35) — a raw signal from `social`, `press`, `emergency_call`, `field`
+- `sensor_event` (42) — a reading: `elementId`, `metric`, `value`, `severity`.
+- `report` (50) — a raw signal from `social`, `press`, `emergency_call`, `field`
   or `faulty_sensor`, with a free-text `text` and a possibly `null` `elementId`.
   Most are noise. Triaging them is the agent's job, and the needle — a citizen
   reporting a relative on a home ventilator — will never show up in a sensor.

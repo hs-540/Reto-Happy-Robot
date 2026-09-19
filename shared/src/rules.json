@@ -71,10 +71,10 @@
   "resources": {
     "$comment": "Total scenario capacity (DESIGN.md). Mutual exclusion: one resource serves one element at a time.",
     "capacity": {
-      "crew": 1,
-      "generator": 2,
-      "tanker": 1,
-      "police": 1
+      "crew": 2,
+      "generator": 4,
+      "tanker": 2,
+      "police": 2
     }
   },
   "priority": {

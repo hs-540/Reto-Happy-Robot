@@ -21,6 +21,25 @@ test("the topology models the cascade: sub-01 falling drags everything it suppli
   }
 });
 
+test("the north and west rings cascade through sub-02 and sub-03", () => {
+  const north = dependentsOf(topology, "sub-02");
+  for (const id of ["hosp-02", "dc-02", "tower-02", "fuel-02"]) {
+    assert.ok(north.includes(id), `${id} should hang off sub-02`);
+  }
+  const west = dependentsOf(topology, "sub-03");
+  for (const id of ["hosp-03", "tower-03", "junction-02"]) {
+    assert.ok(west.includes(id), `${id} should hang off sub-03`);
+  }
+});
+
+test("each tanker has a station that refuels it", () => {
+  for (const tanker of ["tanker-1", "tanker-2"]) {
+    const edge = topology.edges.find((e) => e.type === "refuels" && e.to === tanker);
+    assert.ok(edge, `${tanker} has no refuelling station`);
+    assert.ok(edge.from.startsWith("fuel-"), `${tanker} refuels at ${edge.from}`);
+  }
+});
+
 test("the global couplings of tower and junction are declared", () => {
   const comms = topology.edges.find((e) => e.type === "enables_comms");
   const transit = topology.edges.find((e) => e.type === "enables_transit");
@@ -53,6 +72,10 @@ test("every contact points at a resource or an element, never at nothing", () =>
     assert.ok(c.name.length > 0 && c.role.length > 0, `${c.id} has no name or role`);
   }
   assert.ok(remedies.contacts.some((c) => c.resourceId === "crew-1"), "the crew chief is missing");
+  assert.ok(
+    remedies.contacts.some((c) => c.resourceId === "crew-2"),
+    "the second crew has no chief to call",
+  );
 });
 
 test("generator-without-fuel blocks deploying a dry generator", () => {

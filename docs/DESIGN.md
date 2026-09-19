@@ -55,6 +55,19 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > its ETA (900 s). A demo run still fits in minutes; the extra clock is headroom
 > for the resolution to play out, not 30 minutes of material.
 
+> **Superseded — the scenario went city-wide (`data/scripts/madrid-blackout.json`).**
+> Six places and five resources made triage trivial: almost every site could get
+> something. The map is now **15 places** (3 substations, 3 hospitals,
+> 2 datacenters, 3 towers, 2 fuel stations, 2 junctions) wired as **three
+> dependency rings** — sub-01 in the centre, sub-02 in the north, sub-03 in the
+> west — with **10 resources** (2 crews, 4 generators, 2 tankers, 2 police).
+> Resources stay deliberately **fewer than the places with problems**, so at
+> least five sites go unserved at any moment and the priority formula has real
+> work to do. The timeline grew to **93 entries** (42 sensor events, 50 reports,
+> 1 narrative); the five key moments keep their slots (0/240/450/540/900 s) and
+> the new rings degrade around them. Capacity lives in `shared/src/rules.json`
+> (`resources.capacity`); `docs/RULES.md` §4 records the trade-off.
+
 ## Decision engine
 
 - **Hybrid**: a **hard rules** layer (non-negotiable constraints, e.g. time limits without power at hospitals) + an **LLM** that reasons and decides within those rules, also generating the natural-language explanation of its prioritization.
