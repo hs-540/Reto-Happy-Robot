@@ -222,6 +222,9 @@ its reasoning — published to the feed as `directive_response`.
   until the operator withdraws it; an answered order leaves the list (one-shot).
 - Any open directive wakes the engine outside the regular cadence and marks the decisions
   of that tick as `provokesReplan`.
+- Only the directives a deliberation actually read may be answered: one that lands while the
+  model is already thinking — or while the engine is in deterministic contingency mode —
+  stays `open` for the next deliberation instead of being consumed unheard.
 
 ## GET /api/feed?since=<seq>
 
