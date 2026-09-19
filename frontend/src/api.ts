@@ -19,6 +19,7 @@ export const getState = () => getJson<StateView>('/api/state')
 
 export const getAgent = () => getJson<AgentView>('/api/agent')
 
+/** Solo lo nuevo: el cliente acumula por `seq` (CONTRACT.md, regla de oro 6) */
 export const getFeed = (since: number) => getJson<FeedResponse>(`/api/feed?since=${since}`)
 
 /** Acción del operador: la respuesta del POST es el feedback, no espera al poll */
