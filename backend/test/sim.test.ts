@@ -1,15 +1,30 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import type { FeedItem } from "@swarmup/shared";
+import { cargarRemedios, cargarTopologia, type FeedItem } from "@swarmup/shared";
 import { crearFeed, type Feed } from "../src/feed.js";
 import { cargarGuion, type Guion } from "../src/guion.js";
 import { crearMundo } from "../src/mundo.js";
-import { crearSimulacion, TICK_SEGUNDOS, type CierreIncidente } from "../src/sim.js";
+import {
+  ESCALA_TIEMPO,
+  crearSimulacion,
+  TICK_SEGUNDOS,
+  type CierreIncidente,
+} from "../src/sim.js";
 
 const rutaGuion = fileURLToPath(new URL("../../data/scripts/apagon-madrid.json", import.meta.url));
+const remediosDemo = cargarRemedios(
+  fileURLToPath(new URL("../../data/remedios.json", import.meta.url)),
+);
+const topologiaDemo = cargarTopologia(
+  fileURLToPath(new URL("../../data/topologia.json", import.meta.url)),
+);
 const INICIO_MS = Date.parse("2026-09-19T10:00:00.000Z");
-const DURACION = 300;
+/** Segundos REALES que dura la demo: el guion va en segundos de crisis y la
+ *  simulación avanza a ESCALA_TIEMPO, así que recorrerla cuesta 1/escala. */
+const DURACION = Math.ceil(
+  cargarGuion(rutaGuion).duracionSegundos / ESCALA_TIEMPO,
+);
 
 function relojIso(seg: number): string {
   return new Date(INICIO_MS + seg * 1000).toISOString();
@@ -79,7 +94,7 @@ function contenido(items: FeedItem[]): ItemEsperado[] {
 function simNueva(): { sim: ReturnType<typeof crearSimulacion>; feed: Feed } {
   const feed = crearFeed();
   const guion = cargarGuion(rutaGuion);
-  const sim = crearSimulacion(guion, INICIO_MS, feed, crearMundo(guion));
+  const sim = crearSimulacion(guion, INICIO_MS, feed, crearMundo(guion, remediosDemo, topologiaDemo));
   return { sim, feed };
 }
 
@@ -125,7 +140,7 @@ test("los momentos clave ocurren en orden y en su segundo exacto", () => {
 
   let publicado = 0;
   for (const momento of momentos) {
-    sim.avanzar(INICIO_MS + momento.atSeconds * 1000);
+    sim.avanzar(INICIO_MS + (momento.atSeconds / ESCALA_TIEMPO) * 1000);
     const nuevos = feed.desde(publicado);
     publicado = feed.ultimoSeq();
     assert.ok(nuevos.length > 0, `el momento t=${momento.atSeconds}s no publicó nada`);
@@ -148,10 +163,11 @@ test("los momentos clave ocurren en orden y en su segundo exacto", () => {
     assert.equal(ultimo.mensaje, momento.nota);
   }
 
-  // momento 5: la subestación lleva 60s estable con tensión restaurada → incidente cerrado
+  // el guion ya no regala la resolución: sin acción del agente, la subestación
+  // sigue caída al acabar. Recuperarla es mérito suyo, no del guion.
   sim.avanzar(INICIO_MS + DURACION * 1000);
   const sub = sim.estado().elementos.find((e) => e.id === "sub-01");
-  assert.equal(sub?.status, "resuelto");
+  assert.notEqual(sub?.status, "resuelto", "nadie reparó nada: no puede estar resuelto");
 });
 
 test("reiniciar deja el estado inicial reproducible y una repetición idéntica", () => {
@@ -182,26 +198,40 @@ test("al resolverse un incidente se entrega un cierre único por elemento", () =
   const cierres: CierreIncidente[] = [];
   const feed = crearFeed();
   const guion = cargarGuion(rutaGuion);
+  const mundo = crearMundo(guion, remediosDemo, topologiaDemo);
   const sim = crearSimulacion(
     guion,
     INICIO_MS,
     feed,
-    crearMundo(guion),
+    mundo,
     (cierre) => cierres.push(cierre),
   );
   sim.iniciar(INICIO_MS);
-  recorrer(sim);
+  sim.avanzar(INICIO_MS + 2_000);
 
-  // la subestación es el origen: se repara primero y cierra antes que nadie
+  // la brigada repara la subestación: es la ACCIÓN la que resuelve, no el guion
+  assert.equal(mundo.asignar("brigada-1", "sub-01", sim.segundos()).ok, true);
+  for (let real = 5; real <= DURACION; real += 5) {
+    sim.avanzar(INICIO_MS + real * 1000);
+    for (const ev of mundo.avanzar(sim.segundos(), sim.estado().elementos)) {
+      if (ev.tipo === "remedio_aplicado") {
+        sim.inyectar({
+          elementId: ev.elementId,
+          metric: ev.metric,
+          value: ev.value,
+          severidad: ev.severidad,
+        });
+      }
+    }
+  }
+
+  assert.ok(cierres.length > 0, "reparar la subestación debe cerrar su incidente");
   assert.equal(cierres[0]?.elementoId, "sub-01");
   assert.equal(cierres[0]?.tipo, "subestacion");
   assert.equal(cierres[0]?.severidadMaxima, 90);
 
-  // el resto cierra al cumplir su propia estabilidad; ninguno se repite
-  sim.avanzar(INICIO_MS + 325 * 1000);
   const ids = cierres.map((c) => c.elementoId);
   assert.deepEqual(ids, [...new Set(ids)], "cada elemento entrega un único cierre");
-  assert.ok(ids.includes("dc-01"), "el datacenter también cierra tras estabilizarse");
 });
 
 test("inyectar aplica un sensor event inmediato y lo emite en el feed", () => {
@@ -216,7 +246,7 @@ test("inyectar aplica un sensor event inmediato y lo emite en el feed", () => {
   assert.equal(dc?.sensores.temperatura, 55);
   assert.equal(dc?.severidad, 80);
   assert.equal(dc?.status, "critico");
-  assert.equal(dc?.actualizadoEn, relojIso(10));
+  assert.equal(dc?.actualizadoEn, relojIso(10 * ESCALA_TIEMPO));
 
   const nuevos = feed.desde(seqAntes);
   assert.equal(nuevos.length, 1);

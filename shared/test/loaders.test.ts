@@ -14,10 +14,10 @@ const rutaHistorico = (tipo: string) =>
 test("el guion actual valida sin errores", () => {
   const guion = cargarGuion(rutaGuion);
   assert.equal(guion.titulo, "Apagón en cascada — Getafe, Comunidad de Madrid");
-  assert.equal(guion.duracionSegundos, 300);
+  assert.equal(guion.duracionSegundos, 1800);
   assert.equal(guion.elements.length, 6);
   assert.equal(guion.resources.length, 5);
-  assert.equal(guion.timeline.length, 63);
+  assert.equal(guion.timeline.length, 54);
 });
 
 test("los históricos actuales validan sin errores", () => {

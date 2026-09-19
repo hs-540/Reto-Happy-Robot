@@ -19,6 +19,15 @@ import type { Mundo } from "./mundo.js";
 /** Cadencia del motor de decisión (DESIGN.md): tick cada 5-10s */
 export const TICK_SEGUNDOS = 5;
 
+/**
+ * Segundos de crisis por segundo real. Los números del dominio son realistas
+ * (un hospital aguanta 8 min sin energía, reparar una subestación lleva 25),
+ * pero una demo dura 5 minutos: a 1:1 ninguno de esos plazos llegaba a vencer.
+ * A 6x, cinco minutos de demo son media hora de emergencia y todos los límites
+ * de rules.json y los tiempos de remedios.json pasan a significar algo.
+ */
+export const ESCALA_TIEMPO = 6;
+
 /** Retraso que sufre la cuadrilla en el momento 4 del guion */
 const RETRASO_ETA_SEG = 60;
 
@@ -197,7 +206,7 @@ export function crearSimulacion(
       }
       const deltaMs = ahoraMs - ultimoMs;
       ultimoMs = ahoraMs;
-      if (!pausado) segundos += deltaMs / 1000;
+      if (!pausado) segundos += (deltaMs / 1000) * ESCALA_TIEMPO;
       while (siguiente < timeline.length && timeline[siguiente].atSeconds <= segundos) {
         aplicarEvento(timeline[siguiente]);
         siguiente++;

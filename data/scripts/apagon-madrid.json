@@ -1,6 +1,6 @@
 {
   "titulo": "Apagón en cascada — Getafe, Comunidad de Madrid",
-  "duracionSegundos": 300,
+  "duracionSegundos": 1800,
   "elements": [
     {
       "id": "sub-01",
@@ -113,7 +113,7 @@
       "nota": "Momento 1 — apagón en la subestación Getafe-Sur: caen todos los sitios que alimenta."
     },
     {
-      "atSeconds": 2,
+      "atSeconds": 12,
       "kind": "reporte",
       "payload": {
         "id": "rep-001",
@@ -123,7 +123,7 @@
       }
     },
     {
-      "atSeconds": 3,
+      "atSeconds": 18,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-002",
@@ -134,7 +134,7 @@
       }
     },
     {
-      "atSeconds": 4,
+      "atSeconds": 24,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-003",
@@ -145,7 +145,7 @@
       }
     },
     {
-      "atSeconds": 4,
+      "atSeconds": 24,
       "kind": "reporte",
       "payload": {
         "id": "rep-002",
@@ -155,7 +155,7 @@
       }
     },
     {
-      "atSeconds": 5,
+      "atSeconds": 30,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-004",
@@ -166,7 +166,7 @@
       }
     },
     {
-      "atSeconds": 6,
+      "atSeconds": 36,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-005",
@@ -177,7 +177,7 @@
       }
     },
     {
-      "atSeconds": 6,
+      "atSeconds": 36,
       "kind": "reporte",
       "payload": {
         "id": "rep-003",
@@ -187,7 +187,7 @@
       }
     },
     {
-      "atSeconds": 7,
+      "atSeconds": 42,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-006",
@@ -198,7 +198,7 @@
       }
     },
     {
-      "atSeconds": 8,
+      "atSeconds": 48,
       "kind": "reporte",
       "payload": {
         "id": "rep-004",
@@ -208,7 +208,7 @@
       }
     },
     {
-      "atSeconds": 9,
+      "atSeconds": 54,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-007",
@@ -219,7 +219,7 @@
       }
     },
     {
-      "atSeconds": 10,
+      "atSeconds": 60,
       "kind": "reporte",
       "payload": {
         "id": "rep-009",
@@ -229,7 +229,7 @@
       }
     },
     {
-      "atSeconds": 11,
+      "atSeconds": 66,
       "kind": "reporte",
       "payload": {
         "id": "rep-005",
@@ -239,7 +239,7 @@
       }
     },
     {
-      "atSeconds": 13,
+      "atSeconds": 78,
       "kind": "reporte",
       "payload": {
         "id": "rep-006",
@@ -249,7 +249,7 @@
       }
     },
     {
-      "atSeconds": 14,
+      "atSeconds": 84,
       "kind": "reporte",
       "payload": {
         "id": "rep-010",
@@ -259,7 +259,7 @@
       }
     },
     {
-      "atSeconds": 16,
+      "atSeconds": 96,
       "kind": "reporte",
       "payload": {
         "id": "rep-007",
@@ -269,7 +269,7 @@
       }
     },
     {
-      "atSeconds": 17,
+      "atSeconds": 102,
       "kind": "reporte",
       "payload": {
         "id": "rep-011",
@@ -279,7 +279,7 @@
       }
     },
     {
-      "atSeconds": 19,
+      "atSeconds": 114,
       "kind": "reporte",
       "payload": {
         "id": "rep-008",
@@ -289,7 +289,7 @@
       }
     },
     {
-      "atSeconds": 21,
+      "atSeconds": 126,
       "kind": "reporte",
       "payload": {
         "id": "rep-012",
@@ -299,7 +299,7 @@
       }
     },
     {
-      "atSeconds": 24,
+      "atSeconds": 144,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-008",
@@ -310,7 +310,7 @@
       }
     },
     {
-      "atSeconds": 26,
+      "atSeconds": 156,
       "kind": "reporte",
       "payload": {
         "id": "rep-013",
@@ -320,7 +320,7 @@
       }
     },
     {
-      "atSeconds": 31,
+      "atSeconds": 186,
       "kind": "reporte",
       "payload": {
         "id": "rep-014",
@@ -330,7 +330,7 @@
       }
     },
     {
-      "atSeconds": 35,
+      "atSeconds": 210,
       "kind": "reporte",
       "payload": {
         "id": "rep-015",
@@ -340,7 +340,7 @@
       }
     },
     {
-      "atSeconds": 38,
+      "atSeconds": 228,
       "kind": "reporte",
       "payload": {
         "id": "rep-016",
@@ -350,7 +350,7 @@
       }
     },
     {
-      "atSeconds": 40,
+      "atSeconds": 240,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-009",
@@ -362,7 +362,7 @@
       "nota": "Momento 2 — el CPD empieza a sobrecalentarse con la UPS limitada."
     },
     {
-      "atSeconds": 43,
+      "atSeconds": 258,
       "kind": "reporte",
       "payload": {
         "id": "rep-017",
@@ -372,7 +372,7 @@
       }
     },
     {
-      "atSeconds": 46,
+      "atSeconds": 276,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-010",
@@ -383,7 +383,7 @@
       }
     },
     {
-      "atSeconds": 49,
+      "atSeconds": 294,
       "kind": "reporte",
       "payload": {
         "id": "rep-018",
@@ -393,7 +393,7 @@
       }
     },
     {
-      "atSeconds": 60,
+      "atSeconds": 360,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-011",
@@ -404,7 +404,7 @@
       }
     },
     {
-      "atSeconds": 63,
+      "atSeconds": 378,
       "kind": "reporte",
       "payload": {
         "id": "rep-019",
@@ -414,7 +414,7 @@
       }
     },
     {
-      "atSeconds": 70,
+      "atSeconds": 420,
       "kind": "reporte",
       "payload": {
         "id": "rep-020",
@@ -424,7 +424,7 @@
       }
     },
     {
-      "atSeconds": 75,
+      "atSeconds": 450,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-012",
@@ -436,7 +436,7 @@
       "nota": "Momento 3 — las baterías de la torre bajan: si cae, se pierde la capacidad de coordinar."
     },
     {
-      "atSeconds": 78,
+      "atSeconds": 468,
       "kind": "reporte",
       "payload": {
         "id": "rep-021",
@@ -446,7 +446,7 @@
       }
     },
     {
-      "atSeconds": 80,
+      "atSeconds": 480,
       "kind": "reporte",
       "payload": {
         "id": "rep-022",
@@ -456,7 +456,7 @@
       }
     },
     {
-      "atSeconds": 83,
+      "atSeconds": 498,
       "kind": "reporte",
       "payload": {
         "id": "rep-023",
@@ -466,7 +466,7 @@
       }
     },
     {
-      "atSeconds": 90,
+      "atSeconds": 540,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-013",
@@ -478,7 +478,7 @@
       "nota": "Momento 4 — el hospital pierde su generador de respaldo: conflicto directo de recursos."
     },
     {
-      "atSeconds": 92,
+      "atSeconds": 552,
       "kind": "reporte",
       "payload": {
         "id": "rep-024",
@@ -488,7 +488,7 @@
       }
     },
     {
-      "atSeconds": 95,
+      "atSeconds": 570,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-014",
@@ -499,7 +499,7 @@
       }
     },
     {
-      "atSeconds": 97,
+      "atSeconds": 582,
       "kind": "reporte",
       "payload": {
         "id": "rep-025",
@@ -509,7 +509,7 @@
       }
     },
     {
-      "atSeconds": 101,
+      "atSeconds": 606,
       "kind": "reporte",
       "payload": {
         "id": "rep-026",
@@ -519,7 +519,7 @@
       }
     },
     {
-      "atSeconds": 105,
+      "atSeconds": 630,
       "kind": "reporte",
       "payload": {
         "id": "rep-027",
@@ -529,7 +529,7 @@
       }
     },
     {
-      "atSeconds": 110,
+      "atSeconds": 660,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-015",
@@ -540,7 +540,7 @@
       }
     },
     {
-      "atSeconds": 112,
+      "atSeconds": 672,
       "kind": "reporte",
       "payload": {
         "id": "rep-028",
@@ -550,7 +550,7 @@
       }
     },
     {
-      "atSeconds": 150,
+      "atSeconds": 900,
       "kind": "narrative",
       "payload": {
         "resourceId": "brigada-1",
@@ -559,7 +559,7 @@
       "nota": "Momento 5 — la brigada no cumple su ETA: el plan contaba con ella y hay que replantear."
     },
     {
-      "atSeconds": 152,
+      "atSeconds": 912,
       "kind": "reporte",
       "payload": {
         "id": "rep-029",
@@ -569,7 +569,7 @@
       }
     },
     {
-      "atSeconds": 155,
+      "atSeconds": 930,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-016",
@@ -580,7 +580,7 @@
       }
     },
     {
-      "atSeconds": 158,
+      "atSeconds": 948,
       "kind": "reporte",
       "payload": {
         "id": "rep-030",
@@ -590,7 +590,7 @@
       }
     },
     {
-      "atSeconds": 163,
+      "atSeconds": 978,
       "kind": "reporte",
       "payload": {
         "id": "rep-031",
@@ -600,7 +600,7 @@
       }
     },
     {
-      "atSeconds": 168,
+      "atSeconds": 1008,
       "kind": "reporte",
       "payload": {
         "id": "rep-032",
@@ -610,7 +610,7 @@
       }
     },
     {
-      "atSeconds": 170,
+      "atSeconds": 1020,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-017",
@@ -621,7 +621,7 @@
       }
     },
     {
-      "atSeconds": 175,
+      "atSeconds": 1050,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-018",
@@ -632,7 +632,7 @@
       }
     },
     {
-      "atSeconds": 180,
+      "atSeconds": 1080,
       "kind": "reporte",
       "payload": {
         "id": "rep-033",
@@ -642,19 +642,7 @@
       }
     },
     {
-      "atSeconds": 240,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-019",
-        "elementId": "sub-01",
-        "metric": "tension_red",
-        "value": 98,
-        "severidad": 5
-      },
-      "nota": "Resolución — la subestación queda reparada y vuelve la energía a todo lo que alimenta."
-    },
-    {
-      "atSeconds": 243,
+      "atSeconds": 1458,
       "kind": "reporte",
       "payload": {
         "id": "rep-034",
@@ -664,101 +652,13 @@
       }
     },
     {
-      "atSeconds": 245,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-020",
-        "elementId": "hosp-01",
-        "metric": "tension_red",
-        "value": 96,
-        "severidad": 5
-      }
-    },
-    {
-      "atSeconds": 247,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-021",
-        "elementId": "dc-01",
-        "metric": "tension_red",
-        "value": 96,
-        "severidad": 5
-      }
-    },
-    {
-      "atSeconds": 249,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-022",
-        "elementId": "torre-01",
-        "metric": "tension_red",
-        "value": 96,
-        "severidad": 5
-      }
-    },
-    {
-      "atSeconds": 251,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-023",
-        "elementId": "cruce-01",
-        "metric": "tension_red",
-        "value": 96,
-        "severidad": 5
-      }
-    },
-    {
-      "atSeconds": 253,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-024",
-        "elementId": "cruce-01",
-        "metric": "congestion",
-        "value": 4,
-        "severidad": 10
-      }
-    },
-    {
-      "atSeconds": 255,
+      "atSeconds": 1530,
       "kind": "reporte",
       "payload": {
         "id": "rep-035",
         "fuente": "prensa",
         "texto": "Solicitamos balance del incidente",
         "elementId": null
-      }
-    },
-    {
-      "atSeconds": 260,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-025",
-        "elementId": "dc-01",
-        "metric": "carga_ups",
-        "value": 90,
-        "severidad": 5
-      }
-    },
-    {
-      "atSeconds": 266,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-026",
-        "elementId": "torre-01",
-        "metric": "bateria_torre",
-        "value": 78,
-        "severidad": 10
-      }
-    },
-    {
-      "atSeconds": 280,
-      "kind": "sensor_event",
-      "payload": {
-        "id": "evt-027",
-        "elementId": "hosp-01",
-        "metric": "bateria_generador",
-        "value": 95,
-        "severidad": 5
       }
     }
   ]

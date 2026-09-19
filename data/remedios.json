@@ -4,16 +4,22 @@
     {
       "recurso": "brigada",
       "resuelve": "fallo_de_red",
-      "aplicableA": ["subestacion"],
-      "minutos": 25,
+      "aplicableA": [
+        "subestacion"
+      ],
+      "minutos": 18,
       "efecto": "Restaura la alimentación de red a TODO lo que cuelga del nodo reparado. Es la acción de mayor cobertura por recurso gastado.",
       "requiere": null,
-      "$nota": "Un generador no sustituye a esto: una subestación no se alimenta, se repara."
+      "$nota": "Un generador no sustituye a esto: una subestación no se alimenta, se repara. Es lenta, pero es la única acción que devuelve la red a todos los dependientes a la vez."
     },
     {
       "recurso": "generador",
       "resuelve": "falta_de_energia",
-      "aplicableA": ["hospital", "datacenter", "torre"],
+      "aplicableA": [
+        "hospital",
+        "datacenter",
+        "torre"
+      ],
       "minutos": 5,
       "efecto": "Suministro local mientras quede combustible. No arregla la causa, compra tiempo.",
       "requiere": "combustible",
@@ -22,7 +28,12 @@
     {
       "recurso": "cisterna",
       "resuelve": "combustible_bajo",
-      "aplicableA": ["hospital", "datacenter", "torre", "gasolinera"],
+      "aplicableA": [
+        "hospital",
+        "datacenter",
+        "torre",
+        "gasolinera"
+      ],
       "minutos": 10,
       "efecto": "Reabastece el depósito del sitio o del generador conectado: +8 h de autonomía.",
       "requiere": "gasolinera_operativa",
@@ -31,7 +42,9 @@
     {
       "recurso": "policia",
       "resuelve": "transito_bloqueado",
-      "aplicableA": ["cruce"],
+      "aplicableA": [
+        "cruce"
+      ],
       "minutos": 8,
       "efecto": "Regula el cruce manualmente y devuelve los tiempos de desplazamiento a su valor normal para todos los recursos.",
       "requiere": null,

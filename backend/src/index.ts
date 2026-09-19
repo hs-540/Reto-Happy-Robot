@@ -24,7 +24,11 @@ import { crearSimulacion, type CierreIncidente } from "./sim.js";
 const raiz = new URL("../../", import.meta.url);
 const guion = cargarGuion(new URL("data/scripts/apagon-madrid.json", raiz));
 const feed = crearFeed();
-const mundo = crearMundo(guion);
+/** Hechos físicos del escenario: qué depende de qué y qué arregla qué */
+const grafoTopologia = cargarTopologia(new URL("data/topologia.json", raiz).pathname);
+const remedios = cargarRemedios(new URL("data/remedios.json", raiz).pathname);
+
+const mundo = crearMundo(guion, remedios, grafoTopologia);
 
 /** Chroma local (RAG): si no arranca, la demo sigue sin cierre del bucle */
 const ragListo: Promise<RagHistorico | null> = arrancarChroma({
@@ -66,10 +70,6 @@ const historico: HistoricoIncidente[] = ["hospital", "datacenter", "subestacion"
   cargarHistorico(new URL(`data/history/${tipo}/incidentes.json`, raiz).pathname),
 );
 
-/** Hechos físicos del escenario: qué depende de qué y qué arregla qué */
-const grafoTopologia = cargarTopologia(new URL("data/topologia.json", raiz).pathname);
-const remedios = cargarRemedios(new URL("data/remedios.json", raiz).pathname);
-
 const agente = crearAgente({
   mundo,
   feed,
@@ -92,6 +92,18 @@ function avanzar(): void {
   for (const ev of eventos) {
     if (ev.tipo === "llegada") {
       feed.publicar({ kind: "sistema", mensaje: `${ev.recursoId} ha llegado a ${ev.elementId}` });
+    } else if (ev.tipo === "remedio_aplicado") {
+      // la acción del agente cambia el mundo: se aplica como una lectura real
+      sim.inyectar({
+        elementId: ev.elementId,
+        metric: ev.metric,
+        value: ev.value,
+        severidad: ev.severidad,
+      });
+      feed.publicar({
+        kind: "sistema",
+        mensaje: `${ev.recursoId} surte efecto en ${ev.elementId}: ${ev.efecto}`,
+      });
     } else if (ev.tipo === "eta_incumplida") {
       feed.publicar({
         kind: "sistema",
