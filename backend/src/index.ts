@@ -9,23 +9,23 @@ import type {
   StateView,
   TopologyView,
 } from "@swarmup/shared";
-import { loadHistory, loadRemedies, loadRoads, loadTopology } from "@swarmup/shared";
+import { loadHistory, loadRemedies, loadRoads } from "@swarmup/shared";
 import { createAgent, type Agent } from "./agent.js";
 import { config, redactSecrets } from "./config.js";
 import { createActionRegistry, controlSchema } from "./control.js";
 import { createFeed, parseSince } from "./feed.js";
-import { toTopology, loadScript, type Script } from "./script.js";
+import { toTopology } from "./script.js";
 import { createHappyRobotClient } from "./happyrobot.js";
 import { createLlmClient } from "./llm.js";
 import { createWorld, type World } from "./world.js";
 import { startChroma } from "./rag/chroma.js";
 import { createHistoryRag, type HistoryRag } from "./rag/history.js";
 import { createSimulation, type IncidentClosure, type Simulation } from "./sim.js";
+import { generateScenario } from "./scenario.js";
 
 const repoRoot = new URL("../../", import.meta.url);
 const feed = createFeed();
-/** Physical facts about the scenario: what depends on what and what fixes what */
-const topologyGraph = loadTopology(new URL("data/topology.json", repoRoot).pathname);
+/** Physical facts about the remedies: what fixes what and who can be called */
 const remedies = loadRemedies(new URL("data/remedies.json", repoRoot).pathname);
 
 /** Real street network (© OpenStreetMap contributors) the resources drive on */
@@ -107,7 +107,6 @@ const happyrobot = createHappyRobotClient({
 
 /** One generation of the crisis: everything a reset throws away and rebuilds */
 interface Runtime {
-  script: Script;
   world: World;
   sim: Simulation;
   agent: Agent;
@@ -116,13 +115,14 @@ interface Runtime {
 }
 
 /**
- * Builds a runtime generation from the curated script. Loading the script here
- * (instead of once at boot) is what lets a reset swap the whole crisis: until
- * the generator lands (#90) every rebuild replays the same Madrid blackout,
- * but through a fresh world, sim and agent with a topology to match.
+ * Builds a runtime generation from a freshly drawn scenario. The seed is drawn
+ * here and stays implicit for now: each reset is a different, validated crisis,
+ * reproduced only by whoever noted the seed down.
  */
 function createRuntime(): Runtime {
-  const script = loadScript(new URL("data/scripts/madrid-blackout.json", repoRoot));
+  const { script, topologyGraph, contacts } = generateScenario(
+    Math.floor(Math.random() * 2 ** 31),
+  );
   const world = createWorld(script, remedies, topologyGraph, roads);
   const sim = createSimulation(script, Date.now(), feed, world, onResolved, (report) =>
     agent.queueReport(report),
@@ -136,10 +136,11 @@ function createRuntime(): Runtime {
     history,
     rag: ragReady,
     topology: topologyGraph,
-    remedies,
+    // the agent can only reach people who exist in this generation of the world
+    remedies: { ...remedies, contacts },
     seconds: () => sim.seconds(),
   });
-  return { script, world, sim, agent, topology: toTopology(script) };
+  return { world, sim, agent, topology: toTopology(script) };
 }
 
 let runtime: Runtime = createRuntime();
