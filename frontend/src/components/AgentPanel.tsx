@@ -122,6 +122,13 @@ function EmptyState({ icon, text }: { icon: string; text: string }) {
   )
 }
 
+function etaLabel(seconds: number | null): string {
+  if (seconds === null) return '—'
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return `${m}m${String(s).padStart(2, '0')}s`
+}
+
 export function AgentPanel({
   agent,
   feed,
@@ -275,6 +282,13 @@ export function AgentPanel({
                     <time className="card__time">{formatTimeOfDay(d.timestamp)}</time>
                   </div>
                   <p className="card__reasoning">{d.reasoning}</p>
+                  {d.assignments.map((a) => (
+                    <p key={a.resourceId} className={`card__assign ${a.ok ? '' : 'is-failed'}`}>
+                      {a.ok
+                        ? `→ ${a.resourceId} to ${elementNames[a.elementId] ?? a.elementId} · arrives in ${etaLabel(a.etaSeconds)}`
+                        : `✕ ${a.resourceId} not assigned: ${a.reason}`}
+                    </p>
+                  ))}
                 </li>
               ))}
             </ul>

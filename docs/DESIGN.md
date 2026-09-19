@@ -46,8 +46,9 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > grid the tanker cannot refill), and a **road junction** (traffic lights out
 > doubles every journey). Resources grew with them: a **tanker** and a **police
 > unit** alongside the crew and the two generators. The live injection button —
-> filed above as a future improvement — is built. The run itself was compressed
-> from 4-5 minutes to **~2 real minutes** (`TIME_SCALE = 15` in `sim.ts`).
+> filed above as a future improvement — is built. The run's clock is compressed
+> (`TIME_SCALE` in the `.env`; 15x is ~2 real minutes, the live-demo value is
+> 6x so a deliberation does not outrun the crisis it is answering).
 >
 > The timeline is now **1800 s** with **54 entries** (18 sensor events, 35
 > reports, 1 narrative). The five key moments survive, re-timed and with the

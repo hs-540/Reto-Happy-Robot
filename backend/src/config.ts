@@ -15,11 +15,15 @@ const emptyToUndefined = (value: unknown): unknown => (value === "" ? undefined 
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
-  /* Engine cadence: the demo compresses 30 crisis-minutes into ~2 real minutes
-     (TIME_SCALE = 15), so a 5 s tick would let 75 crisis-seconds pass between
-     decisions. Two seconds keeps reactions quick; the LLM wakes only on
-     triggers, so call volume does not grow with the cadence. */
+  /* Engine cadence (design: tick every 5-10 s). At the demo's 5 s and 6x,
+     30 crisis-seconds pass between ticks; the LLM wakes only on triggers, so
+     call volume does not grow with the cadence. */
   TICK_MS: z.coerce.number().int().positive().default(2000),
+  /* Crisis seconds per real second. 15x compresses 30 crisis-minutes into
+     ~2 real minutes; a live demo usually wants less compression, because the
+     LLM needs 15-48 s per deliberation and the clock should not outrun its own
+     coordinator. 6x keeps one deliberation inside 3-5 crisis-minutes. */
+  TIME_SCALE: z.coerce.number().int().positive().default(15),
   /* LLM provider with an OpenAI-compatible interface (Helmcode). The provider
      is configuration, not code: switching it means editing the `.env`, without
      touching this. */
@@ -94,6 +98,7 @@ function deepFreeze<T>(value: T): Readonly<T> {
 export const config = deepFreeze({
   port: parsed.data.PORT,
   tickMs: parsed.data.TICK_MS,
+  timeScale: parsed.data.TIME_SCALE,
   llm: {
     gateways: [llmProvider],
   },

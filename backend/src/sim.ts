@@ -15,18 +15,20 @@ import type { Report } from "@swarmup/shared";
 import type { Script, ScriptEvent } from "./script.js";
 import type { Feed } from "./feed.js";
 import type { World } from "./world.js";
+import { config } from "./config.js";
 
 /** Decision engine cadence (DESIGN.md): tick every 5-10s */
 export const TICK_SECONDS = 5;
 
 /**
- * Crisis seconds per real second. The domain numbers are realistic — a hospital
- * survives 8 min without power, repairing a substation takes 18 — but a demo
- * runs for two minutes: at 1:1 none of those deadlines ever came due. At 15x,
- * two minutes of demo is half an hour of emergency and every limit in
- * rules.json and every duration in remedies.json starts meaning something.
+ * Crisis seconds per real second, from the configuration (`TIME_SCALE`).
+ * The domain numbers are realistic — a hospital survives 8 min without power,
+ * repairing a substation takes 18 — but a demo at 1:1 never lets those
+ * deadlines come due. At 15x two minutes of demo is half an hour of emergency;
+ * at 6x (the live-demo value) a 15-48 s deliberation costs 2-5 crisis-minutes,
+ * so an answer still describes a world its decision can still save.
  */
-export const TIME_SCALE = 15;
+export const TIME_SCALE = config.timeScale;
 
 /** Delay suffered by the crew at moment 4 of the script */
 const ETA_DELAY_SECONDS = 60;

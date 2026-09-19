@@ -27,6 +27,8 @@ import { staticHistory, tryRetrieveHistory } from "./rag/retrieval.js";
 import {
   AgentOutputSchema,
   buildMessages,
+  countdown,
+  coverageGaps,
   type ProposedAction,
   type AgentOutput,
 } from "./prompt.js";
@@ -60,12 +62,13 @@ const MAX_HISTORY_PER_TURN = 3;
 
 /**
  * Ceiling on how long a deliberation may be worth waiting for. The simulation
- * runs at `TIME_SCALE` crisis-seconds per real second, and the tightest clock
- * in the scenario is the hospital's: `maxMinutesWithoutPower.hospital` before
- * `hospital-power-deadline` bites. Spending longer than that on one decision
- * means answering about a hospital that has already blown its limit, so the
- * answer arrives describing a world that no longer exists. At the current
- * numbers (8 crisis-minutes at 15x) this is 32s of wall clock.
+ * runs at `TIME_SCALE` crisis-seconds per real second (configurable in the
+ * `.env`), and the tightest clock in the scenario is the hospital's:
+ * `maxMinutesWithoutPower.hospital` before `hospital-power-deadline` bites.
+ * Spending longer than that on one decision means answering about a hospital
+ * that has already blown its limit, so the answer arrives describing a world
+ * that no longer exists. The ceiling derives from the configured scale:
+ * 8 crisis-minutes are 32 s of wall clock at 15x and 80 s at 6x.
  */
 const STALENESS_CEILING_MS =
   (MAX_MINUTES_WITHOUT_POWER.hospital * 60 * 1000) / TIME_SCALE;
@@ -79,12 +82,12 @@ const STALENESS_CEILING_MS =
  * budget, so a deliberation that retried was killed at the exact moment it was
  * correcting itself. Deriving it removes the chance of that drifting again.
  *
- * Raising it to cover two attempts is not an option: two 60s attempts is 120s,
- * or 12 crisis-minutes, well past the staleness ceiling. So the ceiling wins,
- * and the budget is only ever large enough that a *single* attempt is never cut
- * off by it — the gateway's own timeout is what ends an attempt, and its error
- * ("timeout or connection", with the gateway named) is diagnosable, whereas
- * "deliberation budget exhausted" says nothing about who failed.
+ * Raising it to cover two attempts is not an option: two 90s attempts is 180s,
+ * or 18 crisis-minutes at 6x, well past the staleness ceiling. So the ceiling
+ * wins, and the budget is only ever large enough that a *single* attempt is
+ * never cut off by it — the gateway's own timeout is what ends an attempt, and
+ * its error ("timeout or connection", with the gateway named) is diagnosable,
+ * whereas "deliberation budget exhausted" says nothing about who failed.
  *
  * The retry is kept: measured over 8 live deliberations, 0 first proposals
  * broke a hard rule, so the second attempt almost never runs and costs nothing
@@ -95,6 +98,22 @@ const DELIBERATION_BUDGET_MS = Math.max(ATTEMPT_TIMEOUT_MS + 5_000, STALENESS_CE
 
 /** Decisions kept for `/api/agent` */
 const MAX_DECISIONS = 20;
+
+/**
+ * How long the engine tolerates idle capacity before asking the model again.
+ *
+ * A freed resource next to an uncovered site it could serve generates no
+ * standing signal: no sensor moves, no status changes, and the `released`
+ * wake-up was consumed by the one deliberation that followed it. If that
+ * deliberation held the unit back (a reserve rule, a judgement call) or failed
+ * outright, both the unit and the site sit idle until something unrelated
+ * happens. This cooldown turns the pairing into a standing reason: every so
+ * often, while a gap exists, the engine re-deliberates with the COVERAGE GAPS
+ * list in front of the model. It is not a hot loop — each pass is a real call,
+ * and holding a reserve stays legal, but the justification it writes for it is
+ * what the next pass reads.
+ */
+const IDLE_WATCH_COOLDOWN_MS = 30_000;
 
 export interface Agent {
   /** One engine tick. Decides whether to deliberate; if it does, executes the outcome. */
@@ -226,6 +245,14 @@ export function createAgent(options: AgentOptions): Agent {
   let previousStatus = new Map<string, ElementStatus>();
   /** a deliberation in flight outlives a tick: they do not overlap */
   let deliberating = false;
+  /**
+   * World events seen while a deliberation was in flight, merged into the next
+   * one. A tick during a deliberation must not lose its news: the release of a
+   * resource, for one, is a wake-up no sensor will ever repeat later — without
+   * the buffer a unit freed mid-deliberation sits idle until something else
+   * happens to wake the engine.
+   */
+  let bufferedEvents: WorldEvent[] = [];
   let counter = 0;
   /**
    * Warnings already sent, by recipient and text. With real phones, repeating
@@ -237,6 +264,8 @@ export function createAgent(options: AgentOptions): Agent {
   let pendingReports: Report[] = [];
   /** extra reasons injected from outside (call outcomes) */
   let externalReasons: string[] = [];
+  /** when the last deliberation finished, for the idle-capacity cooldown */
+  let lastDeliberationEnd = 0;
 
   function newId(prefix: string): string {
     counter += 1;
@@ -287,6 +316,20 @@ export function createAgent(options: AgentOptions): Agent {
     // a refusal or a delay reported by phone invalidates the plan's ETA
     reasons.push(...externalReasons);
     externalReasons = [];
+
+    // Standing wake-up, on a cooldown: uncovered sites with free units that
+    // fit them. This is the state a freed resource leaves behind when its
+    // deliberation did not reassign it — no event will ever announce it twice.
+    if (performance.now() - lastDeliberationEnd >= IDLE_WATCH_COOLDOWN_MS) {
+      const gaps = coverageGaps(state.elements, state.resources, remedies);
+      if (gaps.length > 0) {
+        reasons.push(
+          `idle capacity watch: ${gaps
+            .map((g) => `${g.elementId} is uncovered while ${g.freeResourceIds.join(", ")} stand free`)
+            .join("; ")}`,
+        );
+      }
+    }
 
     // startup: there is a crisis and there is still no plan
     if (plan === null && state.elements.some((e) => e.status === "critical" || e.status === "degraded")) {
@@ -521,8 +564,19 @@ export function createAgent(options: AgentOptions): Agent {
 
     let rejections: string[] = [];
     let last: AgentOutput | null = null;
+    const startedAt = performance.now();
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      // A retry only starts if the budget can still hold a full attempt.
+      // Measured live, first attempts reach 47-90s against a 95s budget, so a
+      // retry started anyway is not a correction but a scheduled failure —
+      // "deliberation budget exhausted" throws away the WHOLE output, legal
+      // actions and communications included, and lands on the one-move
+      // playbook. Breaking here keeps the last proposal and the strip-illegal
+      // path below, which is exactly the softer degradation.
+      if (attempt > 0 && performance.now() - startedAt + ATTEMPT_TIMEOUT_MS > DELIBERATION_BUDGET_MS) {
+        break;
+      }
       const response = await llm.structured(
         buildMessages(ctx, rejections),
         AgentOutputSchema,
@@ -696,15 +750,28 @@ export function createAgent(options: AgentOptions): Agent {
           : d.reasoning,
         provokesReplan,
         actions: [],
+        assignments: [],
       };
 
       for (const a of d.actions) {
         if (a.type === "assign_resource" && a.resourceId) {
           const result = world.assign(a.resourceId, a.elementId, seconds());
+          // recorded on the decision: the panel must show what was SENT, not
+          // only what was said — an assignment that only lives in the feed
+          // reads as "the agent decided nothing"
+          decision.assignments.push({
+            resourceId: a.resourceId,
+            resourceType:
+              state.resources.find((r) => r.id === a.resourceId)?.type ?? "unknown",
+            elementId: a.elementId,
+            etaSeconds: result.ok ? result.etaSeconds : null,
+            ok: result.ok,
+            reason: result.ok ? null : result.reason,
+          });
           feed.publish({
             kind: "system",
             message: result.ok
-              ? `${a.resourceId} → ${a.elementId}, ETA ${result.etaSeconds}s`
+              ? `${a.resourceId} → ${a.elementId}, arrives in ${countdown(result.etaSeconds)}`
               : `Could not assign ${a.resourceId}: ${result.reason}`,
           });
         } else if (a.type === "contact" && a.channel) {
@@ -741,10 +808,16 @@ export function createAgent(options: AgentOptions): Agent {
 
   return {
     async observe(state, events): Promise<void> {
-      const reasons = deliberationReasons(state, events);
+      if (deliberating) {
+        bufferedEvents.push(...events);
+        return;
+      }
+      const seen = bufferedEvents.length > 0 ? [...bufferedEvents, ...events] : events;
+      bufferedEvents = [];
+      const reasons = deliberationReasons(state, seen);
       previousStatus = new Map(state.elements.map((e) => [e.id, e.status]));
 
-      if (reasons.length === 0 || deliberating || state.paused) return;
+      if (reasons.length === 0 || state.paused) return;
 
       deliberating = true;
       const reactionStart = performance.now();
@@ -768,6 +841,9 @@ export function createAgent(options: AgentOptions): Agent {
         stats?.recordReaction(performance.now() - reactionStart);
       } finally {
         deliberating = false;
+        // the idle-capacity cooldown counts from the END of a deliberation: a
+        // 90s deliberation must not restart the watch the moment it lands
+        lastDeliberationEnd = performance.now();
       }
     },
 
@@ -838,6 +914,8 @@ export function createAgent(options: AgentOptions): Agent {
       warningsSent.clear();
       pendingReports = [];
       externalReasons = [];
+      bufferedEvents = [];
+      lastDeliberationEnd = 0;
       counter = 0;
     },
   };
