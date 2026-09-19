@@ -154,7 +154,7 @@ function fullState(): StateView {
   const state = sim.state();
   return {
     ...state,
-    elements: state.elements.map((e) => ({ ...e, attention: agent.attention(e.id) })),
+    elements: state.elements.map((e) => ({ ...e, attention: agent.attention(e.id, e.status) })),
   };
 }
 
