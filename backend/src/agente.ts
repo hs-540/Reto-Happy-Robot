@@ -438,9 +438,11 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
         timestamp: ahora,
         elementId: anclarASitio(d.elementId, estado),
         prioridad: d.prioridad,
-        razonamiento: d.citaHistorico
-          ? `${d.razonamiento} [histórico: ${d.citaHistorico}]`
-          : d.razonamiento,
+        // no duplicar la cita si el modelo ya la ha metido en la prosa
+        razonamiento:
+          d.citaHistorico && !d.razonamiento.includes(d.citaHistorico)
+            ? `${d.razonamiento} [histórico: ${d.citaHistorico}]`
+            : d.razonamiento,
         provocaReplan,
         acciones: [],
       };
