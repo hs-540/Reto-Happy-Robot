@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadRemedies, loadTopology, type ElementView, type StateView } from "@swarmup/shared";
+import { loadRemedies, loadTopology, type ElementType, type ElementView, type StateView } from "@swarmup/shared";
 import { createAgent, type Agent } from "../src/agent.js";
 import { createFeed } from "../src/feed.js";
 import { createActionRegistry } from "../src/control.js";
@@ -75,11 +75,27 @@ function setup(elements: ElementView[]) {
   return { feed, world, agent, state };
 }
 
-/** Parks every resource on a site that is not part of the incident under test */
-function parkEverythingOn(world: World, elementId: string, except: string[] = []): void {
+/**
+ * Parks every resource on a site its remedy can actually serve, away from the
+ * incident under test. Assigning a resource where its remedy does not apply is
+ * refused now (it would park the resource forever), so the setup has to be a
+ * legal move too.
+ */
+const PARKING_TYPE: Record<string, ElementType> = {
+  crew: "substation",
+  generator: "hospital",
+  tanker: "fuel_station",
+  police: "junction",
+};
+
+function parkEverythingOn(world: World, avoid: string[] = [], except: string[] = []): void {
   for (const r of world.resources()) {
     if (except.includes(r.id)) continue;
-    assert.equal(world.assign(r.id, elementId, 0).ok, true, `${r.id} should park on ${elementId}`);
+    const target = script.elements.find(
+      (e) => e.type === PARKING_TYPE[r.type] && !avoid.includes(e.id),
+    );
+    assert.ok(target, `the scenario needs a ${PARKING_TYPE[r.type]} to park ${r.id}`);
+    assert.equal(world.assign(r.id, target.id, 0).ok, true, `${r.id} should park on ${target.id}`);
   }
 }
 
@@ -133,7 +149,7 @@ test("the playbook only assigns a resource whose remedy applies to the site type
 
   // the tanker is the only thing left free, so a naive "first available
   // resource" pick would drive it to a substation it cannot help
-  parkEverythingOn(world, "fuel-01", ["tanker-1"]);
+  parkEverythingOn(world, ["sub-01"], ["tanker-1"]);
   assert.equal(world.resources().find((r) => r.id === "tanker-1")?.status, "available");
 
   await agent.observe(state(), []);
@@ -159,7 +175,7 @@ test("with nothing sensible to commit the playbook holds, and states why", async
   ];
   const { agent, world, state } = setup(elements);
 
-  parkEverythingOn(world, "fuel-01");
+  parkEverythingOn(world, ["tower-01"]);
 
   await agent.observe(state(), []);
 
@@ -185,7 +201,7 @@ test("the playbook never emits an action its own validator would veto", async ()
   ];
   const { agent, world, state } = setup(elements);
 
-  parkEverythingOn(world, "fuel-01");
+  parkEverythingOn(world, ["dc-01"]);
 
   await agent.observe(state(), []);
 

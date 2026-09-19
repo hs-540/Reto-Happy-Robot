@@ -22,7 +22,7 @@ call). See [`data/README.md`](data/README.md).
 
 Three layers per tick:
 
-1. **Perception** (deterministic, ~1 ms) — filters the noise, derives `status` and `severity`, computes priority. It only wakes the LLM if something really changed: a threshold crossing, a missed ETA, an exceeded deadline, a signal from an emergency call or a field team, a backlog of eight low-signal reports, a call that came back refused or delayed, or a manual injection. The remaining ticks cost no call.
+1. **Perception** (deterministic, ~1 ms) — filters the noise, derives `status` and `severity`, computes priority. It only wakes the LLM if something really changed: a threshold crossing, a missed ETA, an exceeded deadline, a signal from an emergency call or a field team, a backlog of eight low-signal reports, a call that came back refused or delayed, a manual injection or an operator directive. The remaining ticks cost no call.
 2. **Deliberation** (LLM, 8-20 s measured) — receives the world, the rules catalog, the topology and remedies, the history of the affected site types, the untriaged reports and the plan in progress. Returns structured output: what it discards and why, objective, steps, communications and decisions with their reasoning. Each attempt is capped at 45 s and the whole deliberation at 75 s.
 3. **Validation** (deterministic) — `validateAction` vetoes whatever violates the hard rules and hands the reason back to the model so it can fix it, with **one** retry (a second one ate the whole budget precisely when the agent was correcting itself). Rejections are published in the feed; whatever is still illegal after the retry is dropped and the rest of the plan goes ahead.
 
@@ -69,6 +69,7 @@ Everything from the UI, no `curl`:
 - **Start** the script — button in the header. Each run draws a random crisis from a seed (`backend/src/scenario.ts`): 8-15 of the 15 sites, 4-10 of the 10 resources, and ~100-120 timeline entries spaced across the 30-minute window, most of them noise the agent must triage. The clock runs for 1800 s (30 min) of simulated time; a demo run does not need all of it.
 - **Pause / resume** — header.
 - **Inject live events** — injection panel. Crossing a threshold triggers a full re-plan on the next tick.
+- **Direct the agent** — pin a site from the map marker or the sites list to raise its priority, or type a free-text order in the agent panel's operator console. Every directive wakes the agent, reaches its next deliberation and gets an answer in the feed: it complies, or it overrules the operator with facts (`directive_response`).
 
 `reset` draws a **new** scenario — a fresh seed, a different map, a different
 fleet — it does not rewind the current one. The CommandBar wires start, pause,

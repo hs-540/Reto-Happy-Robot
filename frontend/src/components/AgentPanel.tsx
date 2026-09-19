@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import type { ReactNode } from 'react'
-import type { AgentView, FeedItem } from '@swarmup/shared'
+import type { FormEvent, ReactNode } from 'react'
+import type { AgentView, Directive, FeedItem } from '@swarmup/shared'
 import { Icon } from './icons'
 import { formatTimeOfDay } from '../lib/format'
 
@@ -10,6 +10,9 @@ interface AgentPanelProps {
   selectedElementId: string | null
   onSelectElement: (id: string) => void
   elementNames: Record<string, string>
+  pending: boolean
+  onOrder: (text: string) => void
+  onUnprioritize: (id: string) => void
   onCollapse: () => void
 }
 
@@ -47,6 +50,10 @@ function feedIcon(item: FeedItem): string {
       return 'send'
     case 'outcome':
       return 'phone'
+    case 'directive':
+      return 'pin'
+    case 'directive_response':
+      return item.decision === 'rejected' ? 'alarm' : 'check'
     case 'system':
       return 'system'
   }
@@ -73,12 +80,16 @@ function feedTone(item: FeedItem): string {
           return 'alarm'
       }
       break
+    case 'directive':
+      return 'directive'
+    case 'directive_response':
+      return item.decision === 'rejected' ? 'alarm' : 'action'
     case 'system':
       return 'system'
   }
 }
 
-function feedTitle(item: FeedItem): string {
+function feedTitle(item: FeedItem, names: Record<string, string>): string {
   switch (item.kind) {
     case 'alarm':
       return `Alarm · ${item.metric.replace(/_/g, ' ')} = ${item.value}`
@@ -92,6 +103,12 @@ function feedTitle(item: FeedItem): string {
       return `Call outcome · ${OUTCOME_LABEL[item.outcome] ?? item.outcome}${
         item.delayMinutes ? ` · +${item.delayMinutes} min` : ''
       }`
+    case 'directive':
+      return item.directive === 'priority_pin'
+        ? `Operator pin · ${item.elementId ? names[item.elementId] ?? item.elementId : 'scenario'}`
+        : 'Operator order'
+    case 'directive_response':
+      return `Agent answer · ${item.decision}`
     case 'system':
       return 'System'
   }
@@ -109,6 +126,10 @@ function feedDetail(item: FeedItem, names: Record<string, string>): string {
       return item.message
     case 'outcome':
       return item.summary
+    case 'directive':
+      return item.text || 'Prioritize this site'
+    case 'directive_response':
+      return item.reasoning
     case 'system':
       return item.message
   }
@@ -158,6 +179,19 @@ function feedDetails(
       }
       return rows
     }
+    case 'directive':
+      return [
+        { label: 'Directive', value: item.directiveId },
+        { label: 'Type', value: item.directive === 'priority_pin' ? 'Priority pin' : 'Order' },
+        { label: 'Site', value: item.elementId ? names[item.elementId] ?? item.elementId : '—' },
+        { label: 'Text', value: item.text || 'Prioritize this site' },
+      ]
+    case 'directive_response':
+      return [
+        { label: 'Directive', value: item.directiveId },
+        { label: 'Decision', value: item.decision },
+        { label: 'Reasoning', value: item.reasoning },
+      ]
     case 'system':
       return [{ label: 'Message', value: item.message }]
   }
@@ -204,12 +238,158 @@ function etaLabel(seconds: number | null): string {
   return `${m}m${String(s).padStart(2, '0')}s`
 }
 
+const DIRECTIVE_STATUS: Record<Directive['status'], string> = {
+  open: 'awaiting answer',
+  acknowledged: 'acknowledged',
+  rejected: 'rejected',
+}
+
+/** One row of the console: what the operator asked and how the agent answered */
+interface ConsoleEntry {
+  id: string
+  kind: Directive['kind']
+  elementId: string | null
+  text: string
+  status: Directive['status']
+  reasoning: string | null
+}
+
+/**
+ * Merges the standing directives (`/api/agent`) with the feed history so an
+ * answered order does NOT vanish: the operator sees every request and its
+ * answer without digging through the events stream. Standing entries win —
+ * they carry the authoritative status; the feed fills in orders the backend
+ * already retired.
+ */
+function consoleEntries(directives: Directive[], feed: FeedItem[]): ConsoleEntry[] {
+  const entries = new Map<string, ConsoleEntry>()
+  for (const d of directives) {
+    entries.set(d.id, {
+      id: d.id,
+      kind: d.kind,
+      elementId: d.elementId,
+      text: d.text,
+      status: d.status,
+      reasoning: d.responseReasoning,
+    })
+  }
+  for (const item of feed) {
+    if (item.kind === 'directive' && !entries.has(item.directiveId)) {
+      entries.set(item.directiveId, {
+        id: item.directiveId,
+        kind: item.directive,
+        elementId: item.elementId,
+        text: item.text,
+        status: 'open',
+        reasoning: null,
+      })
+    } else if (item.kind === 'directive_response') {
+      const entry = entries.get(item.directiveId)
+      if (entry && entry.status === 'open') {
+        entry.status = item.decision
+        entry.reasoning = item.reasoning
+      }
+    }
+  }
+  return [...entries.values()]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .reverse()
+    .slice(0, 6)
+}
+
+/**
+ * The operator-to-agent channel: free-text orders plus the directive history
+ * (pins, orders and their answers) with the agent's responses as they arrive.
+ */
+function OperatorConsole({
+  directives,
+  feed,
+  pending,
+  onOrder,
+  onUnprioritize,
+}: {
+  directives: Directive[]
+  feed: FeedItem[]
+  pending: boolean
+  onOrder: (text: string) => void
+  onUnprioritize: (id: string) => void
+}) {
+  const [order, setOrder] = useState('')
+  const entries = consoleEntries(directives, feed)
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    const text = order.trim()
+    if (!text || pending) return
+    onOrder(text)
+    setOrder('')
+  }
+
+  return (
+    <section className="opconsole">
+      <form className="opconsole__form" onSubmit={submit}>
+        <input
+          className="control opconsole__input"
+          value={order}
+          onChange={(e) => setOrder(e.target.value)}
+          placeholder="Order for the agent — e.g. send the tanker to the hospital first"
+          maxLength={500}
+          disabled={pending}
+        />
+        <button type="submit" className="btn btn--primary" disabled={pending || order.trim() === ''}>
+          <Icon name="send" size={12} />
+          Order
+        </button>
+      </form>
+      {entries.length > 0 && (
+        <ul className="opconsole__list">
+          {entries.map((d) => (
+            <li key={d.id} className={`opdir opdir--${d.status} opdir--${d.kind}`}>
+              <span className="opdir__kind">
+                <Icon name={d.kind === 'priority_pin' ? 'pin' : 'chat'} size={11} />
+                {d.kind === 'priority_pin' ? 'PIN' : 'ORDER'}
+              </span>
+              <span className="opdir__text" title={d.reasoning ?? undefined}>
+                {d.kind === 'priority_pin'
+                  ? d.elementId
+                    ? `${d.elementId}${d.text ? ` — ${d.text}` : ''}`
+                    : d.text
+                  : d.text}
+              </span>
+              <span
+                className={`opdir__status opdir__status--${d.status}`}
+                title={d.reasoning ?? undefined}
+              >
+                {DIRECTIVE_STATUS[d.status]}
+              </span>
+              {d.kind === 'priority_pin' && d.status !== 'rejected' && (
+                <button
+                  type="button"
+                  className="opdir__withdraw"
+                  onClick={() => onUnprioritize(d.elementId ?? '')}
+                  disabled={pending}
+                  title="Withdraw the pin"
+                >
+                  <Icon name="close" size={10} />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 export function AgentPanel({
   agent,
   feed,
   selectedElementId,
   onSelectElement,
   elementNames,
+  pending,
+  onOrder,
+  onUnprioritize,
   onCollapse,
 }: AgentPanelProps) {
   const [tab, setTab] = useState<Tab>('stream')
@@ -285,6 +465,14 @@ export function AgentPanel({
             ))}
         </section>
 
+        <OperatorConsole
+          directives={agent.directives}
+          feed={feed}
+          pending={pending}
+          onOrder={onOrder}
+          onUnprioritize={onUnprioritize}
+        />
+
         <nav className="tabs" role="tablist">
           <button
             type="button"
@@ -340,7 +528,7 @@ export function AgentPanel({
                     </span>
                     <div className="sitem__body">
                       <div className="sitem__top">
-                        <span className="sitem__title">{feedTitle(item)}</span>
+                        <span className="sitem__title">{feedTitle(item, elementNames)}</span>
                         <time>{formatTimeOfDay(item.ts)}</time>
                         <span className={`sitem__chev ${isOpen ? 'is-open' : ''}`}>
                           <Icon name="chevron" size={12} />

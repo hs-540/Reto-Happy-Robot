@@ -9,7 +9,8 @@
 > Quick index of what changed: two AI gateways → one configurable provider; a
 > human confirmation gate before real actions → removed; 3 element types → 6;
 > 1 crew + 2 generators → also a tanker and a police unit; 4-5 min of script →
-> 1800 s.
+> 1800 s; manual priority override → built as the operator directive channel
+> (pins + orders), not a gate.
 
 ## Challenge context
 
@@ -194,7 +195,23 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 >
 > The frontend ships map, feed, agent panel and injection panel; start,
 > pause/resume and reset are wired — reset has a button in the CommandBar.
-> Manually overriding a decision is still a future extension.
+
+> **Built — the operator directive channel (pins + orders).** Manually forcing
+> a priority landed, but as a channel rather than an override: the agent stays
+> autonomous and the operator supervises. Two directives exist — `priority_pin`
+> (a site pinned from the map marker or the sites list, with an optional note)
+> and `order` (free text in the agent panel's operator console). Either wakes
+> the engine outside the regular cadence, reaches the next deliberation as an
+> `OPERATOR DIRECTIVES` block, and must be answered in the structured output
+> (`directiveResponses`): `acknowledged` or `rejected` with reasoning, published
+> to the feed as `directive_response`. A rejection is by design the demo's
+> showcase: the agent overrules the operator with facts (a blocking rule, no
+> applicable resource), never with taste — and a rejected pin stays visible,
+> overruled, until the operator withdraws it. Orders are one-shot and leave
+> once answered; a silent model falls back to `acknowledged` with a stated
+> reason, so no directive is ever left hanging. The hard rules still outrank
+> any order: `validateAction` vetoes what a directive inspires exactly as it
+> vetoes anything else.
 
 ## Project stack and infrastructure
 

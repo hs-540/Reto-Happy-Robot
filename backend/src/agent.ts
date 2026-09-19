@@ -5,6 +5,8 @@ import type {
   AttentionState,
   Contact,
   Decision,
+  Directive,
+  DirectiveKind,
   ElementStatus,
   ElementView,
   CallClosure,
@@ -131,6 +133,13 @@ export interface Agent {
   attention(elementId: string, status: ElementStatus): ElementView["attention"];
   /** Raw incoming signal; buffered until the next deliberation */
   queueReport(report: Report): void;
+  /**
+   * Operator directive: a pin on a site or a free-text order. Published to the
+   * feed immediately and handed to the next deliberation, which must answer it.
+   */
+  queueDirective(kind: DirectiveKind, elementId: string | null, text: string): void;
+  /** Operator withdraws the pins on a site */
+  unpin(elementId: string): void;
   /**
    * Outcome of a real call. A refusal or a delay invalidates the ETA the plan
    * was built on, so it forces replanning on the next tick.
@@ -266,6 +275,12 @@ export function createAgent(options: AgentOptions): Agent {
   let externalReasons: string[] = [];
   /** when the last deliberation finished, for the idle-capacity cooldown */
   let lastDeliberationEnd = 0;
+  /**
+   * Operator directives, most recent first. Pins stay for as long as the
+   * operator keeps them (a rejected one stays visible, overruled); orders are
+   * one-shot and leave once answered. Either way the answer is in the feed.
+   */
+  let directives: Directive[] = [];
 
   function newId(prefix: string): string {
     counter += 1;
@@ -329,6 +344,16 @@ export function createAgent(options: AgentOptions): Agent {
             .join("; ")}`,
         );
       }
+    }
+
+    // the operator is waiting for an answer: a directive always wakes the engine
+    const open = directives.filter((d) => d.status === "open");
+    if (open.length > 0) {
+      reasons.push(
+        `${open.length} operator directive(s) awaiting an answer: ${open
+          .map((d) => d.id)
+          .join(", ")}`,
+      );
     }
 
     // startup: there is a crisis and there is still no plan
@@ -419,6 +444,7 @@ export function createAgent(options: AgentOptions): Agent {
           actions: action ? [action] : [],
         },
       ],
+      directiveResponses: [],
     };
   }
 
@@ -432,12 +458,24 @@ export function createAgent(options: AgentOptions): Agent {
     const context = world.context(state.elements);
     const ranking = world.priorities(state.elements);
     const elementById = new Map(state.elements.map((e) => [e.id, e]));
+    // even degraded mode obeys the operator: a pinned site jumps the queue,
+    // score order among the pins otherwise
+    const pinned = new Set(
+      directives
+        .filter((d) => d.kind === "priority_pin" && d.status !== "rejected" && d.elementId)
+        .map((d) => d.elementId as string),
+    );
 
     const open = ranking
       .map((p) => ({ score: p.score, element: elementById.get(p.elementId) }))
       .filter(
         (c): c is { score: number; element: ElementView } =>
           c.element !== undefined && c.element.status !== "normal" && c.element.status !== "resolved",
+      )
+      .sort(
+        (a, b) =>
+          Number(pinned.has(b.element.id)) - Number(pinned.has(a.element.id)) ||
+          b.score - a.score,
       );
 
     if (open.length === 0) {
@@ -447,6 +485,7 @@ export function createAgent(options: AgentOptions): Agent {
         steps: [],
         communications: [],
         decisions: [],
+        directiveResponses: [],
       };
     }
 
@@ -531,7 +570,10 @@ export function createAgent(options: AgentOptions): Agent {
 
   /* ─── Deliberation: LLM with retry against the hard rules ────────────── */
 
-  async function deliberate(state: StateView, reasons: string[]): Promise<AgentOutput> {
+  async function deliberate(
+    state: StateView,
+    reasons: string[],
+  ): Promise<{ output: AgentOutput; directiveIds: string[] }> {
     const affected = state.elements.filter((e) => e.status !== "normal");
     // Real retrieval against the incident memory, capped at the same measured
     // per-turn budget. `null` covers every failure — no Chroma, a throw, a slow
@@ -542,6 +584,14 @@ export function createAgent(options: AgentOptions): Agent {
       sites: affected,
       limit: MAX_HISTORY_PER_TURN,
     });
+    /**
+     * The directives the model is about to read. Snapshotted HERE, not read at
+     * answer time: a deliberation runs for seconds, and an operator directive
+     * that lands while it is in flight is not in its prompt — answering it
+     * afterwards would swallow it with "did not address explicitly" and, for an
+     * order, delete it. Snapshotting leaves it open for the next deliberation.
+     */
+    const directiveIds = directives.map((d) => d.id);
     const ctx = {
       simulationClock: state.simulationClock,
       elements: state.elements,
@@ -556,6 +606,7 @@ export function createAgent(options: AgentOptions): Agent {
         ...pendingReports.filter((r) => HIGH_SIGNAL_SOURCES.includes(r.source)),
         ...pendingReports.filter((r) => !HIGH_SIGNAL_SOURCES.includes(r.source)),
       ].slice(0, MAX_REPORTS_PER_TURN),
+      directives,
       reasons,
     };
 
@@ -584,7 +635,7 @@ export function createAgent(options: AgentOptions): Agent {
       );
       last = response.data;
       rejections = collectRejections(last, state);
-      if (rejections.length === 0) return last;
+      if (rejections.length === 0) return { output: last, directiveIds };
 
       for (const reason of rejections) {
         feed.publish({ kind: "system", message: `Action blocked by hard rules — ${reason}` });
@@ -594,15 +645,19 @@ export function createAgent(options: AgentOptions): Agent {
     // retries exhausted: illegal actions are discarded, the rest goes on
     if (!last) throw new Error("the LLM returned no proposal");
     return {
-      ...last,
-      decisions: last.decisions.map((d) => ({
-        ...d,
-        actions: d.actions.filter((a) => isLegal(a, state)),
-      })),
+      output: {
+        ...last,
+        decisions: last.decisions.map((d) => ({
+          ...d,
+          actions: d.actions.filter((a) => isLegal(a, state)),
+        })),
+      },
+      directiveIds,
     };
   }
 
   function isLegal(action: ProposedAction, state: StateView): boolean {
+    if (!resolvedRemedyApplies(action, state)) return false;
     return validateAction(
       {
         type: action.type,
@@ -613,11 +668,33 @@ export function createAgent(options: AgentOptions): Agent {
     ).allowed;
   }
 
+  /**
+   * Whether the resource's remedy actually covers the target site type. This is
+   * the same check `world.assign` enforces at execution: without it the model
+   * can send a tanker to a substation, the assignment "succeeds" and the
+   * resource is parked for the rest of the run with nothing to fix.
+   */
+  function resolvedRemedyApplies(action: ProposedAction, state: StateView): boolean {
+    if (action.type !== "assign_resource" || !action.resourceId) return true;
+    const resourceType = state.resources.find((r) => r.id === action.resourceId)?.type;
+    const elementType = state.elements.find((e) => e.id === action.elementId)?.type;
+    if (!resourceType || !elementType) return false;
+    return remedyApplies(resourceType, elementType);
+  }
+
   function collectRejections(output: AgentOutput, state: StateView): string[] {
     const context = world.context(state.elements);
     const reasons: string[] = [];
     for (const d of output.decisions) {
       for (const a of d.actions) {
+        if (!resolvedRemedyApplies(a, state)) {
+          const rt = state.resources.find((r) => r.id === a.resourceId)?.type;
+          const et = state.elements.find((e) => e.id === a.elementId)?.type;
+          reasons.push(
+            `[remedy-not-applicable] assigning ${a.resourceId} (${rt}) to ${a.elementId} (${et}): the remedies catalog declares no remedy of that resource for that site type`,
+          );
+          continue;
+        }
         const verdict = validateAction(
           { type: a.type, elementId: a.elementId, resourceId: a.resourceId ?? undefined },
           context,
@@ -638,7 +715,7 @@ export function createAgent(options: AgentOptions): Agent {
    * everything is flagged, the badge stops distinguishing anything and the
    * moment that matters — the crew missing its ETA — is lost.
    */
-  const REPLAN_REASONS = ["misses its ETA", "exceeded its limit", "Call "];
+  const REPLAN_REASONS = ["misses its ETA", "exceeded its limit", "Call ", "operator directive"];
 
   function isReplan(reasons: string[]): boolean {
     if (plan === null) return false; // no plan to abandon
@@ -823,6 +900,43 @@ export function createAgent(options: AgentOptions): Agent {
     }
   }
 
+  /**
+   * Every open directive the deliberation actually read gets an answer: the
+   * model's own, or a recorded fallback if it stayed silent — an operator who
+   * hears nothing assumes the worst. Orders are one-shot and leave after being
+   * answered; pins stay (a rejected one stays visible, overruled) until the
+   * operator withdraws them.
+   *
+   * `seen` guards two races: the contingency playbook never reads directives,
+   * and a directive that lands while a deliberation is in flight is not in its
+   * prompt. Answering either would swallow it; it stays open instead.
+   */
+  function answerDirectives(output: AgentOutput, seen: Set<string>): void {
+    const responses = output.directiveResponses ?? [];
+    for (const directive of directives) {
+      if (directive.status !== "open" || !seen.has(directive.id)) continue;
+      const answer = responses.find((r) => r.directiveId === directive.id);
+      if (answer) {
+        directive.status = answer.decision;
+        directive.responseReasoning = answer.reasoning;
+        feed.publish({
+          kind: "directive_response",
+          directiveId: directive.id,
+          decision: answer.decision,
+          reasoning: answer.reasoning,
+        });
+      } else {
+        directive.status = "acknowledged";
+        directive.responseReasoning = "The agent did not address this directive explicitly.";
+        feed.publish({
+          kind: "system",
+          message: `No explicit answer to directive ${directive.id}: treated as acknowledged.`,
+        });
+      }
+    }
+    directives = directives.filter((d) => d.kind !== "order" || d.status === "open");
+  }
+
   /* ─── Public API ─────────────────────────────────────────────────────── */
 
   return {
@@ -843,7 +957,13 @@ export function createAgent(options: AgentOptions): Agent {
       try {
         let output: AgentOutput;
         try {
-          output = await withBudget(deliberate(state, reasons), DELIBERATION_BUDGET_MS);
+          const deliberation = await withBudget(
+            deliberate(state, reasons),
+            DELIBERATION_BUDGET_MS,
+          );
+          output = deliberation.output;
+          // only the directives the deliberation actually read may be answered
+          answerDirectives(output, new Set(deliberation.directiveIds));
         } catch (err) {
           const cause = err instanceof Error ? err.message : String(err);
           console.error(`[agent] deliberation failed (${cause}); fallback to rules`);
@@ -871,6 +991,7 @@ export function createAgent(options: AgentOptions): Agent {
         currentPlan: plan,
         decisions,
         actions,
+        directives,
       };
     },
 
@@ -905,6 +1026,42 @@ export function createAgent(options: AgentOptions): Agent {
       pendingReports.push(report);
     },
 
+    queueDirective(kind, elementId, text): void {
+      // re-pinning a site replaces its standing pin instead of stacking a second one
+      if (kind === "priority_pin" && elementId !== null) {
+        directives = directives.filter((d) => !(d.kind === "priority_pin" && d.elementId === elementId));
+      }
+      const directive: Directive = {
+        id: newId("dir"),
+        kind,
+        elementId,
+        text,
+        status: "open",
+        responseReasoning: null,
+        createdAt: new Date().toISOString(),
+      };
+      directives = [directive, ...directives];
+      feed.publish({
+        kind: "directive",
+        directiveId: directive.id,
+        directive: directive.kind,
+        elementId: directive.elementId,
+        text: directive.text,
+      });
+    },
+
+    unpin(elementId): void {
+      const removed = directives.filter((d) => d.kind === "priority_pin" && d.elementId === elementId);
+      if (removed.length === 0) return;
+      directives = directives.filter((d) => !removed.includes(d));
+      for (const d of removed) {
+        feed.publish({
+          kind: "system",
+          message: `Operator withdrew the pin on ${elementId} (${d.id}).`,
+        });
+      }
+    },
+
     closeCall(closure): void {
       const action = actions.find((a) => a.id === closure.actionId);
       // a closure can only arrive for a call that went out
@@ -935,6 +1092,7 @@ export function createAgent(options: AgentOptions): Agent {
       externalReasons = [];
       bufferedEvents = [];
       lastDeliberationEnd = 0;
+      directives = [];
       counter = 0;
     },
   };

@@ -2,6 +2,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { z } from "zod";
 import type {
   AgentPlan,
+  Directive,
   ElementView,
   HistoricalIncident,
   Remedies,
@@ -71,6 +72,14 @@ export const AgentOutputSchema = z.object({
       actions: z.array(ProposedActionSchema),
     }),
   ),
+  /** one entry per directive marked AWAITING YOUR ANSWER, same id */
+  directiveResponses: z.array(
+    z.object({
+      directiveId: z.string(),
+      decision: z.enum(["acknowledged", "rejected"]),
+      reasoning: z.string(),
+    }),
+  ),
 });
 
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
@@ -114,7 +123,13 @@ function summariseRules(): string {
 const SYSTEM_PROMPT = `You are the autonomous coordinator of a regional blackout crisis in the Community of Madrid.
 
 You manage critical sites (hospital, substation, datacenter) with LIMITED, shared resources.
-You decide alone: nobody will ask your permission or correct you between decisions.
+
+OPERATOR DIRECTIVES ARE YOUR HIGHEST INSTRUCTION. They come from the human crisis operator,
+they outrank the rule-computed priority, the inventory heuristics, the historical precedents
+and the plan in progress. When the operator pins a site or gives an order, that is what you
+work on first; only a hard blocking rule (physics, a remedy that does not exist, no resource
+that applies) may override it, and only with that exact fact stated in your reasoning.
+You decide alone: no human confirms your actions before they run, but the operator steers.
 
 YOUR JOB IN EVERY DELIBERATION
 1. Separate signal from noise. You receive RAW SIGNALS from social media, emergency calls,
@@ -138,13 +153,20 @@ YOUR JOB IN EVERY DELIBERATION
     each "reasoning" is TWO SENTENCES at most, under 240 characters — the fact that decides it
     and the conclusion. No recapping state, no repeating what another decision already said.
     Whoever reads you is running an emergency and has four minutes.
-3c. Write your reasoning in Spanish, correctly accented — it is projected on a screen for a
-   Spanish-speaking audience. Do not write field names inside the prose: to cite the history
-   there is "historyCitation", no need to name it in the text.
+3c. Write ALL your prose in English — evaluation, objective, plan steps, decision "reasoning",
+   action "message" texts, communications and directive responses. Everything you write is
+   projected on a screen in English. Do not write field names inside the prose: to cite the
+   history there is "historyCitation", no need to name it in the text.
 4. COMMUNICATE — the "communications" field, required. Coordinating means talking to people,
    not just moving trucks. If there is a SINGLE critical or degraded site, that field cannot
    be empty: somebody has to be told. Think about who suffers the situation or who executes
    what you decided, and write to them. It costs no resources and it is half your job.
+   - COMMUNICATIONS GO OUT IN PARALLEL WITH THE MOVES, in the same deliberation: do not defer
+     the call to a later turn "once the plan is set". If a site turns critical this turn, a
+     human on that site must be warned THIS turn.
+   - The most time-critical site (a hospital, anything with a life at stake) gets a
+     "voice_call"; a secondary stakeholder can get a "chat_message". A warning nobody reads
+     is not a warning.
    - A plan step is NOT a communication. Writing "warn the hospital" or "ask the crew chief
      to confirm" as a plan step notifies nobody: it never leaves your head.
    - "elementId" is ALWAYS the id of a site from the SITES list. Never put a resource id or a
@@ -160,6 +182,16 @@ YOUR JOB IN EVERY DELIBERATION
    options: assign a free resource whose remedy applies, or escalate through "communications".
    And when a proposal comes back rejected, change it — re-sending the same rejected action
    burns your second chance and leaves everybody unattended.
+6. ANSWER YOUR OPERATOR — AND OBEY. Directives marked AWAITING YOUR ANSWER in OPERATOR
+   DIRECTIVES must each appear in "directiveResponses" with their id, decision "acknowledged"
+   or "rejected", and a one-sentence reasoning (in English, like the rest of your prose).
+   - An acknowledged directive must be ACTED ON in this deliberation's decisions: if the order
+     asks to commit a resource and any legal, applicable assignment exists, make that
+     assignment now. An answer that changes nothing is the operator being ignored.
+   - Reject ONLY with the specific blocking fact: the rule id that forbids it, the remedy
+     missing from the catalog, or no free resource that applies. "It is already covered" is
+     a rejection fact; say which resource covers it. The operator reads your reasoning on
+     screen — a refusal without a fact reads as insubordination.
 
 INVENTORY MANAGEMENT — THE CRISIS IS NOT OVER
 - DO NOT spend all your resources on the first incident. The situation keeps getting worse and
@@ -189,6 +221,10 @@ HOW YOU REASON
 - You have a DEPENDENCY map and a REMEDY catalog. They are not suggestions: they are how
   reality is wired. A remedy not listed there does not exist, and if a remedy declares a
   requirement, spending it without meeting that requirement achieves nothing.
+- Before every "assign_resource", check that the pair (resource, site type) is in the REMEDY
+  catalog. A tanker does not repair a substation and a generator does not direct a junction:
+  that assignment is rejected and wasted, and the resource stays parked while the crisis
+  moves on.
 - Use the dependencies to compute coverage: fixing a node that four sites hang off is worth
   more than attending one site, even if that one scores higher.
 - Every site tells you whether it is ALREADY COVERED. A resource in transit counts as covered:
@@ -209,7 +245,9 @@ HOW YOU REASON
 - The history contains mistakes already made. If one applies, cite it by its id in
   "historyCitation" and act accordingly.
 - The numeric priority you receive is a CLUE computed by rules, not an order. If you have a
-  better reason, disagree and explain it in your reasoning.
+  better reason, disagree and explain it in your reasoning. EXCEPTION: a site PINNED BY THE
+  OPERATOR is an order, not a clue — weigh it first, and overrule it only with a blocking
+  fact as stated in rule 6.
 
 NON-NEGOTIABLE LIMITS
 Your actions are validated against hard rules before execution. If you propose something that
@@ -242,7 +280,12 @@ function repairLine(e: ElementView): string {
   return `\n    FIXED IN ${countdown(r.totalSeconds)} by ${r.resourceId}${via} — ${breakdown}`;
 }
 
-function elementLine(e: ElementView, secondsWithoutPower: number, priority: number): string {
+function elementLine(
+  e: ElementView,
+  secondsWithoutPower: number,
+  priority: number,
+  pinned: boolean,
+): string {
   const sensors = Object.entries(e.sensors)
     .map(([k, v]) => `${k}=${v}`)
     .join(" ");
@@ -250,7 +293,8 @@ function elementLine(e: ElementView, secondsWithoutPower: number, priority: numb
     secondsWithoutPower > 0 ? ` WITHOUT POWER for ${countdown(secondsWithoutPower)}` : "";
   const resource = e.attention.resourceId ? ` (${e.attention.resourceId})` : "";
   const attention = `${ATTENTION[e.attention.state] ?? e.attention.state}${resource}`;
-  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severity=${e.severity} priority=${priority}${power}\n    ${attention}${repairLine(e)}\n    sensors: ${sensors || "no readings"}`;
+  const flag = pinned ? " [PINNED BY THE OPERATOR]" : "";
+  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severity=${e.severity} priority=${priority}${power}${flag}\n    ${attention}${repairLine(e)}\n    sensors: ${sensors || "no readings"}`;
 }
 
 function resourceLine(r: ResourceView): string {
@@ -336,6 +380,18 @@ function reportLine(r: Report): string {
   return `- [${r.source}]${r.elementId ? ` (${r.elementId})` : ""} ${r.text}`;
 }
 
+function directiveLine(d: Directive, nameOf: (id: string) => string): string {
+  const status =
+    d.status === "open"
+      ? "AWAITING YOUR ANSWER"
+      : `${d.status} — "${d.responseReasoning ?? ""}"`;
+  if (d.kind === "priority_pin") {
+    const site = d.elementId ? `${d.elementId} "${nameOf(d.elementId)}"` : "the scenario";
+    return `- [${d.id}] PIN on ${site}${d.text ? `: "${d.text}"` : ""} — ${status}`;
+  }
+  return `- [${d.id}] ORDER: "${d.text}" — ${status}`;
+}
+
 /**
  * A past incident handed to the model together with WHY it surfaced now.
  * Without that "why" the model cannot tell a semantic match from a plain type
@@ -370,6 +426,8 @@ export interface AgentContext {
   remedies: Remedies;
   /** raw signals since the last deliberation, mostly noise */
   reports: Report[];
+  /** operator directives: pins on sites and orders, some awaiting an answer */
+  directives: Directive[];
   /** past incidents retrieved for this situation, each with why it surfaced */
   history: HistoryEntry[];
   /** why this deliberation was triggered */
@@ -381,16 +439,40 @@ export function buildMessages(
   rejections: string[] = [],
 ): ChatCompletionMessageParam[] {
   const priorityOf = new Map(ctx.priorities.map((p) => [p.elementId, p.score]));
+  const nameOf = new Map(ctx.elements.map((e) => [e.id, e.name]));
+  const pinnedIds = new Set(
+    ctx.directives
+      .filter((d) => d.kind === "priority_pin" && d.status !== "rejected")
+      .map((d) => d.elementId),
+  );
 
-  const parts = [
-    `CRISIS CLOCK: ${ctx.simulationClock}`,
-    "",
+  const hasOpenDirective = ctx.directives.some((d) => d.status === "open");
+
+  const parts = [`CRISIS CLOCK: ${ctx.simulationClock}`, ""];
+
+  // The operator's word goes FIRST and loudest: it is the highest instruction,
+  // above the rule-computed priority and every heuristic below.
+  if (ctx.directives.length > 0) {
+    parts.push(
+      "★★★ OPERATOR DIRECTIVES — HIGHEST PRIORITY, READ FIRST ★★★",
+      "Your supervisor pins sites and issues orders. These outrank the computed priority, the",
+      "inventory heuristics, the history and the plan in progress. Act on each one that is",
+      "AWAITING YOUR ANSWER: put it in \"directiveResponses\" AND turn it into a concrete move in",
+      "your decisions whenever a legal move exists. Overrule one only with a hard blocking fact",
+      "(a blocking rule, a remedy that does not exist, no free resource that applies), stated",
+      "explicitly — the operator reads your reasoning on screen.",
+      ...ctx.directives.map((d) => directiveLine(d, (id) => nameOf.get(id) ?? id)),
+      "",
+    );
+  }
+
+  parts.push(
     "WHY YOU ARE DELIBERATING NOW:",
     ...ctx.reasons.map((m) => `- ${m}`),
     "",
     "SITES (priority = rule-computed clue, higher = more urgent):",
     ...ctx.elements.map((e) =>
-      elementLine(e, ctx.secondsWithoutPower(e.id), priorityOf.get(e.id) ?? 0),
+      elementLine(e, ctx.secondsWithoutPower(e.id), priorityOf.get(e.id) ?? 0, pinnedIds.has(e.id)),
     ),
     "",
     "AVAILABLE RESOURCES — this is everything you have:",
@@ -414,7 +496,7 @@ export function buildMessages(
     "",
     "CONTACTS (who you can call or message, and the role they hold):",
     ...ctx.remedies.contacts.map(contactLine),
-  ];
+  );
 
   if (ctx.reports.length > 0) {
     parts.push(
@@ -441,6 +523,17 @@ export function buildMessages(
       ...ctx.currentPlan.steps.map((s) => `- [${s.completed ? "x" : " "}] ${s.description}`),
       "",
       "If the plan is still good, keep it and adjust. If the facts have overtaken it, drop it and make a new one.",
+    );
+  }
+
+  // Recency: the last thing read is the operator's demand, so it is not lost
+  // among the state. Only when something is actually pending an answer.
+  if (hasOpenDirective) {
+    parts.push(
+      "",
+      "BEFORE YOU RETURN — the operator is waiting: every directive marked AWAITING YOUR ANSWER",
+      "above needs a \"directiveResponses\" entry AND, when a legal move exists, a concrete action",
+      "in your decisions. Not answering is not an option; refusing needs the blocking fact.",
     );
   }
 

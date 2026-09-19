@@ -246,6 +246,8 @@ function buildRunSummary(): RunSummaryView {
       decisions: byKind.get("decision") ?? 0,
       actions: actionIds.size,
       outcomes: byKind.get("outcome") ?? 0,
+      directives:
+        (byKind.get("directive") ?? 0) + (byKind.get("directive_response") ?? 0),
       system: byKind.get("system") ?? 0,
     },
     incidents: { resolved: resolvedClosures, open: open.length },
@@ -267,7 +269,7 @@ function publishRunSummary(): void {
     `[summary] events: ${events.total} total — ` +
       `${events.alarms} alarms, ${events.reports} raw signals, ` +
       `${events.decisions} decisions, ${events.actions} actions, ` +
-      `${events.outcomes} call outcomes, ${events.system} system`,
+      `${events.outcomes} call outcomes, ${events.directives} directives, ${events.system} system`,
   );
   console.log(`[summary] incidents: ${incidents.resolved} resolved, ${incidents.open} still open`);
   console.log(
@@ -342,7 +344,9 @@ function advance(): void {
   }
   // the engine decides over the already-advanced snapshot; it does not wait for it to finish
   void agent.observe(fullState(), events).catch((err: unknown) => {
-    console.error(`[agent] observation failed: ${redactSecrets(err instanceof Error ? err.message : String(err))}`);
+    console.error(
+      `[agent] observation failed: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
+    );
   });
   if (sim.finished && !summaryPublished) {
     summaryPublished = true;
@@ -480,7 +484,33 @@ app.post("/api/control", (req, res) => {
         return;
       }
       break;
+    case "prioritize": {
+      const { elementId, note } = body.payload;
+      if (!runtime.script.elements.some((e) => e.id === elementId)) {
+        res.status(400).json(errorResponse(`unknown element: ${elementId}`));
+        return;
+      }
+      runtime.agent.queueDirective("priority_pin", elementId, note ?? "");
+      break;
+    }
+    case "unprioritize": {
+      const { elementId } = body.payload;
+      if (!runtime.script.elements.some((e) => e.id === elementId)) {
+        res.status(400).json(errorResponse(`unknown element: ${elementId}`));
+        return;
+      }
+      runtime.agent.unpin(elementId);
+      break;
+    }
+    case "order":
+      runtime.agent.queueDirective("order", null, body.payload.text);
+      break;
   }
+  // A directive is the operator waiting: wake the engine NOW instead of leaving
+  // it for the next tick. `advance` already ran before the directive existed, so
+  // without this second pass there is up to a full poll of dead time before the
+  // agent even starts thinking about it.
+  if (body.action === "prioritize" || body.action === "order") advance();
   res.json({ ok: true });
 });
 

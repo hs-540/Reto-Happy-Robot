@@ -121,6 +121,8 @@ export interface RunSummaryView {
     decisions: number;
     actions: number;
     outcomes: number;
+    /** operator directives (pins and orders) plus the agent's answers */
+    directives: number;
     system: number;
   };
   /** incidents resolved this run vs sites still degraded or critical */

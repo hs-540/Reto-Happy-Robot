@@ -1,4 +1,4 @@
-import type { ElementView, RepairEstimate } from '@swarmup/shared'
+import type { Directive, ElementView, RepairEstimate } from '@swarmup/shared'
 import { Icon } from './icons'
 import { ELEMENT_ICON } from './iconPaths'
 import { formatCountdown, severityTier } from '../lib/format'
@@ -73,15 +73,68 @@ interface SitesPanelProps {
   elements: ElementView[]
   criticalityById: Record<string, number>
   selectedElementId: string | null
+  /** operator pins by site; a rejected one stays visible, overruled */
+  pinnedById: Record<string, Directive>
+  pending: boolean
   onSelectElement: (id: string) => void
+  onPrioritize: (id: string) => void
+  onUnprioritize: (id: string) => void
   onCollapse: () => void
+}
+
+/**
+ * The pin toggle lives inside the site row, which is itself a `<button>`:
+ * a nested button is invalid HTML, so this is a span with the button role.
+ */
+function PinToggle({
+  directive,
+  pending,
+  onPrioritize,
+  onUnprioritize,
+}: {
+  directive: Directive | undefined
+  pending: boolean
+  onPrioritize: () => void
+  onUnprioritize: () => void
+}) {
+  const pinned = directive !== undefined
+  const rejected = directive?.status === 'rejected'
+  const title = pinned
+    ? rejected
+      ? `The agent rejected this pin: ${directive?.responseReasoning ?? 'no reasoning given'} — click to withdraw it`
+      : directive?.status === 'open'
+        ? 'Pinned — the agent will answer on its next deliberation'
+        : `Pinned — acknowledged: ${directive?.responseReasoning ?? ''} — click to withdraw`
+    : 'Prioritize this site'
+  return (
+    <span
+      role="button"
+      tabIndex={-1}
+      className={`site__pin ${pinned ? 'is-pinned' : ''} ${rejected ? 'is-rejected' : ''}`}
+      title={title}
+      aria-pressed={pinned}
+      aria-disabled={pending}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (pending) return
+        if (pinned) onUnprioritize()
+        else onPrioritize()
+      }}
+    >
+      <Icon name="pin" size={13} />
+    </span>
+  )
 }
 
 export function SitesPanel({
   elements,
   criticalityById,
   selectedElementId,
+  pinnedById,
+  pending,
   onSelectElement,
+  onPrioritize,
+  onUnprioritize,
   onCollapse,
 }: SitesPanelProps) {
   const criticalCount = elements.filter((e) => e.status === 'critical').length
@@ -96,7 +149,7 @@ export function SitesPanel({
             {criticalCount} critical
           </span>
         )}
-        <span className="panel__head-hint">click to focus</span>
+        <span className="panel__head-hint">click to focus · pin to prioritize</span>
         <button
           type="button"
           className="panel__collapse panel__collapse--left"
@@ -110,11 +163,14 @@ export function SitesPanel({
         {elements.map((el) => {
           const tier = severityTier(el.severity)
           const attention = el.attention?.state ?? 'unattended'
+          const directive = pinnedById[el.id]
           return (
             <button
               key={el.id}
               type="button"
-              className={`site site--${el.status} ${el.id === selectedElementId ? 'is-selected' : ''}`}
+              className={`site site--${el.status} ${el.id === selectedElementId ? 'is-selected' : ''} ${
+                directive ? 'is-pinned' : ''
+              }`}
               onClick={() => onSelectElement(el.id)}
             >
               <div className="site__top">
@@ -128,6 +184,12 @@ export function SitesPanel({
                     {criticalityById[el.id] !== undefined && ` · crit ${criticalityById[el.id]}`}
                   </small>
                 </span>
+                <PinToggle
+                  directive={directive}
+                  pending={pending}
+                  onPrioritize={() => onPrioritize(el.id)}
+                  onUnprioritize={() => onUnprioritize(el.id)}
+                />
                 <span className="site__statusdot" title={el.status} />
               </div>
 
