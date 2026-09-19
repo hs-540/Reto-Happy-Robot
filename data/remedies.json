@@ -66,6 +66,44 @@
       "phone": "+34600000003"
     },
     {
+      "id": "crew-chief-2",
+      "name": "Rosa Iglesias",
+      "role": "Electrical crew chief",
+      "resourceId": "crew-2",
+      "phone": "+34600000008",
+      "$note": "Can refuse with good reason if asked to abandon a half-finished repair. When she refuses, she states how many minutes the new task would slip."
+    },
+    {
+      "id": "traffic-patrol-2",
+      "name": "Patrol 27",
+      "role": "Municipal traffic police",
+      "resourceId": "police-2",
+      "phone": "+34600000009"
+    },
+    {
+      "id": "tanker-driver-2",
+      "name": "Jorge Perea",
+      "role": "Diesel tanker driver",
+      "resourceId": "tanker-2",
+      "phone": "+34600000010"
+    },
+    {
+      "id": "hospital-lead-2",
+      "name": "Dr. Marcos Aliaga",
+      "role": "Hospital duty lead — El Bercial",
+      "elementId": "hosp-02",
+      "phone": "+34600000011",
+      "$note": "Needs operational instructions and concrete deadlines, not grid detail."
+    },
+    {
+      "id": "hospital-lead-3",
+      "name": "Dra. Ana Ferrer",
+      "role": "Medical centre director",
+      "elementId": "hosp-03",
+      "phone": "+34600000012",
+      "$note": "Not a grid expert. Give her what to do now and when the next update comes."
+    },
+    {
       "id": "hospital-lead",
       "name": "Dr. Elena Duarte",
       "role": "Hospital duty lead",

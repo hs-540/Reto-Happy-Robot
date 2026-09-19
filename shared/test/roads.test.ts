@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createRoadRouter, haversineKm, type RoadNetwork } from "../src/roads.js";
-import { loadRoads } from "../src/loaders.js";
+import { loadRoads, loadScript } from "../src/loaders.js";
 
 const roadsPath = fileURLToPath(new URL("../../data/roads.json", import.meta.url));
+const scriptPath = fileURLToPath(
+  new URL("../../data/scripts/madrid-blackout.json", import.meta.url),
+);
 
 test("the committed street network validates and is substantial", () => {
   const network = loadRoads(roadsPath);
@@ -33,17 +36,15 @@ test("routes follow real streets and are longer than the straight line", () => {
 test("every scenario journey is routable in both directions", () => {
   const router = createRoadRouter(loadRoads(roadsPath));
   const depot = { lat: 40.302, lng: -3.722 };
-  const sites = [
-    { lat: 40.3057, lng: -3.7327 }, // substation
-    { lat: 40.31, lng: -3.71 }, // hospital
-    { lat: 40.2957, lng: -3.7136 }, // datacenter
-    { lat: 40.3125, lng: -3.7285 }, // tower
-    { lat: 40.2998, lng: -3.7352 }, // fuel station
-    { lat: 40.3082, lng: -3.7156 }, // junction
-  ];
+  const sites = loadScript(scriptPath).elements.map((e) => ({
+    id: e.id,
+    lat: e.lat,
+    lng: e.lng,
+  }));
+  assert.ok(sites.length >= 15, `every place of the scenario must be tested: ${sites.length}`);
   for (const site of sites) {
-    assert.ok(router.route(depot, site), `depot -> ${site.lat},${site.lng}`);
-    assert.ok(router.route(site, depot), `${site.lat},${site.lng} -> depot`);
+    assert.ok(router.route(depot, site), `depot -> ${site.id} (${site.lat},${site.lng})`);
+    assert.ok(router.route(site, depot), `${site.id} (${site.lat},${site.lng}) -> depot`);
   }
 });
 

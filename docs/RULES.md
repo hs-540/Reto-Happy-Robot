@@ -74,7 +74,8 @@ These raw thresholds **raise the status even when the event's severity is low** 
 ## 4. Resource constraints
 
 Total shared capacity of the scenario (`resources.capacity` in `rules.json`):
-**1 crew + 2 generators + 1 tanker + 1 police unit**.
+**2 crews + 4 generators + 2 tankers + 2 police units** — deliberately **fewer
+than the 15 troubled places** they must cover.
 
 - **Mutual exclusion**: a resource serves **one element at a time**. A resource in `assigned` or `in_transit` cannot be reassigned (blocking rule `no-double-assignment`).
 - **On release** a resource goes to `available` and can be reassigned on the next tick; releasing is an **incremental adjustment**, it does not trigger re-planning.
