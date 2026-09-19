@@ -99,6 +99,13 @@ Full snapshot of the world. Replaced entirely on every poll.
         "resourceId": "generator-2",
         "activeDecisionId": "dec-004"
       },
+      "repair": {
+        "resourceId": "generator-2",
+        "viaElementId": "hosp-01",
+        "travelSeconds": 0,
+        "workSeconds": 180,
+        "totalSeconds": 180
+      },
       "updatedAt": "2026-09-18T10:03:30.000Z"
     }
   ],
@@ -117,10 +124,27 @@ Full snapshot of the world. Replaced entirely on every poll.
 
 `status`: `normal` → `degraded` → `critical` → `resolved`.
 `attention.state`: `unattended` | `analyzing` | `resource_en_route` | `resource_assigned` | `resolved`.
-`resource_en_route` exists in the type and is **never emitted today**:
-`agent.attention()` reports `resource_assigned` for any committed resource,
-in transit or on site. Consumers should treat the two as "covered".
+All five are emitted: a resource still `in_transit` reports `resource_en_route`,
+one already on site `resource_assigned`, and a resolved element `resolved`
+whatever is standing on it. Both resource states mean "covered".
 The assignment shows up on both sides (`element.attention.resourceId` and `resource.assignedElementId`); the backend computes it once.
+
+`repair`: the countdown to the element being fixed, or `null` when nothing is on
+its way (and always `null` once it is `resolved`). Every figure is in **crisis
+seconds**, like the rest of the state. `attention` says somebody is on it;
+`repair` says when they are done — covered is not fixed, and the hospital's
+8-minute limit only means something next to a number.
+
+| Field | Meaning |
+| --- | --- |
+| `resourceId` | the resource doing the work |
+| `viaElementId` | the site actually being worked on; when it differs from the element, the fix is **inherited** — repairing that upstream node restores this one's grid |
+| `travelSeconds` | until the resource reaches its site; `0` once it is there |
+| `workSeconds` | work left after arriving, from the remedy's declared duration |
+| `totalSeconds` | `travelSeconds + workSeconds`: what the counter shows |
+
+An element's own resource always wins over an inherited estimate, and a resource
+sent where its remedy does not apply produces no estimate at all.
 `sensors` keys (`SensorMetric`): `grid_voltage`, `ups_load`, `generator_battery`,
 `temperature`, `network_coverage`, `tower_battery`, `fuel`, `congestion` — all
 optional, a site only reports what it has. Their thresholds are in

@@ -4,6 +4,7 @@ import type {
   ElementView,
   ValidatableElement,
   ValidatableResource,
+  RepairEstimate,
   ResourceView,
 } from "@swarmup/shared";
 import {
@@ -132,6 +133,12 @@ export interface World {
   /** Back to the initial script state (called by `simulation.reset`) */
   reset(): void;
   resources(): ResourceView[];
+  /**
+   * Countdown to `elementId` being fixed, in crisis seconds. Reads the same
+   * route and remedy state `advance` acts on, so the number and the event that
+   * eventually fires cannot drift apart. `null` when nothing is on its way.
+   */
+  repairEstimate(elementId: string, seconds: number): RepairEstimate | null;
   /** Accumulated seconds without grid power or reliable backup, by elementId */
   secondsWithoutPower(elementId: string): number;
   /** Context consumed by `validateAction` from shared/rules */
@@ -237,6 +244,45 @@ export function createWorld(
     return remedies.remedies.find(
       (r) => r.resource === resource && (r.appliesTo as readonly string[]).includes(elementType),
     );
+  }
+
+  /**
+   * What the resource committed to `elementId` still needs to finish its remedy.
+   * A resource sent somewhere its remedy does not apply gets no countdown: it is
+   * not fixing anything, and a counter ticking down to nothing would be a lie.
+   */
+  function directRepair(elementId: string, seconds: number): RepairEstimate | null {
+    const elementType = typeOf.get(elementId);
+    if (!elementType) return null;
+
+    for (const r of resources.values()) {
+      if (r.assignedElementId !== elementId) continue;
+      if (r.status !== "in_transit" && r.status !== "assigned") continue;
+      const remedy = remedyFor(r.type, elementType);
+      if (!remedy) continue;
+
+      const base = { resourceId: r.id, viaElementId: elementId };
+      if (r.remedyApplied) {
+        return { ...base, travelSeconds: 0, workSeconds: 0, totalSeconds: 0 };
+      }
+
+      const travel =
+        r.status === "in_transit" && r.departedAt !== null
+          ? Math.max(r.etaSeconds - (seconds - r.departedAt), 0)
+          : 0;
+      const work =
+        r.status === "assigned" && r.arrivedAt !== null
+          ? Math.max(remedy.minutes * 60 - (seconds - r.arrivedAt), 0)
+          : remedy.minutes * 60;
+
+      return {
+        ...base,
+        travelSeconds: Math.round(travel),
+        workSeconds: Math.round(work),
+        totalSeconds: Math.round(travel + work),
+      };
+    }
+    return null;
   }
 
   /** With the junction unregulated, every journey takes twice as long */
@@ -506,6 +552,26 @@ export function createWorld(
         lat: r.lat,
         lng: r.lng,
       }));
+    },
+
+    repairEstimate(elementId: string, seconds: number): RepairEstimate | null {
+      const own = directRepair(elementId, seconds);
+      if (own) return own;
+
+      // Nothing committed here, but repairing an upstream node hands the grid
+      // back to everything below it — `advance` emits a `remedy_applied` for
+      // every dependent. That repair IS this site's countdown, and saying so is
+      // what makes the coverage argument visible: one crew, five sites.
+      let inherited: RepairEstimate | null = null;
+      for (const e of script.elements) {
+        if (e.id === elementId) continue;
+        if (!dependentsOf(topology, e.id).includes(elementId)) continue;
+        const upstream = directRepair(e.id, seconds);
+        if (upstream && (!inherited || upstream.totalSeconds < inherited.totalSeconds)) {
+          inherited = upstream;
+        }
+      }
+      return inherited;
     },
 
     secondsWithoutPower(elementId: string): number {

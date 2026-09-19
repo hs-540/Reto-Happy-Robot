@@ -837,6 +837,36 @@
   text-overflow: ellipsis;
 }
 
+/* Countdown to the site being fixed. Pushed to the right so the row reads
+   "who is on it … when it is done", which is the question being asked. */
+.site__eta {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text);
+  background: color-mix(in srgb, var(--normal) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--normal) 34%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+/* Inherited from an upstream repair: the same fact, but not this site's own
+   resource, so it reads quieter than a crew standing on the spot. */
+.site__eta--inherited {
+  color: var(--muted);
+  background: transparent;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.site__eta--done {
+  color: var(--normal);
+  background: transparent;
+  border-color: transparent;
+}
+
 /* ---------- Agent panel ---------- */
 
 .agent {

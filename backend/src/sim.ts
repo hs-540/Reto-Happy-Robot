@@ -264,6 +264,9 @@ export function createSimulation(
           // attention is the agent's, not the simulation's: the HTTP layer
           // replaces this placeholder with `agent.attention(id)` before serving
           attention: { state: "unattended", resourceId: null, activeDecisionId: null },
+          // like `attention`: derived state the HTTP layer fills in `fullState`,
+          // because it needs the world's routes and the agent's decisions
+          repair: null,
           updatedAt: isoClock(state.updatedAt),
         };
       });
