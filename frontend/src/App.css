@@ -1713,6 +1713,22 @@
   --uc: var(--accent);
 }
 
+/*
+ * A unit's dot wears its OWN identity colour (--uc, the unit palette in
+ * palette.ts), never the site-status palette: green/amber/red/blue dots are
+ * sites, and a unit painted with the same hues vanished among them. The
+ * resource status stays visible as line style — a dashed border is a unit
+ * still driving.
+ */
+.marker--resource .marker__dot {
+  --c: var(--uc);
+  border-radius: 30%;
+}
+
+.marker--resource.marker--in_transit .marker__dot {
+  border-style: dashed;
+}
+
 .marker__dot {
   position: relative; /* anchor for .marker__eta */
   width: 32px;
