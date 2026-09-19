@@ -23,6 +23,7 @@ function App() {
         tick={state.tick}
         reloj={state.relojSimulacion}
         pausado={state.pausado}
+        iniciado={state.iniciado}
         onControlOk={refrescar}
         segundoActual={state.tick * TICK_SEGUNDOS}
         duracionSegundos={topology.crisis.duracionSegundos}
