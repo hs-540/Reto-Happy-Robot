@@ -10,6 +10,9 @@ try {
   if (!(err instanceof Error && "code" in err && err.code === "ENOENT")) throw err;
 }
 
+/** An empty string counts as unset: optional URLs are switched off, not invalid */
+const emptyToUndefined = (value: unknown): unknown => (value === "" ? undefined : value);
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
   /* Engine cadence: the demo compresses 30 crisis-minutes into ~2 real minutes
@@ -26,12 +29,21 @@ const envSchema = z.object({
   LLM_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
   /** Provider label; only shows up in logs */
   LLM_PROVIDER: z.string().min(1).default("helmcode"),
-  HAPPYROBOT_API_KEY: z.string().min(1),
-  HAPPYROBOT_BASE_URL: z.url().default("https://app.happyrobot.ai"),
+  /**
+   * Full URL of the HappyRobot mission hook. Its PRESENCE is the real/simulated
+   * switch: the hook is a secret URL, so there is no credential to validate —
+   * unset means the calls are simulated and the demo keeps standing.
+   */
+  HAPPYROBOT_WEBHOOK_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   /** Outbound call queue: slots in flight, pending depth and the slot backstop */
   HAPPYROBOT_MAX_CONCURRENT_CALLS: z.coerce.number().int().positive().default(1),
   HAPPYROBOT_MAX_QUEUED_CALLS: z.coerce.number().int().positive().default(3),
   HAPPYROBOT_CALL_SLOT_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+  /* Return path of a real call: the hook posts a call-summary event to this
+     worker and the backend polls it for closures of the missions it sent. */
+  EVENTS_API_URL: z.url().default("https://events-api.hs540events.workers.dev"),
+  EVENTS_API_KEY: z.string().default(""),
+  EVENTS_POLL_MS: z.coerce.number().int().positive().default(10_000),
   CHROMA_PATH: z.string().min(1).default("backend/chroma-data"),
   CHROMA_PORT: z.coerce.number().int().positive().default(8000),
 });
@@ -48,7 +60,10 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-const secrets = [parsed.data.LLM_API_KEY, parsed.data.HAPPYROBOT_API_KEY];
+/* An empty secret would splice [REDACTED] into every character boundary, so
+   only real values make the list */
+const secrets = [parsed.data.LLM_API_KEY, parsed.data.HAPPYROBOT_WEBHOOK_URL ?? "", parsed.data.EVENTS_API_KEY]
+  .filter((secret) => secret.length > 0);
 
 export function redactSecrets(text: string): string {
   return secrets.reduce((acc, secret) => acc.split(secret).join("[REDACTED]"), text);
@@ -83,11 +98,15 @@ export const config = deepFreeze({
     gateways: [llmProvider],
   },
   happyrobot: {
-    apiKey: parsed.data.HAPPYROBOT_API_KEY,
-    baseUrl: parsed.data.HAPPYROBOT_BASE_URL,
+    webhookUrl: parsed.data.HAPPYROBOT_WEBHOOK_URL,
     maxConcurrentCalls: parsed.data.HAPPYROBOT_MAX_CONCURRENT_CALLS,
     maxQueuedCalls: parsed.data.HAPPYROBOT_MAX_QUEUED_CALLS,
     callSlotTimeoutMs: parsed.data.HAPPYROBOT_CALL_SLOT_TIMEOUT_MS,
+  },
+  eventsApi: {
+    url: parsed.data.EVENTS_API_URL,
+    apiKey: parsed.data.EVENTS_API_KEY,
+    pollMs: parsed.data.EVENTS_POLL_MS,
   },
   chroma: {
     path: path.resolve(repoRoot, parsed.data.CHROMA_PATH),

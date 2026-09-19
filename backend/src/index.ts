@@ -120,6 +120,9 @@ function isStillRelevant(request: ContactRequest): boolean {
   return element !== undefined && element.status !== "resolved";
 }
 
+/** Missions the hook accepted this run: the outcome poller only closes these */
+const dispatchedMissions = new Set<string>();
+
 /**
  * The channel to the real world. Created once and receiving the closure by
  * callback: a call takes a minute to resolve and the engine does not wait for
@@ -130,9 +133,9 @@ function isStillRelevant(request: ContactRequest): boolean {
  */
 const happyrobot = createCallQueue(
   createHappyRobotClient({
-    apiKey: config.happyrobot.apiKey,
-    baseUrl: config.happyrobot.baseUrl,
+    webhookUrl: config.happyrobot.webhookUrl,
     onClosed: (closure) => happyrobot.onClosed(closure),
+    onDispatched: (missionId) => dispatchedMissions.add(missionId),
   }),
   {
     feed,
