@@ -25,9 +25,9 @@ const FULL_TOPOLOGY = loadTopology(new URL("data/topology.json", repoRoot).pathn
 const REMEDIES = loadRemedies(new URL("data/remedies.json", repoRoot).pathname);
 
 /** Band of demand over capacity the draw must land in (two tunable constants).
- *  Lowered from 1.3-1.8: the fleet was starving for units in every shape, and
- *  a crisis with ~110-140% of demand still forces ranking sites (demand above
- *  capacity, plus the fleet can never match the site count). */
+ *  The fleet is tight on purpose: at 110-140% of the capacity available in the
+ *  window there is always more work than there are resource-minutes to spend,
+ *  so ranking sites and leaving something unattended is part of every run. */
 export const BAND_MIN = 1.1;
 export const BAND_MAX = 1.4;
 
@@ -37,15 +37,29 @@ export const MAX_ATTEMPTS = 20;
 export const MIN_INCIDENT_SPACING_SECONDS = 120;
 /** Later incidents start no earlier than this and none inside the last stretch */
 const FIRST_SLOT_SECONDS = 180;
-const LAST_START_SECONDS = 1500;
+const LAST_START_SECONDS = 6600;
 const INDEPENDENT_CHANCE = 0.5;
-const MAX_INDEPENDENTS = 4;
-/** The fleet shrinks with the drawn crisis; one unit per class is the floor */
-const MIN_FLEET_SIZE = 4;
+const MAX_INDEPENDENTS = 24;
+
+/** Sites a drawn world holds, out of the 100 in the catalog. The draw fills up
+ *  to MAX and validation holds the same band, so the two can never disagree
+ *  about what is playable; which half of the map plays is up to the seed. */
+export const MIN_SUBSET_SIZE = 46;
+export const MAX_SUBSET_SIZE = 54;
+/** Units a drawn fleet holds: the band above sizes it to the crisis inside
+ *  these bounds. One unit of every class is the floor, so every remedy keeps a
+ *  base to travel from. */
+export const MIN_FLEET_SIZE = 4;
+export const MAX_FLEET_SIZE = 90;
 /** Every class a playable world needs at least one unit of */
 const RESOURCE_CLASSES: readonly ResourceType[] = ["crew", "generator", "tanker", "police"];
+/** A root blackout may take down the substations behind this share of the
+ *  drawn world; the rest of it stays healthy and is there to be triaged. */
+const MAX_DOWNED_SHARE = 0.8;
+/** However small the world, a crisis needs more than one root cause */
+const MIN_DOWNED_SUBS = 2;
 /** The needle lands mid-crisis, never at the opening */
-const NEEDLE_WINDOW: readonly [number, number] = [420, 1080];
+export const NEEDLE_WINDOW: readonly [number, number] = [1680, 4320];
 
 /** Movement speed of the fleet, simulated km/min (world.ts drives with this) */
 const SPEED_KM_MIN = 0.5;
@@ -94,6 +108,13 @@ interface PlannedIncident {
   template: ElementTemplate;
 }
 
+/** Does this substation feed at least one hospital? */
+function suppliesHospital(subId: string): boolean {
+  return dependentsOf(FULL_TOPOLOGY, subId).some(
+    (id) => CATALOG.elements.find((e) => e.id === id)?.type === "hospital",
+  );
+}
+
 function siteTypeOf(id: string): ElementType {
   const element = CATALOG.elements.find((e) => e.id === id);
   if (!element) throw new Error(`unknown site: ${id}`);
@@ -126,9 +147,27 @@ function forcedSubset(downedSubs: string[]): Set<string> {
   return active;
 }
 
-function drawSubset(rng: Rng, downedSubs: string[]): Set<string> {
+/**
+ * Substations whose fall the world can absorb: each one drags every site it
+ * supplies into the subset, so rings are taken only while the sites they force
+ * stay inside the target. Substations that feed a hospital go first — a crisis
+ * always has somebody to save.
+ */
+function drawDownedSubs(rng: Rng, targetSize: number): string[] {
+  const candidates = rng
+    .shuffle(SUBSTATION_IDS)
+    .sort((a, b) => Number(suppliesHospital(b)) - Number(suppliesHospital(a)));
+  const room = Math.floor(targetSize * MAX_DOWNED_SHARE);
+  const downed: string[] = [];
+  for (const sub of candidates) {
+    if (downed.length >= MIN_DOWNED_SUBS && forcedSubset([...downed, sub]).size > room) continue;
+    downed.push(sub);
+  }
+  return downed;
+}
+
+function drawSubset(rng: Rng, downedSubs: string[], targetSize: number): Set<string> {
   const active = forcedSubset(downedSubs);
-  const targetSize = rng.int(8, 15);
   const fillable = rng.shuffle(CATALOG.elements.filter((e) => !active.has(e.id)));
   for (const site of fillable) {
     if (active.size >= targetSize) break;
@@ -174,7 +213,7 @@ function drawFleet(
   siteCount: number,
 ): ScriptResource[] {
   const windowMinutes = durationSeconds / 60;
-  const cap = Math.min(CATALOG.resources.length, siteCount - 1);
+  const cap = Math.min(CATALOG.resources.length, MAX_FLEET_SIZE, siteCount - 1);
   const clamp = (n: number) => Math.min(Math.max(n, MIN_FLEET_SIZE), cap);
   const lo = clamp(Math.ceil(demandMinutes / (BAND_MAX * windowMinutes)));
   const hi = clamp(Math.floor(demandMinutes / (BAND_MIN * windowMinutes)));
@@ -201,12 +240,13 @@ export function drawScenario(seed: number): ScenarioDraft {
   const rng = createRng(seed);
   const durationSeconds = CATALOG.durationSeconds;
 
-  // root causes: 2 or 3 of the 3 substations fall; the first opens at t = 0
-  const downedSubs = rng.shuffle(SUBSTATION_IDS).slice(0, rng.pick([2, 3]));
+  // root causes: the rings the world can absorb; the first opens at t = 0
+  const targetSize = rng.int(MIN_SUBSET_SIZE, MAX_SUBSET_SIZE);
+  const downedSubs = drawDownedSubs(rng, targetSize);
   const firstSub = downedSubs[0];
   if (!firstSub) throw new Error("no substation drawn");
 
-  const active = drawSubset(rng, downedSubs);
+  const active = drawSubset(rng, downedSubs, targetSize);
 
   // genuinely independent local failures, only on sites with a healthy supply
   const independents: PlannedIncident[] = [];
@@ -269,7 +309,13 @@ export function drawScenario(seed: number): ScenarioDraft {
   const crisisHospitals = [...active].filter(
     (id) => siteTypeOf(id) === "hospital" && downedSubs.includes(SUPPLIERS.get(id) ?? ""),
   );
-  const needleHospitalId = rng.pick(crisisHospitals);
+  // With no hospital on a downed substation there is no crisis hospital to put
+  // the needle on; any hospital in the world keeps the draw alive and
+  // validation decides whether it is playable.
+  const hospitals = crisisHospitals.length
+    ? crisisHospitals
+    : [...active].filter((id) => siteTypeOf(id) === "hospital");
+  const needleHospitalId = rng.pick(hospitals);
   timeline.push({
     atSeconds: rng.int(NEEDLE_WINDOW[0], NEEDLE_WINDOW[1]),
     kind: "report",
@@ -442,8 +488,10 @@ export function validateScenario(draft: ScenarioDraft): string[] {
   const resourceIds = new Set(script.resources.map((r) => r.id));
   const countOfType = (type: ElementType) => script.elements.filter((e) => e.type === type).length;
 
-  if (script.elements.length < 8 || script.elements.length > 15) {
-    problems.push(`subset size ${script.elements.length} outside 8-15`);
+  if (script.elements.length < MIN_SUBSET_SIZE || script.elements.length > MAX_SUBSET_SIZE) {
+    problems.push(
+      `subset size ${script.elements.length} outside ${MIN_SUBSET_SIZE}-${MAX_SUBSET_SIZE}`,
+    );
   }
   if (countOfType("substation") < 2) problems.push("fewer than 2 substations");
   if (countOfType("hospital") < 2) problems.push("fewer than 2 hospitals");

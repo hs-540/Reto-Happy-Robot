@@ -68,7 +68,7 @@ If a Chroma is already listening on its port, it gets reused instead of starting
 
 Everything from the UI, no `curl`:
 
-- **Launch** the run — button in the command bar. Each run draws a random crisis from a seed (`backend/src/scenario.ts`): 8-15 of the 15 sites, 4-10 of the 10 resources — always at least one fewer than the drawn sites, so prioritizing is never optional — and ~100-120 timeline entries spaced across the 30-minute window, most of them noise the agent must triage. The clock runs for 1800 s (30 min) of simulated time; a demo run does not need all of it.
+- **Launch** the run — button in the command bar. Each run draws a random crisis from a seed (`backend/src/scenario.ts`): ~50 of the 100 catalog sites, and a fleet sized to be tight against them (~12-23 of the 90 resources, demand at 110-140% of capacity, always at least one unit fewer than the drawn sites, so prioritizing is never optional) — and ~250-300 timeline entries spaced across the two-hour window, most of them noise the agent must triage. The clock runs for 7200 s (2 h) of simulated time; a demo run does not need all of it.
 - **Pause / resume** — command bar.
 - **Inject live events** — injection panel. Crossing a threshold triggers a full re-plan on the next tick.
 - **How fast the clock runs** is `TIME_SCALE` (crisis seconds per real second). The default `15` compresses the 30 crisis-minutes into ~2 real minutes; a live demo usually wants `6`, so a deliberation (8-20 s) does not outrun the crisis it is answering.

@@ -113,7 +113,7 @@ test("finished only turns true once the script has fully played out", () => {
   assert.equal(sim.finished, true);
   assert.equal(sim.state().finished, true);
   // the clock freezes at the script's duration: the run is over, the world stops
-  sim.advance(START_MS + 600_000);
+  sim.advance(START_MS + (DURATION + 600) * 1000);
   assert.equal(sim.seconds(), loadScript(scriptPath).durationSeconds);
   sim.reset();
   assert.equal(sim.finished, false);

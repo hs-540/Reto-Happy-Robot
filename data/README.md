@@ -7,7 +7,7 @@ the JSON, leaving the agent decorative.
 
 | File | What it is | Loaded by |
 | --- | --- | --- |
-| `scripts/madrid-blackout.json` | The curated event script — and the catalog the scenario generator draws from: 15 places, 10 resources and the timeline that breaks them | `loadScript` (`backend/src/script.ts`) |
+| `scripts/madrid-blackout.json` | The curated event script — and the catalog the scenario generator draws from: 100 places, 90 resources and the timeline that breaks them | `loadScript` (`backend/src/script.ts`) |
 | `topology.json` | Dependency graph of the scenario | `loadTopology` (`shared/src/loaders.ts`) |
 | `remedies.json` | What fixes what, and who to call | `loadRemedies` |
 | `roads.json` | Routable graph of the real Getafe street network (© OpenStreetMap contributors): `nodes` are `[lat, lng]` pairs, `edges` are directed node pairs (oneway streets only allow their real direction). Regenerate with the Overpass API; keep the largest connected component. | `loadRoads` (`shared/src/loaders.ts`) |
@@ -97,8 +97,8 @@ dropped with a note in the feed rather than dialled.
 ## `scripts/` — the event script
 
 `madrid-blackout.json` is the timed timeline of the Madrid regional blackout:
-`title`, `durationSeconds` (1800) and 93 entries, each with `atSeconds`, a
-`kind` and a `payload`. It covers **15 places** and **10 resources** — fewer
+`title`, `durationSeconds` (7200) and 93 entries, each with `atSeconds`, a
+`kind` and a `payload`. It covers **100 places** and **90 resources** — fewer
 resources than places with problems, so triage is unavoidable.
 
 - `sensor_event` (42) — a reading: `elementId`, `metric`, `value`, `severity`.
@@ -114,8 +114,8 @@ overheating (240 s), the tower batteries draining (450 s), the hospital losing
 its generator (540 s) and the crew missing its ETA (900 s).
 
 This file is also the **generator's catalog** (`backend/src/scenario.ts`): every
-boot and every reset draws a seed that picks 8-15 of these 15 places and deploys
-4-10 of the 10 resources, with the failure arcs coming from the templates in
+boot and every reset draws a seed that plays ~50 of these 100 places and
+deploys the tight fleet drawn for them (~12-23 of the 90 resources), with the failure arcs coming from the templates in
 `backend/src/scenario-templates.ts`. The generated timeline carries no `note`s,
 so a random run has no pre-announced key moments; the five listed above belong
 to the curated script, which survives as the generator's fallback and the

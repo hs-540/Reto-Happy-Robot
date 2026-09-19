@@ -40,8 +40,8 @@ the UI does not poll it; it is there for a healthcheck from outside.
 
 Each boot and each reset draws its own crisis (`backend/src/scenario.ts`, see
 [`SCENARIO-GENERATION.md`](SCENARIO-GENERATION.md)), so the element and resource
-lists below are one generation, not a fixed roster: a run carries 8-15 sites and
-4-10 resources. The frontend refetches this route when the tick goes backwards.
+lists below are one generation, not a fixed roster: a run carries ~50 of the
+100 catalog sites and the tight fleet drawn for them (~12-23 units). The frontend refetches this route when the tick goes backwards.
 
 `crisis` carries only the title and the duration: the plot never travels in the
 topology. Key moments reach the UI through the **feed** — each timeline event
@@ -53,7 +53,7 @@ those into its narrative thread.
 {
   "crisis": {
     "title": "Cascading blackout — Getafe, Community of Madrid",
-    "durationSeconds": 1800
+    "durationSeconds": 7200
   },
   "elements": [
     { "id": "sub-01", "type": "substation", "name": "Getafe-Sur Substation", "lat": 40.3057, "lng": -3.7327, "criticality": 70 },

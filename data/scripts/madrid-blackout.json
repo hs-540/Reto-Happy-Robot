@@ -1,6 +1,6 @@
 {
   "title": "Cascading blackout — Getafe, Community of Madrid",
-  "durationSeconds": 1800,
+  "durationSeconds": 7200,
   "elements": [
     {
       "id": "sub-01",
@@ -136,6 +136,771 @@
       "lng": -3.7262,
       "status": "normal",
       "criticality": 40
+    },
+    {
+      "id": "sub-04",
+      "type": "substation",
+      "name": "Sector III Substation 4",
+      "lat": 40.28821,
+      "lng": -3.69423,
+      "status": "normal",
+      "criticality": 69
+    },
+    {
+      "id": "sub-05",
+      "type": "substation",
+      "name": "Santa Cristina Substation 5",
+      "lat": 40.31617,
+      "lng": -3.7571,
+      "status": "normal",
+      "criticality": 65
+    },
+    {
+      "id": "sub-06",
+      "type": "substation",
+      "name": "Getafe Este Substation 6",
+      "lat": 40.28408,
+      "lng": -3.74172,
+      "status": "normal",
+      "criticality": 80
+    },
+    {
+      "id": "sub-07",
+      "type": "substation",
+      "name": "Juan de la Cierva Substation 7",
+      "lat": 40.28174,
+      "lng": -3.70874,
+      "status": "normal",
+      "criticality": 77
+    },
+    {
+      "id": "sub-08",
+      "type": "substation",
+      "name": "Los Molinos Substation 8",
+      "lat": 40.32185,
+      "lng": -3.69583,
+      "status": "normal",
+      "criticality": 69
+    },
+    {
+      "id": "sub-09",
+      "type": "substation",
+      "name": "Getafe Sur Substation 9",
+      "lat": 40.31174,
+      "lng": -3.7451,
+      "status": "normal",
+      "criticality": 80
+    },
+    {
+      "id": "sub-10",
+      "type": "substation",
+      "name": "San Isidro Substation 10",
+      "lat": 40.29974,
+      "lng": -3.69279,
+      "status": "normal",
+      "criticality": 65
+    },
+    {
+      "id": "sub-11",
+      "type": "substation",
+      "name": "El Rosón Substation 11",
+      "lat": 40.32283,
+      "lng": -3.72539,
+      "status": "normal",
+      "criticality": 74
+    },
+    {
+      "id": "sub-12",
+      "type": "substation",
+      "name": "Getafe Norte Substation 12",
+      "lat": 40.29104,
+      "lng": -3.75287,
+      "status": "normal",
+      "criticality": 68
+    },
+    {
+      "id": "sub-13",
+      "type": "substation",
+      "name": "Buenavista Substation 13",
+      "lat": 40.30855,
+      "lng": -3.69408,
+      "status": "normal",
+      "criticality": 72
+    },
+    {
+      "id": "sub-14",
+      "type": "substation",
+      "name": "Cerro Buenavista Substation 14",
+      "lat": 40.29473,
+      "lng": -3.70224,
+      "status": "normal",
+      "criticality": 75
+    },
+    {
+      "id": "sub-15",
+      "type": "substation",
+      "name": "Espinillo Substation 15",
+      "lat": 40.32473,
+      "lng": -3.743,
+      "status": "normal",
+      "criticality": 78
+    },
+    {
+      "id": "sub-16",
+      "type": "substation",
+      "name": "La Alhóndiga Substation 16",
+      "lat": 40.29232,
+      "lng": -3.74069,
+      "status": "normal",
+      "criticality": 67
+    },
+    {
+      "id": "sub-17",
+      "type": "substation",
+      "name": "Perales del Río Substation 17",
+      "lat": 40.2995,
+      "lng": -3.72311,
+      "status": "normal",
+      "criticality": 75
+    },
+    {
+      "id": "sub-18",
+      "type": "substation",
+      "name": "Villaverde Alto Substation 18",
+      "lat": 40.28888,
+      "lng": -3.71033,
+      "status": "normal",
+      "criticality": 74
+    },
+    {
+      "id": "sub-19",
+      "type": "substation",
+      "name": "Los Ángeles Substation 19",
+      "lat": 40.32133,
+      "lng": -3.75104,
+      "status": "normal",
+      "criticality": 76
+    },
+    {
+      "id": "sub-20",
+      "type": "substation",
+      "name": "La Carpetania Substation 20",
+      "lat": 40.32102,
+      "lng": -3.70631,
+      "status": "normal",
+      "criticality": 73
+    },
+    {
+      "id": "hosp-04",
+      "type": "hospital",
+      "name": "El Bercial Hospital 4",
+      "lat": 40.30528,
+      "lng": -3.75082,
+      "status": "normal",
+      "criticality": 94
+    },
+    {
+      "id": "hosp-05",
+      "type": "hospital",
+      "name": "Arroyo Culebro Hospital 5",
+      "lat": 40.31491,
+      "lng": -3.69577,
+      "status": "normal",
+      "criticality": 92
+    },
+    {
+      "id": "hosp-06",
+      "type": "hospital",
+      "name": "Alto del Arroyo Hospital 6",
+      "lat": 40.31093,
+      "lng": -3.73706,
+      "status": "normal",
+      "criticality": 96
+    },
+    {
+      "id": "hosp-07",
+      "type": "hospital",
+      "name": "Las Margaritas Hospital 7",
+      "lat": 40.28676,
+      "lng": -3.70206,
+      "status": "normal",
+      "criticality": 91
+    },
+    {
+      "id": "hosp-08",
+      "type": "hospital",
+      "name": "El Casar Hospital 8",
+      "lat": 40.32273,
+      "lng": -3.71593,
+      "status": "normal",
+      "criticality": 88
+    },
+    {
+      "id": "hosp-09",
+      "type": "hospital",
+      "name": "El Ferial Hospital 9",
+      "lat": 40.31781,
+      "lng": -3.74479,
+      "status": "normal",
+      "criticality": 94
+    },
+    {
+      "id": "hosp-10",
+      "type": "hospital",
+      "name": "Getafe Oeste Hospital 10",
+      "lat": 40.29954,
+      "lng": -3.75461,
+      "status": "normal",
+      "criticality": 93
+    },
+    {
+      "id": "hosp-11",
+      "type": "hospital",
+      "name": "Sector III Hospital 11",
+      "lat": 40.30602,
+      "lng": -3.74014,
+      "status": "normal",
+      "criticality": 93
+    },
+    {
+      "id": "hosp-12",
+      "type": "hospital",
+      "name": "Santa Cristina Hospital 12",
+      "lat": 40.28796,
+      "lng": -3.74699,
+      "status": "normal",
+      "criticality": 91
+    },
+    {
+      "id": "hosp-13",
+      "type": "hospital",
+      "name": "Getafe Este Hospital 13",
+      "lat": 40.32303,
+      "lng": -3.73228,
+      "status": "normal",
+      "criticality": 95
+    },
+    {
+      "id": "hosp-14",
+      "type": "hospital",
+      "name": "Juan de la Cierva Hospital 14",
+      "lat": 40.31758,
+      "lng": -3.72539,
+      "status": "normal",
+      "criticality": 95
+    },
+    {
+      "id": "hosp-15",
+      "type": "hospital",
+      "name": "Los Molinos Hospital 15",
+      "lat": 40.29869,
+      "lng": -3.70799,
+      "status": "normal",
+      "criticality": 88
+    },
+    {
+      "id": "hosp-16",
+      "type": "hospital",
+      "name": "Getafe Sur Hospital 16",
+      "lat": 40.295,
+      "lng": -3.69529,
+      "status": "normal",
+      "criticality": 98
+    },
+    {
+      "id": "hosp-17",
+      "type": "hospital",
+      "name": "San Isidro Hospital 17",
+      "lat": 40.29936,
+      "lng": -3.70036,
+      "status": "normal",
+      "criticality": 89
+    },
+    {
+      "id": "hosp-18",
+      "type": "hospital",
+      "name": "El Rosón Hospital 18",
+      "lat": 40.31628,
+      "lng": -3.75083,
+      "status": "normal",
+      "criticality": 91
+    },
+    {
+      "id": "dc-03",
+      "type": "datacenter",
+      "name": "San Isidro Datacenter 3",
+      "lat": 40.3016,
+      "lng": -3.72942,
+      "status": "normal",
+      "criticality": 58
+    },
+    {
+      "id": "dc-04",
+      "type": "datacenter",
+      "name": "El Rosón Datacenter 4",
+      "lat": 40.2879,
+      "lng": -3.73807,
+      "status": "normal",
+      "criticality": 65
+    },
+    {
+      "id": "dc-05",
+      "type": "datacenter",
+      "name": "Getafe Norte Datacenter 5",
+      "lat": 40.30943,
+      "lng": -3.70176,
+      "status": "normal",
+      "criticality": 66
+    },
+    {
+      "id": "dc-06",
+      "type": "datacenter",
+      "name": "Buenavista Datacenter 6",
+      "lat": 40.31812,
+      "lng": -3.70027,
+      "status": "normal",
+      "criticality": 57
+    },
+    {
+      "id": "dc-07",
+      "type": "datacenter",
+      "name": "Cerro Buenavista Datacenter 7",
+      "lat": 40.2932,
+      "lng": -3.70807,
+      "status": "normal",
+      "criticality": 58
+    },
+    {
+      "id": "dc-08",
+      "type": "datacenter",
+      "name": "Espinillo Datacenter 8",
+      "lat": 40.29693,
+      "lng": -3.74019,
+      "status": "normal",
+      "criticality": 56
+    },
+    {
+      "id": "dc-09",
+      "type": "datacenter",
+      "name": "La Alhóndiga Datacenter 9",
+      "lat": 40.28954,
+      "lng": -3.71631,
+      "status": "normal",
+      "criticality": 69
+    },
+    {
+      "id": "dc-10",
+      "type": "datacenter",
+      "name": "Perales del Río Datacenter 10",
+      "lat": 40.29257,
+      "lng": -3.74704,
+      "status": "normal",
+      "criticality": 64
+    },
+    {
+      "id": "dc-11",
+      "type": "datacenter",
+      "name": "Villaverde Alto Datacenter 11",
+      "lat": 40.30407,
+      "lng": -3.72259,
+      "status": "normal",
+      "criticality": 60
+    },
+    {
+      "id": "dc-12",
+      "type": "datacenter",
+      "name": "Los Ángeles Datacenter 12",
+      "lat": 40.31495,
+      "lng": -3.74027,
+      "status": "normal",
+      "criticality": 64
+    },
+    {
+      "id": "dc-13",
+      "type": "datacenter",
+      "name": "La Carpetania Datacenter 13",
+      "lat": 40.29068,
+      "lng": -3.69924,
+      "status": "normal",
+      "criticality": 62
+    },
+    {
+      "id": "dc-14",
+      "type": "datacenter",
+      "name": "La Fortuna Datacenter 14",
+      "lat": 40.30342,
+      "lng": -3.69607,
+      "status": "normal",
+      "criticality": 64
+    },
+    {
+      "id": "dc-15",
+      "type": "datacenter",
+      "name": "El Bercial Datacenter 15",
+      "lat": 40.31102,
+      "lng": -3.72179,
+      "status": "normal",
+      "criticality": 65
+    },
+    {
+      "id": "tower-04",
+      "type": "tower",
+      "name": "Getafe Sur Comms Tower 4",
+      "lat": 40.31686,
+      "lng": -3.708,
+      "status": "normal",
+      "criticality": 58
+    },
+    {
+      "id": "tower-05",
+      "type": "tower",
+      "name": "San Isidro Comms Tower 5",
+      "lat": 40.29609,
+      "lng": -3.75132,
+      "status": "normal",
+      "criticality": 58
+    },
+    {
+      "id": "tower-06",
+      "type": "tower",
+      "name": "El Rosón Comms Tower 6",
+      "lat": 40.32204,
+      "lng": -3.73791,
+      "status": "normal",
+      "criticality": 47
+    },
+    {
+      "id": "tower-07",
+      "type": "tower",
+      "name": "Getafe Norte Comms Tower 7",
+      "lat": 40.30491,
+      "lng": -3.71156,
+      "status": "normal",
+      "criticality": 55
+    },
+    {
+      "id": "tower-08",
+      "type": "tower",
+      "name": "Buenavista Comms Tower 8",
+      "lat": 40.3103,
+      "lng": -3.75034,
+      "status": "normal",
+      "criticality": 47
+    },
+    {
+      "id": "tower-09",
+      "type": "tower",
+      "name": "Cerro Buenavista Comms Tower 9",
+      "lat": 40.31654,
+      "lng": -3.7309,
+      "status": "normal",
+      "criticality": 54
+    },
+    {
+      "id": "tower-10",
+      "type": "tower",
+      "name": "Espinillo Comms Tower 10",
+      "lat": 40.32192,
+      "lng": -3.70133,
+      "status": "normal",
+      "criticality": 53
+    },
+    {
+      "id": "tower-11",
+      "type": "tower",
+      "name": "La Alhóndiga Comms Tower 11",
+      "lat": 40.31947,
+      "lng": -3.71856,
+      "status": "normal",
+      "criticality": 45
+    },
+    {
+      "id": "tower-12",
+      "type": "tower",
+      "name": "Perales del Río Comms Tower 12",
+      "lat": 40.30989,
+      "lng": -3.73197,
+      "status": "normal",
+      "criticality": 50
+    },
+    {
+      "id": "tower-13",
+      "type": "tower",
+      "name": "Villaverde Alto Comms Tower 13",
+      "lat": 40.29103,
+      "lng": -3.70422,
+      "status": "normal",
+      "criticality": 56
+    },
+    {
+      "id": "tower-14",
+      "type": "tower",
+      "name": "Los Ángeles Comms Tower 14",
+      "lat": 40.29615,
+      "lng": -3.73558,
+      "status": "normal",
+      "criticality": 45
+    },
+    {
+      "id": "tower-15",
+      "type": "tower",
+      "name": "La Carpetania Comms Tower 15",
+      "lat": 40.29591,
+      "lng": -3.74519,
+      "status": "normal",
+      "criticality": 51
+    },
+    {
+      "id": "tower-16",
+      "type": "tower",
+      "name": "La Fortuna Comms Tower 16",
+      "lat": 40.32051,
+      "lng": -3.71227,
+      "status": "normal",
+      "criticality": 60
+    },
+    {
+      "id": "tower-17",
+      "type": "tower",
+      "name": "El Bercial Comms Tower 17",
+      "lat": 40.30186,
+      "lng": -3.73912,
+      "status": "normal",
+      "criticality": 58
+    },
+    {
+      "id": "tower-18",
+      "type": "tower",
+      "name": "Arroyo Culebro Comms Tower 18",
+      "lat": 40.28902,
+      "lng": -3.74249,
+      "status": "normal",
+      "criticality": 57
+    },
+    {
+      "id": "tower-19",
+      "type": "tower",
+      "name": "Alto del Arroyo Comms Tower 19",
+      "lat": 40.31253,
+      "lng": -3.69921,
+      "status": "normal",
+      "criticality": 57
+    },
+    {
+      "id": "tower-20",
+      "type": "tower",
+      "name": "Las Margaritas Comms Tower 20",
+      "lat": 40.30482,
+      "lng": -3.71694,
+      "status": "normal",
+      "criticality": 51
+    },
+    {
+      "id": "fuel-03",
+      "type": "fuel_station",
+      "name": "Santa Cristina Fuel Station 3",
+      "lat": 40.30942,
+      "lng": -3.74122,
+      "status": "normal",
+      "criticality": 55
+    },
+    {
+      "id": "fuel-04",
+      "type": "fuel_station",
+      "name": "Getafe Este Fuel Station 4",
+      "lat": 40.31974,
+      "lng": -3.72899,
+      "status": "normal",
+      "criticality": 47
+    },
+    {
+      "id": "fuel-05",
+      "type": "fuel_station",
+      "name": "Juan de la Cierva Fuel Station 5",
+      "lat": 40.31303,
+      "lng": -3.75315,
+      "status": "normal",
+      "criticality": 53
+    },
+    {
+      "id": "fuel-06",
+      "type": "fuel_station",
+      "name": "Los Molinos Fuel Station 6",
+      "lat": 40.31365,
+      "lng": -3.73339,
+      "status": "normal",
+      "criticality": 42
+    },
+    {
+      "id": "fuel-07",
+      "type": "fuel_station",
+      "name": "Getafe Sur Fuel Station 7",
+      "lat": 40.31295,
+      "lng": -3.71443,
+      "status": "normal",
+      "criticality": 50
+    },
+    {
+      "id": "fuel-08",
+      "type": "fuel_station",
+      "name": "San Isidro Fuel Station 8",
+      "lat": 40.3028,
+      "lng": -3.74776,
+      "status": "normal",
+      "criticality": 50
+    },
+    {
+      "id": "fuel-09",
+      "type": "fuel_station",
+      "name": "El Rosón Fuel Station 9",
+      "lat": 40.31379,
+      "lng": -3.72438,
+      "status": "normal",
+      "criticality": 52
+    },
+    {
+      "id": "fuel-10",
+      "type": "fuel_station",
+      "name": "Getafe Norte Fuel Station 10",
+      "lat": 40.30191,
+      "lng": -3.70935,
+      "status": "normal",
+      "criticality": 47
+    },
+    {
+      "id": "fuel-11",
+      "type": "fuel_station",
+      "name": "Buenavista Fuel Station 11",
+      "lat": 40.31861,
+      "lng": -3.69462,
+      "status": "normal",
+      "criticality": 55
+    },
+    {
+      "id": "fuel-12",
+      "type": "fuel_station",
+      "name": "Cerro Buenavista Fuel Station 12",
+      "lat": 40.31201,
+      "lng": -3.6936,
+      "status": "normal",
+      "criticality": 53
+    },
+    {
+      "id": "fuel-13",
+      "type": "fuel_station",
+      "name": "Espinillo Fuel Station 13",
+      "lat": 40.30796,
+      "lng": -3.72015,
+      "status": "normal",
+      "criticality": 55
+    },
+    {
+      "id": "fuel-14",
+      "type": "fuel_station",
+      "name": "La Alhóndiga Fuel Station 14",
+      "lat": 40.32141,
+      "lng": -3.74211,
+      "status": "normal",
+      "criticality": 40
+    },
+    {
+      "id": "junction-03",
+      "type": "junction",
+      "name": "Getafe Oeste Junction 3",
+      "lat": 40.29136,
+      "lng": -3.69511,
+      "status": "normal",
+      "criticality": 41
+    },
+    {
+      "id": "junction-04",
+      "type": "junction",
+      "name": "Sector III Junction 4",
+      "lat": 40.29292,
+      "lng": -3.73657,
+      "status": "normal",
+      "criticality": 47
+    },
+    {
+      "id": "junction-05",
+      "type": "junction",
+      "name": "Santa Cristina Junction 5",
+      "lat": 40.31332,
+      "lng": -3.70792,
+      "status": "normal",
+      "criticality": 42
+    },
+    {
+      "id": "junction-06",
+      "type": "junction",
+      "name": "Getafe Este Junction 6",
+      "lat": 40.31853,
+      "lng": -3.73995,
+      "status": "normal",
+      "criticality": 35
+    },
+    {
+      "id": "junction-07",
+      "type": "junction",
+      "name": "Juan de la Cierva Junction 7",
+      "lat": 40.30422,
+      "lng": -3.72709,
+      "status": "normal",
+      "criticality": 46
+    },
+    {
+      "id": "junction-08",
+      "type": "junction",
+      "name": "Los Molinos Junction 8",
+      "lat": 40.30866,
+      "lng": -3.74605,
+      "status": "normal",
+      "criticality": 48
+    },
+    {
+      "id": "junction-09",
+      "type": "junction",
+      "name": "Getafe Sur Junction 9",
+      "lat": 40.32187,
+      "lng": -3.72147,
+      "status": "normal",
+      "criticality": 46
+    },
+    {
+      "id": "junction-10",
+      "type": "junction",
+      "name": "San Isidro Junction 10",
+      "lat": 40.30803,
+      "lng": -3.73554,
+      "status": "normal",
+      "criticality": 40
+    },
+    {
+      "id": "junction-11",
+      "type": "junction",
+      "name": "El Rosón Junction 11",
+      "lat": 40.3139,
+      "lng": -3.74824,
+      "status": "normal",
+      "criticality": 43
+    },
+    {
+      "id": "junction-12",
+      "type": "junction",
+      "name": "Getafe Norte Junction 12",
+      "lat": 40.29855,
+      "lng": -3.71207,
+      "status": "normal",
+      "criticality": 50
+    },
+    {
+      "id": "junction-13",
+      "type": "junction",
+      "name": "Buenavista Junction 13",
+      "lat": 40.3026,
+      "lng": -3.73319,
+      "status": "normal",
+      "criticality": 42
     }
   ],
   "resources": [
@@ -218,6 +983,646 @@
       "assignedElementId": null,
       "lat": 40.3147,
       "lng": -3.7238
+    },
+    {
+      "id": "crew-3",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31162,
+      "lng": -3.7179
+    },
+    {
+      "id": "crew-4",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30234,
+      "lng": -3.69969
+    },
+    {
+      "id": "crew-5",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29693,
+      "lng": -3.70482
+    },
+    {
+      "id": "crew-6",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30545,
+      "lng": -3.7011
+    },
+    {
+      "id": "crew-7",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31701,
+      "lng": -3.72164
+    },
+    {
+      "id": "crew-8",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30119,
+      "lng": -3.75092
+    },
+    {
+      "id": "crew-9",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31082,
+      "lng": -3.70606
+    },
+    {
+      "id": "crew-10",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30094,
+      "lng": -3.70569
+    },
+    {
+      "id": "crew-11",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31526,
+      "lng": -3.73657
+    },
+    {
+      "id": "crew-12",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30034,
+      "lng": -3.69687
+    },
+    {
+      "id": "crew-13",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31965,
+      "lng": -3.73274
+    },
+    {
+      "id": "crew-14",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29911,
+      "lng": -3.73092
+    },
+    {
+      "id": "crew-15",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31078,
+      "lng": -3.72528
+    },
+    {
+      "id": "crew-16",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31946,
+      "lng": -3.70329
+    },
+    {
+      "id": "crew-17",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29605,
+      "lng": -3.70844
+    },
+    {
+      "id": "crew-18",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29088,
+      "lng": -3.71331
+    },
+    {
+      "id": "crew-19",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29064,
+      "lng": -3.74943
+    },
+    {
+      "id": "crew-20",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29984,
+      "lng": -3.72684
+    },
+    {
+      "id": "crew-21",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31683,
+      "lng": -3.70454
+    },
+    {
+      "id": "crew-22",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31227,
+      "lng": -3.74003
+    },
+    {
+      "id": "crew-23",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29318,
+      "lng": -3.69777
+    },
+    {
+      "id": "crew-24",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30197,
+      "lng": -3.72464
+    },
+    {
+      "id": "crew-25",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29864,
+      "lng": -3.74302
+    },
+    {
+      "id": "crew-26",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.32022,
+      "lng": -3.72527
+    },
+    {
+      "id": "crew-27",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30757,
+      "lng": -3.74918
+    },
+    {
+      "id": "crew-28",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29793,
+      "lng": -3.69523
+    },
+    {
+      "id": "crew-29",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30444,
+      "lng": -3.73561
+    },
+    {
+      "id": "crew-30",
+      "type": "crew",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29936,
+      "lng": -3.73851
+    },
+    {
+      "id": "generator-5",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30341,
+      "lng": -3.74208
+    },
+    {
+      "id": "generator-6",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31943,
+      "lng": -3.70927
+    },
+    {
+      "id": "generator-7",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29313,
+      "lng": -3.71137
+    },
+    {
+      "id": "generator-8",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.2905,
+      "lng": -3.73842
+    },
+    {
+      "id": "generator-9",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31558,
+      "lng": -3.72738
+    },
+    {
+      "id": "generator-10",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29362,
+      "lng": -3.7435
+    },
+    {
+      "id": "generator-11",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.28743,
+      "lng": -3.69892
+    },
+    {
+      "id": "generator-12",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31046,
+      "lng": -3.71432
+    },
+    {
+      "id": "generator-13",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31285,
+      "lng": -3.71121
+    },
+    {
+      "id": "generator-14",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29693,
+      "lng": -3.70004
+    },
+    {
+      "id": "generator-15",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29476,
+      "lng": -3.73867
+    },
+    {
+      "id": "generator-16",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31706,
+      "lng": -3.69721
+    },
+    {
+      "id": "generator-17",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30644,
+      "lng": -3.7239
+    },
+    {
+      "id": "generator-18",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.28916,
+      "lng": -3.70172
+    },
+    {
+      "id": "generator-19",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31372,
+      "lng": -3.72124
+    },
+    {
+      "id": "generator-20",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31344,
+      "lng": -3.74275
+    },
+    {
+      "id": "generator-21",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29098,
+      "lng": -3.74426
+    },
+    {
+      "id": "generator-22",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30423,
+      "lng": -3.7086
+    },
+    {
+      "id": "generator-23",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31716,
+      "lng": -3.71794
+    },
+    {
+      "id": "generator-24",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30879,
+      "lng": -3.72302
+    },
+    {
+      "id": "generator-25",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31899,
+      "lng": -3.71555
+    },
+    {
+      "id": "generator-26",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.32014,
+      "lng": -3.69877
+    },
+    {
+      "id": "generator-27",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31683,
+      "lng": -3.74202
+    },
+    {
+      "id": "generator-28",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31904,
+      "lng": -3.75068
+    },
+    {
+      "id": "generator-29",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30616,
+      "lng": -3.71422
+    },
+    {
+      "id": "generator-30",
+      "type": "generator",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.3193,
+      "lng": -3.72158
+    },
+    {
+      "id": "tanker-3",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31895,
+      "lng": -3.74738
+    },
+    {
+      "id": "tanker-4",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29473,
+      "lng": -3.74801
+    },
+    {
+      "id": "tanker-5",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30876,
+      "lng": -3.73836
+    },
+    {
+      "id": "tanker-6",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31428,
+      "lng": -3.73036
+    },
+    {
+      "id": "tanker-7",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31169,
+      "lng": -3.70204
+    },
+    {
+      "id": "tanker-8",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29317,
+      "lng": -3.75383
+    },
+    {
+      "id": "tanker-9",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30504,
+      "lng": -3.72987
+    },
+    {
+      "id": "tanker-10",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30957,
+      "lng": -3.69671
+    },
+    {
+      "id": "tanker-11",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.32364,
+      "lng": -3.72944
+    },
+    {
+      "id": "tanker-12",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30774,
+      "lng": -3.73112
+    },
+    {
+      "id": "tanker-13",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.32092,
+      "lng": -3.73516
+    },
+    {
+      "id": "tanker-14",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31879,
+      "lng": -3.70634
+    },
+    {
+      "id": "tanker-15",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.28654,
+      "lng": -3.74034
+    },
+    {
+      "id": "police-3",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30405,
+      "lng": -3.73886
+    },
+    {
+      "id": "police-4",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31457,
+      "lng": -3.70025
+    },
+    {
+      "id": "police-5",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29691,
+      "lng": -3.74799
+    },
+    {
+      "id": "police-6",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.29115,
+      "lng": -3.7102
+    },
+    {
+      "id": "police-7",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.28389,
+      "lng": -3.70834
+    },
+    {
+      "id": "police-8",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30237,
+      "lng": -3.69359
+    },
+    {
+      "id": "police-9",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30946,
+      "lng": -3.71795
+    },
+    {
+      "id": "police-10",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30944,
+      "lng": -3.72839
+    },
+    {
+      "id": "police-11",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31543,
+      "lng": -3.71159
+    },
+    {
+      "id": "police-12",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.31632,
+      "lng": -3.70181
+    },
+    {
+      "id": "police-13",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30629,
+      "lng": -3.70915
+    },
+    {
+      "id": "police-14",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30856,
+      "lng": -3.71288
+    },
+    {
+      "id": "police-15",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.30671,
+      "lng": -3.7033
     }
   ],
   "timeline": [

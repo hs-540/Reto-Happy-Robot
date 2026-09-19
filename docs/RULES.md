@@ -74,10 +74,10 @@ These raw thresholds **raise the status even when the event's severity is low** 
 ## 4. Resource constraints
 
 Total shared capacity of the catalog (`resources.capacity` in `rules.json`):
-**2 crews + 4 generators + 2 tankers + 2 police units** — deliberately **fewer
-than the 15 places** they must cover. A generated run deploys a drawn subset of
-that fleet (4-10 units), always at least one unit fewer than the sites it drew,
-so leaving something unattended is part of the job in every run
+**30 crews + 30 generators + 15 tankers + 15 police units** — deliberately
+**fewer than the 100 places** they must cover. A generated run deploys a drawn
+subset of that fleet (~12-23 units for a ~50-site world), always at least one
+unit fewer than the sites it drew, so leaving something unattended is part of the job in every run
 ([`SCENARIO-GENERATION.md`](SCENARIO-GENERATION.md)).
 
 - **Mutual exclusion**: a resource serves **one element at a time**. A resource in `assigned` or `in_transit` cannot be reassigned (blocking rule `no-double-assignment`).

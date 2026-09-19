@@ -1321,14 +1321,25 @@
 .dock {
   grid-area: dock;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
-  pointer-events: none;
-  flex-wrap: wrap;
+  /* fixed height: a 90-unit fleet scrolls inside the dock instead of eating
+     the map it sits under */
+  height: 132px;
+  padding: 9px 12px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-strong);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-md);
 }
 
-.dock > * {
-  pointer-events: auto;
+.dock__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
 }
 
 .dock__label {
@@ -1337,21 +1348,138 @@
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: var(--muted-2);
-  padding: 0 4px;
   flex: none;
+}
+
+.dock__filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dock__filters::-webkit-scrollbar {
+  display: none;
+}
+
+.dock__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.dock__filter:hover {
+  border-color: var(--border);
+  color: inherit;
+}
+
+.dock__filter.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: inherit;
+}
+
+.dock__filter b {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--muted-2);
+}
+
+.dock__filter.is-active b {
+  color: var(--accent);
+}
+
+.dock__nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex: none;
+}
+
+.dock__arrow {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.dock__arrow:hover {
+  border-color: var(--border);
+  color: inherit;
+  background: var(--panel-hover);
+}
+
+.dock__arrow--prev svg {
+  transform: rotate(90deg);
+}
+
+.dock__arrow--next svg {
+  transform: rotate(-90deg);
+}
+
+/* two rows of units, flowing sideways: the track is what scrolls */
+.dock__track {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-auto-columns: max-content;
+  align-content: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  padding-bottom: 2px;
+}
+
+.dock__track::-webkit-scrollbar {
+  height: 6px;
+}
+
+.dock__track::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.dock__track::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dock__empty {
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--muted-2);
 }
 
 .unit {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 6px 11px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--glass-strong);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-soft);
+  background: var(--panel);
   --c: var(--muted);
   --uc: var(--accent);
   font: inherit;
@@ -1366,10 +1494,8 @@
 
 .unit.is-selected {
   border-color: color-mix(in srgb, var(--uc) 55%, transparent);
-  background: color-mix(in srgb, var(--uc) 10%, var(--glass-strong));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--uc) 35%, transparent),
-    var(--shadow-md);
+  background: color-mix(in srgb, var(--uc) 12%, var(--panel));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--uc) 35%, transparent);
 }
 
 .unit__swatch {

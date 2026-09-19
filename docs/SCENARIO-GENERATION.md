@@ -44,12 +44,13 @@ Two numbers that bound the design:
   `low_fuel` and `blocked_transit` (junction), over 6 element types and 8
   `SensorMetric` values. Forty hand-written incidents would be the same arc with
   different site names.
-- **The catalog is 15 sites and 10 resources (2 crew, 4 generators, 2 tankers,
-  2 police) — but a generated scenario deploys a drawn fleet of 4-10, always
-  smaller than the world: at most one unit fewer than the drawn sites.** A
-  substation repair is 18 min against a 30 min crisis, so scarcity has to
-  survive at every world size; the fleet shrinks with the world (see
-  Difficulty), and covering every site at once is never an option.
+- **The catalog is 100 sites and 90 resources (30 crew, 30 generators, 15
+  tankers, 15 police) — but a generated scenario plays ~50 sites and deploys the
+  tight fleet drawn for them (~12-23 units), always smaller than the world: at
+  most one unit fewer than the drawn sites.** A substation repair is 18 min
+  against a 2 h crisis and a sustaining remedy pins its unit until the run ends,
+  so the fleet is always short of the work (see Difficulty) and covering every
+  site at once is never an option.
 
 ## Design
 
@@ -75,9 +76,13 @@ never lose grid power while its substation is healthy.
 
 Adding a new failure mode is one template, not one entry per site.
 
-### Active sites: 8-15 of the 15, with invariants
+### Active sites: ~50 of the 100, with invariants
 
-The seed picks a subset of sites. Four invariants make the subset playable:
+The seed picks a subset of sites (`MIN_SUBSET_SIZE` 46 to `MAX_SUBSET_SIZE` 54),
+so half the catalog plays and which half is up to the seed. Root causes are
+drawn against that target: `drawDownedSubs` takes substation rings only while
+the sites they force stay inside `MAX_DOWNED_SHARE` (80%) of the world, so the
+rest of the map is healthy and there to be triaged. Four invariants make the subset playable:
 
 1. **Topological upward closure** — if a dependent is in, its substation is in.
    The `crew` remedy (widest coverage) always has a root cause to repair.
@@ -101,25 +106,19 @@ and leaving something unattended is always part of the job.
 The generator sums the resource-minutes cost of what it drew (from
 `remedies.json` `minutes` plus travel) and then **draws the fleet that keeps
 that demand inside the band of roughly 110-140% of the capacity available in
-the window** (`BAND_MIN` / `BAND_MAX` in `scenario.ts`, applied by `drawFleet`).
-The band was lowered from 1.3-1.8: the fleet starved for units of every class in
-every shape, and a demand at ~110-140% of capacity still forces ranking sites,
-because demand is above capacity and the fleet can never match the site count.
-Capacity is the scarce side: a smaller world deploys fewer units instead of
-drifting under the band. One unit of every class always
-stays (`MIN_FLEET_SIZE = 4`), so every remedy keeps a base to travel from and
-`tanker`/`police` never lose their site. Contacts and topology edges pointing at
-dropped units are filtered out with them. On top of the band, the fleet is
-capped at **one unit fewer than the drawn sites**: a full 15-site world can
-field all 10 units, but an 8-site world fields at most 7 — the world always has
-more problems than units to send. Triage is always visible and something is
-always closable. The band and the cap are constants to tune.
+the window** (`BAND_MIN` / `BAND_MAX` in `scenario.ts`, applied by `drawFleet`),
+bounded by `MIN_FLEET_SIZE = 4` and `MAX_FLEET_SIZE = 90`. Capacity is the
+scarce side: a ~50-site crisis fields ~12-23 units, so there is always more work
+than there are resource-minutes to spend, and the pressure compounds with travel
+across the map and with sustaining remedies that pin their unit until the run
+ends. One unit of every class always stays, so every remedy keeps a base to
+travel from and `tanker`/`police` never lose their site. Contacts and topology
+edges pointing at dropped units are filtered out with them. On top of the band,
+the fleet is capped at **one unit fewer than the drawn sites**. The band and the
+bounds are constants to tune.
 
-This was the fix for the first calibration: with the fleet fixed at 10, only
-full 15-site worlds could reach the band, so validation rejected every smaller
-draw and the retry loop funnelled every seed into the same map. With the fleet
-drawn, ~95% of seeds pass validation across shapes of 9-15 sites and 5-10
-units.
+Measured over 100 seeds: 84% of raw draws pass validation, across worlds of
+46-54 sites and fleets of 12-23 units.
 
 ### Pacing: fixed opening, spaced arrivals
 

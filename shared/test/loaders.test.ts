@@ -14,9 +14,9 @@ const historyPath = (type: string) =>
 test("the current script validates without errors", () => {
   const script = loadScript(scriptPath);
   assert.equal(script.title, "Cascading blackout — Getafe, Community of Madrid");
-  assert.equal(script.durationSeconds, 1800);
-  assert.equal(script.elements.length, 15);
-  assert.equal(script.resources.length, 10);
+  assert.equal(script.durationSeconds, 7200);
+  assert.equal(script.elements.length, 100);
+  assert.equal(script.resources.length, 90);
   assert.equal(script.timeline.length, 93);
 });
 
