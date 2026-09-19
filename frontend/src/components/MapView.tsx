@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { ElementView, RepairEstimate, ResourceView } from '@swarmup/shared'
+import type { ElementView, LatLng, RepairEstimate, ResourceView } from '@swarmup/shared'
 import { ICON_PATHS, ELEMENT_ICON, RESOURCE_ICON } from './iconPaths'
 import { resourceColor } from '../lib/palette'
 import { formatCountdown } from '../lib/format'
@@ -33,6 +33,17 @@ interface RouteCollection {
 }
 
 const EMPTY_ROUTES: RouteCollection = { type: 'FeatureCollection', features: [] }
+
+interface FlowCollection {
+  type: 'FeatureCollection'
+  features: {
+    type: 'Feature'
+    properties: { color: string; bearing: number }
+    geometry: { type: 'Point'; coordinates: [number, number] }
+  }[]
+}
+
+const EMPTY_FLOW: FlowCollection = { type: 'FeatureCollection', features: [] }
 
 const STYLE: StyleSpecification = {
   version: 8,
@@ -65,6 +76,97 @@ const STYLE: StyleSpecification = {
   ],
 }
 
+/**
+ * The arrowhead stamped along a route. Drawn once into a canvas and registered
+ * as an SDF image, so the symbol layer can tint it with the resource colour; the
+ * slight blur turns the alpha edge into a soft distance ramp, which is what SDF
+ * rendering expects. The shape points up (north) and MapLibre rotates it to the
+ * line's bearing.
+ */
+function arrowImage(): ImageData {
+  const size = 48
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new ImageData(size, size)
+  ctx.filter = 'blur(1.5px)'
+  ctx.fillStyle = '#fff'
+  ctx.fill(new Path2D('M24 4 L42 40 L24 30 L6 40 Z'))
+  return ctx.getImageData(0, 0, size, size)
+}
+
+/**
+ * Dash pattern of `route-line` scaled to px (dash 0.1 * 2.5 and gap 2 * 2.5).
+ * Arrow spacing is expressed in dots so the flow reads the same at any zoom.
+ */
+const DASH_PERIOD_PX = 5.25
+
+/** Arrows are placed every this many dots, in screen space */
+const ARROW_GAP_DOTS = 8
+
+/** Seconds an arrow takes to travel one gap, so the flow speed is zoom-independent */
+const FLOW_PERIOD_S = 3.5
+
+/** Meters between two lng/lat points; equirectangular, exact enough at city scale */
+function metersBetween(a: [number, number], b: [number, number]): number {
+  const mx = (b[0] - a[0]) * Math.cos(((a[1] + b[1]) / 2) * (Math.PI / 180)) * 111_320
+  const my = (b[1] - a[1]) * 110_540
+  return Math.hypot(mx, my)
+}
+
+/** Compass bearing (0° = north, clockwise) from a to b on a north-up map */
+function bearingBetween(a: [number, number], b: [number, number]): number {
+  const dLng = (b[0] - a[0]) * Math.cos(((a[1] + b[1]) / 2) * (Math.PI / 180))
+  const dLat = b[1] - a[1]
+  return ((Math.atan2(dLng, dLat) * 180) / Math.PI + 360) % 360
+}
+
+/**
+ * Points every `spacing` meters along the polyline, each carrying the bearing of
+ * the segment it sits on, starting `phase` meters in. Advancing the phase each
+ * frame is what makes the arrows travel from the unit towards the target.
+ */
+function flowFeatures(
+  coords: [number, number][],
+  color: string,
+  spacing: number,
+  phase: number,
+): FlowCollection['features'] {
+  const features: FlowCollection['features'] = []
+  const step = Math.max(spacing, 1)
+  let travelled = 0
+  let next = ((phase % step) + step) % step
+  for (let i = 0; i < coords.length - 1; i++) {
+    const a = coords[i]
+    const b = coords[i + 1]
+    const seg = metersBetween(a, b)
+    if (seg === 0) continue
+    const bearing = bearingBetween(a, b)
+    while (next <= travelled + seg) {
+      const t = (next - travelled) / seg
+      features.push({
+        type: 'Feature',
+        properties: { color, bearing },
+        geometry: {
+          type: 'Point',
+          coordinates: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
+        },
+      })
+      next += step
+    }
+    travelled += seg
+  }
+  return features
+}
+
+/** Ground meters covered by one screen pixel at the given point and zoom */
+function metersPerPixel(map: MapLibreMap, lngLat: [number, number]): number {
+  const p = map.project(lngLat)
+  const edge = map.unproject([p.x + 100, p.y])
+  return metersBetween(lngLat, [edge.lng, edge.lat]) / 100
+}
+
 interface MarkerSpec {
   kind: 'element' | 'resource'
   variant: string
@@ -78,6 +180,13 @@ interface MarkerEntry {
   variant: string
   /** the repair countdown under the dot; resources do not have one */
   eta: HTMLElement | null
+  /** the rotating direction arrow around the dot; sites do not have one */
+  dir: HTMLElement | null
+  /**
+   * Continuous CSS angle (it may drift past 360° to avoid a full spin when the
+   * heading wraps around), or null while the resource has no heading to show.
+   */
+  heading: number | null
 }
 
 function markerClassName(spec: MarkerSpec, selected: boolean): string {
@@ -103,7 +212,13 @@ function createMarkerNode(
   // its right, vertically centred, so a badge in the corner would land on the
   // site's name. Always rendered, hidden until there is something to count.
   const eta = spec.kind === 'element' ? '<span class="marker__eta" hidden></span>' : ''
-  node.innerHTML = `<span class="marker__dot"><svg viewBox="0 0 24 24" aria-hidden="true">${spec.icon}</svg>${eta}</span><span class="marker__label">${spec.label}</span>`
+  // The arrow orbits the dot, so it lives in a layer that covers the dot and
+  // rotates around its centre while the type icon stays upright.
+  const dir =
+    spec.kind === 'resource'
+      ? `<span class="marker__dir" hidden><span class="marker__arrow"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS.arrow}</svg></span></span>`
+      : ''
+  node.innerHTML = `<span class="marker__dot"><svg viewBox="0 0 24 24" aria-hidden="true">${spec.icon}</svg>${dir}${eta}</span><span class="marker__label">${spec.label}</span>`
   if (onClick) node.addEventListener('click', onClick)
   return node
 }
@@ -149,6 +264,67 @@ function remainingRoute(
     coords[idx][1] + (coords[idx + 1][1] - coords[idx][1]) * t,
   ]
   return [head, ...rest]
+}
+
+/**
+ * Compass heading (0° = north, clockwise) of the route segment the resource is
+ * currently on. Longitude is scaled by cos(lat) so the angle matches what the
+ * marker sees on the north-up Mercator map, unlike a raw lat/lng atan2.
+ */
+function headingAlongRoute(route: LatLng[], pos: [number, number]): number | null {
+  let idx = 0
+  let best = Infinity
+  for (let i = 0; i < route.length - 1; i++) {
+    const ax = route[i].lng
+    const ay = route[i].lat
+    const vx = route[i + 1].lng - ax
+    const vy = route[i + 1].lat - ay
+    const len2 = vx * vx + vy * vy
+    const s =
+      len2 === 0
+        ? 0
+        : Math.max(0, Math.min(1, ((pos[0] - ax) * vx + (pos[1] - ay) * vy) / len2))
+    const qx = ax + vx * s - pos[0]
+    const qy = ay + vy * s - pos[1]
+    const d = qx * qx + qy * qy
+    if (d < best) {
+      best = d
+      idx = i
+    }
+  }
+  const a = route[idx]
+  const b = route[idx + 1]
+  const dLat = b.lat - a.lat
+  const dLng = (b.lng - a.lng) * Math.cos(((a.lat + b.lat) / 2) * (Math.PI / 180))
+  if (dLat === 0 && dLng === 0) return null
+  return ((Math.atan2(dLng, dLat) * 180) / Math.PI + 360) % 360
+}
+
+/**
+ * Point the arrow along the road. The stored angle is kept continuous: when the
+ * bearing wraps (359° → 1°) the shortest turn is taken instead of a full spin.
+ */
+function applyHeading(entry: MarkerEntry, resource: ResourceView) {
+  const dir = entry.dir
+  if (!dir) return
+  if (resource.status !== 'in_transit' || !resource.route || resource.route.length < 2) {
+    dir.hidden = true
+    entry.heading = null
+    return
+  }
+  let heading = headingAlongRoute(resource.route, [resource.lng, resource.lat])
+  if (heading === null) {
+    dir.hidden = true
+    entry.heading = null
+    return
+  }
+  dir.hidden = false
+  const prev = entry.heading
+  if (prev !== null) {
+    heading = prev + ((((heading - prev) % 360) + 540) % 360) - 180
+  }
+  entry.heading = heading
+  dir.style.transform = `rotate(${heading}deg)`
 }
 
 /**
@@ -198,6 +374,10 @@ export function MapView({
   const prevSelectedRef = useRef<string | null | undefined>(selectedElementId)
   const selectRef = useRef(onSelectElement)
   const [ready, setReady] = useState(false)
+  /** the routes currently drawn, read by the flow animation every frame */
+  const routesRef = useRef<RouteCollection['features']>([])
+  /** how far along the route the flowing arrows are, in meters */
+  const flowPhaseRef = useRef(0)
 
   useEffect(() => {
     selectRef.current = onSelectElement
@@ -216,7 +396,31 @@ export function MapView({
       attributionControl: { compact: true },
     })
     map.on('load', () => {
-      if (mapRef.current === map) setReady(true)
+      if (mapRef.current !== map) return
+      // The image must exist before the layer that references it, so both are
+      // added once the style is up rather than declared in STYLE.
+      map.addImage('route-arrow', arrowImage(), { sdf: true })
+      map.addSource('route-flow', { type: 'geojson', data: EMPTY_FLOW })
+      map.addLayer({
+        id: 'route-flow-arrows',
+        type: 'symbol',
+        source: 'route-flow',
+        // The points are placed in JS and moved every frame, so the layer only
+        // rotates each arrow to its segment bearing and tints it per resource.
+        layout: {
+          'icon-image': 'route-arrow',
+          'icon-size': 0.4,
+          'icon-rotate': ['get', 'bearing'],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+        },
+        paint: {
+          'icon-color': ['get', 'color'],
+          'icon-opacity': 0.9,
+        },
+      })
+      setReady(true)
     })
     /** Clicking empty map clears the selection; clicks on markers are ignored here */
     map.on('click', (e) => {
@@ -263,6 +467,7 @@ export function MapView({
           },
         }))
         .filter((f) => f.geometry.coordinates.length >= 2)
+      routesRef.current = features
       ;(source as { setData: (data: RouteCollection) => void }).setData({
         type: 'FeatureCollection',
         features,
@@ -277,6 +482,7 @@ export function MapView({
         applyVariant(entry, r.status)
         entry.node.classList.toggle('is-selected', selected)
         entry.marker.setLngLat([r.lng, r.lat])
+        applyHeading(entry, r)
       } else {
         const node = createMarkerNode(
           {
@@ -289,14 +495,18 @@ export function MapView({
           () => onSelectResource(r.id),
         )
         node.style.setProperty('--uc', resourceColor(r.id))
-        store.set(r.id, {
+        const created: MarkerEntry = {
           marker: new Marker({ element: node, anchor: 'center' })
             .setLngLat([r.lng, r.lat])
             .addTo(map),
           node,
           variant: r.status,
           eta: null,
-        })
+          dir: node.querySelector('.marker__dir'),
+          heading: null,
+        }
+        applyHeading(created, r)
+        store.set(r.id, created)
       }
     })
 
@@ -327,6 +537,8 @@ export function MapView({
           node,
           variant: el.status,
           eta: node.querySelector('.marker__eta'),
+          dir: null,
+          heading: null,
         }
         applyCountdown(created, el.repair, el.id)
         store.set(el.id, created)
@@ -349,6 +561,49 @@ export function MapView({
       ;(source as { setTiles: (tiles: string[]) => void }).setTiles(TILES[theme])
     }
   }, [theme, ready])
+
+  /**
+   * Arrows flow from the unit to its target. MapLibre 6 dropped
+   * `line-dashoffset`, so the movement is not a paint trick: the arrows are
+   * points recomputed along the route every frame, spaced a fixed number of dots
+   * apart on screen and advanced by one gap per `FLOW_PERIOD_S`.
+   */
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const source = map.getSource('route-flow')
+    if (!source || !('setData' in source)) return
+    const setData = (data: FlowCollection) =>
+      (source as { setData: (d: FlowCollection) => void }).setData(data)
+    let frame = 0
+    let last = 0
+    let wasActive = false
+    const tick = (now: number) => {
+      const delta = last === 0 ? 0 : (now - last) / 1000
+      last = now
+      const routes = routesRef.current
+      if (routes.length === 0) {
+        if (wasActive) {
+          setData(EMPTY_FLOW)
+          wasActive = false
+        }
+      } else {
+        const head = routes[0].geometry.coordinates[0]
+        const spacing = ARROW_GAP_DOTS * DASH_PERIOD_PX * metersPerPixel(map, head)
+        flowPhaseRef.current += (spacing / FLOW_PERIOD_S) * delta
+        setData({
+          type: 'FeatureCollection',
+          features: routes.flatMap((f) =>
+            flowFeatures(f.geometry.coordinates, f.properties.color, spacing, flowPhaseRef.current),
+          ),
+        })
+        wasActive = true
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [ready])
 
   useEffect(() => {
     const map = mapRef.current
