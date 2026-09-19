@@ -106,6 +106,42 @@ function applyVariant(entry: MarkerEntry, variant: string) {
   entry.variant = variant
 }
 
+/** Clip the polyline to the part ahead of the resource's current position */
+function remainingRoute(
+  coords: [number, number][],
+  pos: [number, number],
+): [number, number][] {
+  let idx = 0
+  let t = 0
+  let best = Infinity
+  for (let i = 0; i < coords.length - 1; i++) {
+    const [ax, ay] = coords[i]
+    const [bx, by] = coords[i + 1]
+    const vx = bx - ax
+    const vy = by - ay
+    const len2 = vx * vx + vy * vy
+    const s =
+      len2 === 0
+        ? 0
+        : Math.max(0, Math.min(1, ((pos[0] - ax) * vx + (pos[1] - ay) * vy) / len2))
+    const qx = ax + vx * s - pos[0]
+    const qy = ay + vy * s - pos[1]
+    const d = qx * qx + qy * qy
+    if (d < best) {
+      best = d
+      idx = i
+      t = s
+    }
+  }
+  const rest = coords.slice(idx + 1)
+  if (t >= 1) return rest
+  const head: [number, number] = [
+    coords[idx][0] + (coords[idx + 1][0] - coords[idx][0]) * t,
+    coords[idx][1] + (coords[idx + 1][1] - coords[idx][1]) * t,
+  ]
+  return [head, ...rest]
+}
+
 interface MapViewProps {
   elements: ElementView[]
   resources: ResourceView[]
@@ -189,9 +225,13 @@ export function MapView({
           properties: { color: resourceColor(r.id) },
           geometry: {
             type: 'LineString' as const,
-            coordinates: r.route!.map((p) => [p.lng, p.lat] as [number, number]),
+            coordinates: remainingRoute(
+              r.route!.map((p) => [p.lng, p.lat] as [number, number]),
+              [r.lng, r.lat],
+            ),
           },
         }))
+        .filter((f) => f.geometry.coordinates.length >= 2)
       ;(source as { setData: (data: RouteCollection) => void }).setData({
         type: 'FeatureCollection',
         features,
