@@ -34,21 +34,17 @@ does not poll it; it is there for a healthcheck from outside.
 
 ## GET /api/topology
 
-`crisis.moments` is derived: one entry per timeline event that carries a `note`
-(`toTopology` in `backend/src/script.ts`). Today that is the five key moments.
+`crisis` carries only the title and the duration: the plot never travels in the
+topology. Key moments reach the UI through the **feed** — each timeline event
+with a `note` publishes a `system` entry marked `moment: true` the moment it
+fires (`applyEvent` in `backend/src/sim.ts`), and the command bar accumulates
+those into its narrative thread.
 
 ```json
 {
   "crisis": {
     "title": "Cascading blackout — Getafe, Community of Madrid",
-    "durationSeconds": 1800,
-    "moments": [
-      { "atSeconds": 0, "title": "Moment 1 — blackout at the Getafe-Sur substation: every site it supplies goes down." },
-      { "atSeconds": 240, "title": "Moment 2 — the datacenter starts overheating on a limited UPS." },
-      { "atSeconds": 450, "title": "Moment 3 — the tower batteries are draining: if it falls, the ability to coordinate is lost." },
-      { "atSeconds": 540, "title": "Moment 4 — the hospital loses its backup generator: a direct conflict over resources." },
-      { "atSeconds": 900, "title": "Moment 5 — the crew misses its ETA: the plan relied on it and must be rebuilt." }
-    ]
+    "durationSeconds": 1800
   },
   "elements": [
     { "id": "sub-01", "type": "substation", "name": "Getafe-Sur Substation", "lat": 40.3057, "lng": -3.7327, "criticality": 70 },
