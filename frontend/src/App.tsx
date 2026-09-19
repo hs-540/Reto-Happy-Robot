@@ -95,11 +95,15 @@ function App() {
   const elementNames = Object.fromEntries(topology.elements.map((e) => [e.id, e.name]))
   const criticalityById = Object.fromEntries(topology.elements.map((e) => [e.id, e.criticality]))
 
+  const visibleElements = state.elements.filter(
+    (el) => el.type !== 'junction' || el.status !== 'normal',
+  )
+
   return (
     <div className="app">
       <div className="app__map">
         <MapView
-          elements={state.elements}
+          elements={visibleElements}
           resources={state.resources}
           selectedElementId={selectedElementId}
           selectedResourceId={selectedResourceId}
@@ -134,7 +138,7 @@ function App() {
         />
 
         <SitesPanel
-          elements={state.elements}
+          elements={visibleElements}
           criticalityById={criticalityById}
           selectedElementId={selectedElementId}
           onSelectElement={selectElement}
