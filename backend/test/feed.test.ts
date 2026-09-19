@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadRemedies, loadTopology } from "@swarmup/shared";
+import { loadRemedies, loadRoads, loadTopology } from "@swarmup/shared";
 import { parseSince, createFeed, type FeedPublication } from "../src/feed.js";
 import { loadScript } from "../src/script.js";
 import { createWorld } from "../src/world.js";
@@ -12,6 +12,7 @@ const demoRemedies = loadRemedies(
 const demoTopology = loadTopology(
   fileURLToPath(new URL("../../data/topology.json", import.meta.url)),
 );
+const demoRoads = loadRoads(fileURLToPath(new URL("../../data/roads.json", import.meta.url)));
 import { createSimulation } from "../src/sim.js";
 
 test("parseSince accepts a non-negative integer and absence, rejects the rest", () => {
@@ -55,7 +56,7 @@ test("the simulation publishes the 5 key moments as system items in order", () =
     new URL("../../data/scripts/madrid-blackout.json", import.meta.url),
   );
   const feed = createFeed();
-  const sim = createSimulation(script, Date.now(), feed, createWorld(script, demoRemedies, demoTopology));
+  const sim = createSimulation(script, Date.now(), feed, createWorld(script, demoRemedies, demoTopology, demoRoads));
   sim.start(Date.now());
 
   sim.advance(Date.now() + (script.durationSeconds + 1) * 1000);
@@ -74,7 +75,7 @@ test("polling by seq reconstructs the whole feed without losing or duplicating",
     new URL("../../data/scripts/madrid-blackout.json", import.meta.url),
   );
   const feed = createFeed();
-  const sim = createSimulation(script, Date.now(), feed, createWorld(script, demoRemedies, demoTopology));
+  const sim = createSimulation(script, Date.now(), feed, createWorld(script, demoRemedies, demoTopology, demoRoads));
   sim.start(Date.now());
 
   // first poll mid-demo, second at the end (accumulator keyed by seq)

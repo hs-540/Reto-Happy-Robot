@@ -90,7 +90,12 @@ Full snapshot of the world. Replaced entirely on every poll.
       "status": "in_transit",
       "assignedElementId": "dc-01",
       "lat": 40.299,
-      "lng": -3.717
+      "lng": -3.717,
+      "route": [
+        { "lat": 40.302, "lng": -3.722 },
+        { "lat": 40.3018, "lng": -3.7205 },
+        { "lat": 40.2978, "lng": -3.7155 }
+      ]
     }
   ]
 }
@@ -190,6 +195,6 @@ An invalid body answers `400 {ok:false, error}`.
 | UI element | Source | Link field |
 |---|---|---|
 | Marker, color | `/api/state` | `elements[].status` |
-| Resource movement | `/api/state` | `resources[].lat/lng` |
+| Resource movement | `/api/state` | `resources[].lat/lng`, `resources[].route` (street polyline while `in_transit`, drawn on the map) |
 | Decision text | `/api/agent` | `decisions[].reasoning` |
 | Ticker / history | `/api/feed` | `items[].elementId`, `decisionId`, `actionId` |

@@ -4,5 +4,6 @@ export * from "./feed.js";
 export * from "./rules.js";
 export * from "./script.js";
 export * from "./graphs.js";
+export * from "./roads.js";
 export * from "./history.js";
 export * from "./loaders.js";

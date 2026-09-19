@@ -14,7 +14,8 @@ import {
   deriveMetricStatus,
 } from "@swarmup/shared";
 import { dependentsOf } from "@swarmup/shared";
-import type { Remedies, Topology } from "@swarmup/shared";
+import type { LatLng, Remedies, RoadNetwork, Topology } from "@swarmup/shared";
+import { createRoadRouter } from "@swarmup/shared";
 import type { ScriptElement, ScriptResource } from "./script.js";
 
 /** Movement speed of crews and generators, simulated km/min */
@@ -97,6 +98,12 @@ interface ResourceState {
   /** Starting point of the current route */
   origin: { lat: number; lng: number } | null;
   destination: { lat: number; lng: number } | null;
+  /** Road polyline being followed: origin, street vertices, destination */
+  route: LatLng[];
+  /** Accumulated km at each route waypoint (parallel to `route`) */
+  cumulativeKm: number[];
+  /** Total length of the route polyline in km */
+  routeKm: number;
   /** Simulated second the route started */
   departedAt: number | null;
   /** Total route duration, including injected delays */
@@ -141,11 +148,21 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
   return Math.hypot(dLat, dLng);
 }
 
+/** Cumulative km at every waypoint of the polyline */
+function cumulativeKmOf(points: LatLng[]): number[] {
+  const cum = [0];
+  for (let i = 1; i < points.length; i++) cum.push(cum[i - 1] + distanceKm(points[i - 1], points[i]));
+  return cum;
+}
+
 export function createWorld(
   script: { elements: ScriptElement[]; resources: ScriptResource[] },
   remedies: Remedies,
   topology: Topology,
+  roads?: RoadNetwork,
 ): World {
+  /** Street-following navigation; null falls back to straight-line journeys */
+  const router = roads ? createRoadRouter(roads) : null;
   const typeOf = new Map(script.elements.map((e) => [e.id, e.type]));
   const criticality = new Map(script.elements.map((e) => [e.id, e.criticality]));
   const coordinates = new Map(script.elements.map((e) => [e.id, { lat: e.lat, lng: e.lng }]));
@@ -175,6 +192,9 @@ export function createWorld(
         lng: r.lng,
         origin: null,
         destination: null,
+        route: [],
+        cumulativeKm: [0],
+        routeKm: 0,
         departedAt: null,
         etaSeconds: 0,
         delayReported: false,
@@ -241,14 +261,30 @@ export function createWorld(
     return directed ? false : highCongestion;
   }
 
+  /**
+   * Position at `seconds` while following the route polyline: the travelled
+   * fraction of the ETA maps to the same fraction of the road length, so the
+   * resource hugs the streets instead of sliding over blocks.
+   */
   function positionOnRoute(r: ResourceState, seconds: number): { lat: number; lng: number } {
-    if (!r.origin || !r.destination || r.departedAt === null || r.etaSeconds <= 0) {
+    if (r.route.length < 2 || r.departedAt === null || r.etaSeconds <= 0) {
       return { lat: r.lat, lng: r.lng };
     }
     const progress = Math.min((seconds - r.departedAt) / r.etaSeconds, 1);
+    const targetKm = progress * r.routeKm;
+    const cum = r.cumulativeKm;
+    const last = r.route.length - 1;
+    if (targetKm >= cum[last]) return r.route[last];
+
+    let i = 1;
+    while (i < last && cum[i] < targetKm) i++;
+    const segment = cum[i] - cum[i - 1];
+    const t = segment > 0 ? (targetKm - cum[i - 1]) / segment : 0;
+    const a = r.route[i - 1];
+    const b = r.route[i];
     return {
-      lat: r.origin.lat + (r.destination.lat - r.origin.lat) * progress,
-      lng: r.origin.lng + (r.destination.lng - r.origin.lng) * progress,
+      lat: a.lat + (b.lat - a.lat) * t,
+      lng: a.lng + (b.lng - a.lng) * t,
     };
   }
 
@@ -292,6 +328,9 @@ export function createWorld(
           r.status = "assigned";
           r.origin = null;
           r.destination = null;
+          r.route = [];
+          r.cumulativeKm = [0];
+          r.routeKm = 0;
           r.departedAt = null;
           r.arrivedAt = seconds;
           events.push({
@@ -386,7 +425,14 @@ export function createWorld(
       const destination = coordinates.get(elementId);
       if (!destination) return { ok: false, reason: `nonexistent element: ${elementId}` };
 
-      const km = distanceKm({ lat: r.lat, lng: r.lng }, destination);
+      // Real navigation: shortest path over the street network, with the
+      // journey distance measured along the roads, not over the blocks
+      const origin: LatLng = { lat: r.lat, lng: r.lng };
+      const roadRoute = router?.route(origin, destination) ?? null;
+      const waypoints: LatLng[] = roadRoute?.waypoints ?? [origin, destination];
+      const cum = cumulativeKmOf(waypoints);
+      const km = cum[cum.length - 1];
+
       const base = Math.max(Math.round((km / SPEED_KM_MIN) * 60), MIN_ETA_SECONDS);
       // enables_transit: without the junction directed, moving costs double
       const eta = trafficPenalised() ? base * TRAFFIC_PENALTY : base;
@@ -395,6 +441,9 @@ export function createWorld(
       r.assignedElementId = elementId;
       r.origin = { lat: r.lat, lng: r.lng };
       r.destination = destination;
+      r.route = waypoints;
+      r.cumulativeKm = cum;
+      r.routeKm = km;
       r.departedAt = seconds;
       r.etaSeconds = eta;
       r.delayReported = false;
@@ -411,6 +460,9 @@ export function createWorld(
       r.assignedElementId = null;
       r.origin = null;
       r.destination = null;
+      r.route = [];
+      r.cumulativeKm = [0];
+      r.routeKm = 0;
       r.departedAt = null;
       r.etaSeconds = 0;
       r.delayReported = false;
@@ -443,6 +495,7 @@ export function createWorld(
         assignedElementId: r.assignedElementId,
         lat: r.lat,
         lng: r.lng,
+        ...(r.status === "in_transit" && r.route.length >= 2 ? { route: r.route } : {}),
       }));
     },
 

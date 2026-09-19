@@ -4,7 +4,6 @@ import type { StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { ElementView, ResourceView } from '@swarmup/shared'
 import { ICON_PATHS, ELEMENT_ICON, RESOURCE_ICON } from './iconPaths'
-
 const TILES: Record<'dark' | 'light', string[]> = {
   dark: [
     'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
@@ -20,6 +19,17 @@ const TILES: Record<'dark' | 'light', string[]> = {
   ],
 }
 
+interface RouteCollection {
+  type: 'FeatureCollection'
+  features: {
+    type: 'Feature'
+    properties: Record<string, never>
+    geometry: { type: 'LineString'; coordinates: [number, number][] }
+  }[]
+}
+
+const EMPTY_ROUTES: RouteCollection = { type: 'FeatureCollection', features: [] }
+
 const STYLE: StyleSpecification = {
   version: 8,
   sources: {
@@ -29,8 +39,28 @@ const STYLE: StyleSpecification = {
       tileSize: 256,
       attribution: '© OpenStreetMap contributors © CARTO',
     },
+    routes: {
+      type: 'geojson',
+      data: EMPTY_ROUTES,
+    },
   },
-  layers: [{ id: 'carto', type: 'raster', source: 'carto' }],
+  layers: [
+    { id: 'carto', type: 'raster', source: 'carto' },
+    {
+      id: 'route-casing',
+      type: 'line',
+      source: 'routes',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#0b1220', 'line-width': 7, 'line-opacity': 0.45 },
+    },
+    {
+      id: 'route-line',
+      type: 'line',
+      source: 'routes',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#4da3ff', 'line-width': 3, 'line-opacity': 0.9 },
+    },
+  ],
 }
 
 interface MarkerSpec {
@@ -139,6 +169,25 @@ export function MapView({
     if (!map || !ready) return
     const store = markersRef.current
     const alive = new Set<string>()
+
+    /** Resources draw the street polyline they are following */
+    const source = map.getSource('routes')
+    if (source && 'setData' in source) {
+      const features = resources
+        .filter((r) => r.route && r.route.length >= 2)
+        .map((r) => ({
+          type: 'Feature' as const,
+          properties: {},
+          geometry: {
+            type: 'LineString' as const,
+            coordinates: r.route!.map((p) => [p.lng, p.lat] as [number, number]),
+          },
+        }))
+      ;(source as { setData: (data: RouteCollection) => void }).setData({
+        type: 'FeatureCollection',
+        features,
+      })
+    }
 
     resources.forEach((r) => {
       alive.add(r.id)

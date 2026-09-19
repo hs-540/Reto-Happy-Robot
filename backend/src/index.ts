@@ -9,7 +9,7 @@ import type {
   StateView,
   TopologyView,
 } from "@swarmup/shared";
-import { loadHistory, loadRemedies, loadTopology } from "@swarmup/shared";
+import { loadHistory, loadRemedies, loadRoads, loadTopology } from "@swarmup/shared";
 import { createAgent } from "./agent.js";
 import { config, redactSecrets } from "./config.js";
 import { createActionRegistry, controlSchema } from "./control.js";
@@ -29,7 +29,19 @@ const feed = createFeed();
 const topologyGraph = loadTopology(new URL("data/topology.json", repoRoot).pathname);
 const remedies = loadRemedies(new URL("data/remedies.json", repoRoot).pathname);
 
-const world = createWorld(script, remedies, topologyGraph);
+/** Real street network (© OpenStreetMap contributors) the resources drive on */
+const roads = (() => {
+  try {
+    return loadRoads(new URL("data/roads.json", repoRoot).pathname);
+  } catch (err: unknown) {
+    console.error(
+      `[world] road network unavailable, resources will move in straight lines: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return undefined;
+  }
+})();
+
+const world = createWorld(script, remedies, topologyGraph, roads);
 
 /** Local Chroma (RAG): if it does not start, the demo goes on without loop closure */
 const ragReady: Promise<HistoryRag | null> = startChroma({

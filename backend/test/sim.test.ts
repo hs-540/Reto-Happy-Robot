@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadRemedies, loadTopology, type FeedItem } from "@swarmup/shared";
+import { loadRemedies, loadRoads, loadTopology, type FeedItem } from "@swarmup/shared";
 import { createFeed, type Feed } from "../src/feed.js";
 import { loadScript, type Script } from "../src/script.js";
 import { createWorld } from "../src/world.js";
@@ -19,6 +19,7 @@ const demoRemedies = loadRemedies(
 const demoTopology = loadTopology(
   fileURLToPath(new URL("../../data/topology.json", import.meta.url)),
 );
+const demoRoads = loadRoads(fileURLToPath(new URL("../../data/roads.json", import.meta.url)));
 const START_MS = Date.parse("2026-09-19T10:00:00.000Z");
 /** REAL seconds the demo lasts: the script runs in crisis seconds and the
  *  simulation advances at TIME_SCALE, so walking it costs 1/scale. */
@@ -92,7 +93,7 @@ function content(items: FeedItem[]): ExpectedItem[] {
 function freshSim(): { sim: ReturnType<typeof createSimulation>; feed: Feed } {
   const feed = createFeed();
   const script = loadScript(scriptPath);
-  const sim = createSimulation(script, START_MS, feed, createWorld(script, demoRemedies, demoTopology));
+  const sim = createSimulation(script, START_MS, feed, createWorld(script, demoRemedies, demoTopology, demoRoads));
   return { sim, feed };
 }
 
@@ -197,7 +198,7 @@ test("when an incident is resolved a single closure is delivered per element", (
   const closures: IncidentClosure[] = [];
   const feed = createFeed();
   const script = loadScript(scriptPath);
-  const world = createWorld(script, demoRemedies, demoTopology);
+  const world = createWorld(script, demoRemedies, demoTopology, demoRoads);
   const sim = createSimulation(script, START_MS, feed, world, (closure) => closures.push(closure));
   sim.start(START_MS);
   sim.advance(START_MS + 2_000);

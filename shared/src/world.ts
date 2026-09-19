@@ -1,4 +1,5 @@
 import type { ScriptElement, ScriptResource, SensorEvent } from "./script.js";
+import type { LatLng } from "./roads.js";
 
 /* Primitives derived from the data/ schemas (single source in script.ts) */
 export type ElementType = ScriptElement["type"];
@@ -65,6 +66,12 @@ export interface ResourceView {
   assignedElementId: string | null;
   lat: number;
   lng: number;
+  /**
+   * Road polyline the resource is following while `in_transit` (origin, street
+   * vertices, destination). Absent when it is not moving or the journey could
+   * not be routed over the network.
+   */
+  route?: LatLng[];
 }
 
 export interface StateView {
