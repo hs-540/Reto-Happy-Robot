@@ -176,7 +176,9 @@ function advance(): void {
     }
   }
   // the engine decides over the already-advanced snapshot; it does not wait for it to finish
-  void agent.observe(fullState(), events);
+  void agent.observe(fullState(), events).catch((err: unknown) => {
+    console.error(`[agent] observation failed: ${redactSecrets(err instanceof Error ? err.message : String(err))}`);
+  });
 }
 
 /** `attention` is derived and computed by the backend (CONTRACT.md, golden rule 4) */
