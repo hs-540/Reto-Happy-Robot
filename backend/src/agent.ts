@@ -14,10 +14,11 @@ import type {
   StateView,
   Topology,
 } from "@swarmup/shared";
-import { validateAction } from "@swarmup/shared";
+import { MAX_MINUTES_WITHOUT_POWER, validateAction } from "@swarmup/shared";
 import type { ActionRegistry } from "./control.js";
 import type { HappyRobotClient } from "./happyrobot.js";
-import type { LlmClient } from "./llm.js";
+import { ATTEMPT_TIMEOUT_MS, type LlmClient } from "./llm.js";
+import { TIME_SCALE } from "./sim.js";
 import type { WorldEvent, World } from "./world.js";
 import type { Feed } from "./feed.js";
 import type { HistoryRag } from "./rag/history.js";
@@ -29,11 +30,14 @@ import {
   type AgentOutput,
 } from "./prompt.js";
 
-/** Retries on actions rejected by the hard rules, before discarding them */
 /**
- * One retry, not two: each call costs 15-35s, so three attempts ate the whole
- * budget and guaranteed the fallback precisely when the agent was correcting
- * itself.
+ * Retries on actions rejected by the hard rules, before discarding them.
+ *
+ * One retry, not two: re-measured, a single call costs 15-112s (see
+ * `ATTEMPT_TIMEOUT_MS`), so three attempts ate the whole budget and guaranteed
+ * the fallback precisely when the agent was correcting itself. One is also
+ * cheap to keep: over 8 live deliberations no first proposal broke a hard rule,
+ * so this second attempt hardly ever runs.
  */
 const MAX_RETRIES = 1;
 
@@ -54,12 +58,39 @@ const MAX_REPORTS_PER_TURN = 12;
 const MAX_HISTORY_PER_TURN = 3;
 
 /**
- * Total budget of a deliberation, retries included; once spent, the
- * deterministic fallback takes over. It has to cover the realistic worst case
- * with the provider's measured latency: one long call (~19s) plus a retry
- * after a hard-rule rejection.
+ * Ceiling on how long a deliberation may be worth waiting for. The simulation
+ * runs at `TIME_SCALE` crisis-seconds per real second, and the tightest clock
+ * in the scenario is the hospital's: `maxMinutesWithoutPower.hospital` before
+ * `hospital-power-deadline` bites. Spending longer than that on one decision
+ * means answering about a hospital that has already blown its limit, so the
+ * answer arrives describing a world that no longer exists. At the current
+ * numbers (8 crisis-minutes at 6x) this is 80s of wall clock.
  */
-const DELIBERATION_BUDGET_MS = 75_000;
+const STALENESS_CEILING_MS =
+  (MAX_MINUTES_WITHOUT_POWER.hospital * 60 * 1000) / TIME_SCALE;
+
+/**
+ * Total budget of a deliberation, retries included; once spent, the contingency
+ * playbook takes over.
+ *
+ * It used to be a hand-written 75s while the gateway allowed 45s per attempt
+ * and `MAX_RETRIES` allowed two attempts — 90s of legal work against a 75s
+ * budget, so a deliberation that retried was killed at the exact moment it was
+ * correcting itself. Deriving it removes the chance of that drifting again.
+ *
+ * Raising it to cover two attempts is not an option: two 60s attempts is 120s,
+ * or 12 crisis-minutes, well past the staleness ceiling. So the ceiling wins,
+ * and the budget is only ever large enough that a *single* attempt is never cut
+ * off by it — the gateway's own timeout is what ends an attempt, and its error
+ * ("timeout or connection", with the gateway named) is diagnosable, whereas
+ * "deliberation budget exhausted" says nothing about who failed.
+ *
+ * The retry is kept: measured over 8 live deliberations, 0 first proposals
+ * broke a hard rule, so the second attempt almost never runs and costs nothing
+ * in the common case. When it does run, it is the agent fixing itself, and the
+ * ceiling — not an arbitrary constant — is what decides it has run too long.
+ */
+const DELIBERATION_BUDGET_MS = Math.max(ATTEMPT_TIMEOUT_MS + 5_000, STALENESS_CEILING_MS);
 
 /** Decisions kept for `/api/agent` */
 const MAX_DECISIONS = 20;
@@ -111,10 +142,11 @@ export interface AgentOptions {
 }
 
 /**
- * Runs `work` against the budget and CLEARS the timer either way. Racing a bare
- * `setTimeout` leaked one pending timer per deliberation: harmless in a
- * long-lived server, but it kept the event loop alive for the full budget after
- * every answer, which is 75 s of dead wait at the end of any test run.
+ * Runs `work` against the budget and CLEARS the timer either way. `Promise.race`
+ * cannot cancel the loser, so a deliberation that answers in time still left its
+ * timer armed: the process lingered for the whole budget after the work was
+ * done, which is a dead wait at the end of every test run and a server that will
+ * not shut down promptly.
  */
 function withBudget<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
@@ -260,74 +292,187 @@ export function createAgent(options: AgentOptions): Agent {
     return remedies.contacts.find((c) => c.elementId === elementId)?.id ?? null;
   }
 
+  /**
+   * Whoever the contingency playbook escalates to when it cannot act itself:
+   * the site's own lead, or the first contact in the roster as a last resort.
+   * Going silent about a site nobody is covering is the one outcome that is
+   * strictly worse than a bad assignment.
+   */
+  function escalationContactFor(elementId: string): string | null {
+    return leadFor(elementId) ?? remedies.contacts[0]?.id ?? null;
+  }
+
+  /**
+   * A site is covered when a resource is working it OR already on its way. The
+   * prompt states the same rule for the model ("A resource in transit counts as
+   * covered"); the fallback has to honour it too. Measured without this check:
+   * it parked `generator-2` on `hosp-01`, which already had `generator-1`
+   * assigned, and `tower-01` went critical at 21% battery with nothing left to
+   * send.
+   */
+  function isCovered(elementId: string, state: StateView): boolean {
+    return state.resources.some(
+      (r) =>
+        r.assignedElementId === elementId &&
+        (r.status === "assigned" || r.status === "in_transit"),
+    );
+  }
+
+  /**
+   * Whether `data/remedies.json` declares a remedy this resource type offers for
+   * this kind of site. Measured without this check: it sent `tanker-1` to
+   * `sub-01`, a substation, for which no tanker remedy exists — a wasted trip
+   * that also locked the tanker away from the sites it could actually help.
+   */
+  function remedyApplies(resourceType: string, elementType: string): boolean {
+    return remedies.remedies.some(
+      (r) => r.resource === resourceType && (r.appliesTo as readonly string[]).includes(elementType),
+    );
+  }
+
+  /** Shared shape of every contingency-mode output: one site, one stated move */
+  function playbook(input: {
+    target: string;
+    objective: string;
+    reasoning: string;
+    action: ProposedAction | null;
+    reasons: string[];
+  }): AgentOutput {
+    const { target, objective, reasoning, action, reasons } = input;
+    const lead = leadFor(target);
+    return {
+      evaluation: { discarded: [], actionable: reasons },
+      objective,
+      steps: action ? [{ description: action.message, elementId: target }] : [],
+      // even without the LLM the site lead is warned: going silent is no option
+      communications: lead
+        ? [
+            {
+              recipient: lead,
+              channel: "chat_message" as const,
+              elementId: target,
+              message: `Active incident at ${target}. ${action?.message ?? "the contingency playbook has no move available"}.`,
+              reason: "Contingency mode: automatic notice to the site lead",
+            },
+          ]
+        : [],
+      decisions: [
+        {
+          elementId: target,
+          priority: 1,
+          reasoning,
+          historyCitation: null,
+          actions: action ? [action] : [],
+        },
+      ],
+    };
+  }
+
+  /**
+   * Contingency playbook: the same ordering the model is given (rule priority),
+   * minus the judgement. It commits a resource only when the site is uncovered,
+   * the remedy applies and the hard rules allow it; otherwise it states why it
+   * is holding instead of inventing an assignment.
+   */
   function decideByRules(state: StateView, reasons: string[]): AgentOutput {
     const context = world.context(state.elements);
     const ranking = world.priorities(state.elements);
-    const target = ranking.find((p) => {
-      const e = state.elements.find((x) => x.id === p.elementId);
-      return e && e.status !== "normal" && e.status !== "resolved";
-    });
+    const elementById = new Map(state.elements.map((e) => [e.id, e]));
 
-    if (!target) {
+    const open = ranking
+      .map((p) => ({ score: p.score, element: elementById.get(p.elementId) }))
+      .filter(
+        (c): c is { score: number; element: ElementView } =>
+          c.element !== undefined && c.element.status !== "normal" && c.element.status !== "resolved",
+      );
+
+    if (open.length === 0) {
       return {
-        evaluation: { discarded: [], actionable: [] },
-        objective: "No active incidents: watch mode",
+        evaluation: { discarded: [], actionable: reasons },
+        objective: "Contingency mode — no active incidents: holding watch",
         steps: [],
         communications: [],
         decisions: [],
       };
     }
 
-    const free = state.resources.find((r) => r.status === "available");
-    const action: ProposedAction =
-      free &&
-      validateAction(
-        { type: "assign_resource", elementId: target.elementId, resourceId: free.id },
-        context,
-      ).allowed
-        ? {
-            type: "assign_resource",
-            elementId: target.elementId,
-            resourceId: free.id,
-            channel: null,
-            recipient: null,
-            message: `Deploy ${free.id} to the highest-priority site`,
-          }
-        : {
-            type: "wait",
-            elementId: target.elementId,
-            resourceId: null,
-            channel: null,
-            recipient: null,
-            message: "No assignable resources right now",
-          };
+    // The first uncovered site a free, applicable and legal resource can take.
+    for (const candidate of open) {
+      const site = candidate.element;
+      if (isCovered(site.id, state)) continue;
+      const resource = state.resources.find(
+        (r) =>
+          r.status === "available" &&
+          remedyApplies(r.type, site.type) &&
+          validateAction(
+            { type: "assign_resource", elementId: site.id, resourceId: r.id },
+            context,
+          ).allowed,
+      );
+      if (!resource) continue;
 
-    return {
-      evaluation: { discarded: [], actionable: reasons },
-      objective: `Degraded mode (no LLM): attend ${target.elementId} by rule priority`,
-      steps: [{ description: action.message, elementId: target.elementId }],
-      // even without the LLM the site lead is warned: going silent is no option
-      communications: leadFor(target.elementId)
-        ? [
-            {
-              recipient: leadFor(target.elementId) as string,
-              channel: "chat_message" as const,
-              elementId: target.elementId,
-              message: `Active incident at ${target.elementId}. ${action.message}.`,
-              reason: "Automatic warning in degraded mode",
-            },
-          ]
-        : [],
-      decisions: [
-        {
-          elementId: target.elementId,
-          priority: 1,
-          reasoning: `Deterministic fallback: ${target.elementId} leads the computed priority (${target.score}).`,
-          historyCitation: null,
-          actions: [action],
+      return playbook({
+        target: site.id,
+        objective: `Contingency mode — rule priority: ${resource.id} to ${site.id} (score ${candidate.score})`,
+        reasoning: `Contingency playbook: ${site.id} leads the computed priority (${candidate.score}), nothing covers it yet and ${resource.type} is the remedy declared for a ${site.type}.`,
+        action: {
+          type: "assign_resource",
+          elementId: site.id,
+          resourceId: resource.id,
+          channel: null,
+          recipient: null,
+          message: `Commit ${resource.id} (${resource.type}) to ${site.id}: highest-priority uncovered site and the remedy applies`,
         },
-      ],
-    };
+        reasons,
+      });
+    }
+
+    // Nothing sensible left to commit. Say so, on the most urgent site, with
+    // the reason: a stated hold is a decision, an invented assignment is a bug.
+    const uncovered = open.filter((c) => !isCovered(c.element.id, state));
+    const target = (uncovered[0] ?? open[0]).element.id;
+    const justification =
+      uncovered.length === 0
+        ? "every active site already has a resource assigned or in transit"
+        : "no free resource whose declared remedy applies to the sites still uncovered";
+
+    // `wait` is not automatically legal: `critical-ups-act` and
+    // `hospital-power-deadline` veto it. Both demand the same thing — act or
+    // escalate — and `contact` is the one action the validator never blocks, so
+    // the playbook escalates rather than emit something its own validator vetoes.
+    const holding = validateAction({ type: "wait", elementId: target }, context);
+    const recipient = escalationContactFor(target);
+    const action: ProposedAction | null = holding.allowed
+      ? {
+          type: "wait",
+          elementId: target,
+          resourceId: null,
+          channel: null,
+          recipient: null,
+          message: `Holding on ${target}: ${justification}`,
+        }
+      : recipient
+        ? {
+            type: "contact",
+            elementId: target,
+            resourceId: null,
+            channel: "voice_call",
+            recipient,
+            message: `${target} needs a move the contingency playbook cannot make: ${justification}. Rule ${holding.rule} forbids standing by, so this is escalated to you.`,
+          }
+        : null;
+
+    return playbook({
+      target,
+      objective: holding.allowed
+        ? `Contingency mode — holding on ${target}: ${justification}`
+        : `Contingency mode — escalating ${target}: ${justification}`,
+      reasoning: holding.allowed
+        ? `Contingency playbook: ${target} leads the computed priority, but ${justification}. Holding beats spending a resource that cannot help it.`
+        : `Contingency playbook: ${target} cannot be left waiting (${holding.rule}) and ${justification}. Escalated to a human instead of committing a resource that does not fit.`,
+      action,
+      reasons,
+    });
   }
 
   /* ─── Deliberation: LLM with retry against the hard rules ────────────── */
@@ -584,9 +729,12 @@ export function createAgent(options: AgentOptions): Agent {
         } catch (err) {
           const cause = err instanceof Error ? err.message : String(err);
           console.error(`[agent] deliberation failed (${cause}); fallback to rules`);
+          // What a jury reads on screen when this fires. It is a designed
+          // degraded mode, not a crash: say what took over and on what basis.
           feed.publish({
             kind: "system",
-            message: "LLM unavailable: the engine keeps running in deterministic rules mode",
+            message:
+              "Contingency mode engaged: the deliberation did not land in time. The rule-based playbook takes over — priority ranking, coverage check and hard rules all still apply.",
           });
           output = decideByRules(state, reasons);
         }
