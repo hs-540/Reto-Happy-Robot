@@ -26,11 +26,11 @@ const MAX_REINTENTOS = 2;
 
 /**
  * Presupuesto total de una deliberación, reintentos incluidos; agotado, manda
- * el fallback determinista. Tiene que cubrir el peor caso realista: un gateway
- * agotando su timeout y el siguiente respondiendo, o una propuesta rechazada
- * por reglas y corregida en un segundo intento.
+ * el fallback determinista. Tiene que cubrir el peor caso realista con la
+ * latencia medida del proveedor: una llamada larga (~19s) más un reintento
+ * tras un rechazo de las reglas duras.
  */
-const PRESUPUESTO_MS = 25_000;
+const PRESUPUESTO_MS = 60_000;
 
 /** Decisiones que se conservan para `/api/agent` */
 const MAX_DECISIONES = 20;
