@@ -13,6 +13,8 @@ import type {
   Report,
   StateView,
   Topology,
+  ValidationContext,
+  ValidatableResource,
 } from "@swarmup/shared";
 import { MAX_MINUTES_WITHOUT_POWER, validateAction } from "@swarmup/shared";
 import type { ActionRegistry } from "./control.js";
@@ -222,6 +224,228 @@ export function resolveContact(
   return mostSpecific("id") ?? mostSpecific("name") ?? mostSpecific("role") ?? null;
 }
 
+/**
+ * Canonical shape of an id for comparison: case out, the lookalikes the model
+ * swaps when typing (O/0, I/L/1) folded, separators unified and zero-padding
+ * dropped. Applied to BOTH sides, so "sub-O2" ≡ "sub-02" and "crew-O1" ≡
+ * "crew-1" without either spelling being "correct".
+ */
+function canonId(text: string): string {
+  return text
+    .toUpperCase()
+    .replace(/O/g, "0")
+    .replace(/[IL]/g, "1")
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-0*(?=\d)/g, "-");
+}
+
+/**
+ * The model now and then mistypes the very id it was handed: "sub-O2" with a
+ * letter O, a dropped zero, a stray capital. The decision is sound; the label
+ * is what failed — and an assignment carrying "sub-O2" dies at `world.assign`
+ * as "nonexistent element" after the model already spent its reasoning on it.
+ * Recover the id rather than bounce the move, the way `resolveContact`
+ * recovers who a warning is really for. Exact match, canonical match, then a
+ * UNIQUE prefix in either direction; anything ambiguous ("tower-0", bare
+ * "sub") comes back unchanged rather than guessed.
+ */
+export function resolveElementId(
+  proposed: string,
+  candidates: readonly { id: string }[],
+): string {
+  if (candidates.some((c) => c.id === proposed)) return proposed;
+  const target = canonId(proposed);
+  if (target === "") return proposed;
+  const canonical = candidates.find((c) => canonId(c.id) === target);
+  if (canonical) return canonical.id;
+  const partial = candidates.filter(
+    (c) => canonId(c.id).startsWith(target) || target.startsWith(canonId(c.id)),
+  );
+  return partial.length === 1 ? partial[0].id : proposed;
+}
+
+/**
+ * The model's whole output with every id it had to type re-anchored to the
+ * world it was handed: decision and action elementIds against the sites,
+ * resourceIds against the fleet, history citations against the retrieved
+ * incidents. Runs BEFORE validation, so the retry loop, the sequential
+ * checks and `execute` all see the id that was meant — a proposal is judged
+ * on its merits, not on its typos.
+ */
+export function reanchorOutput(
+  output: AgentOutput,
+  state: StateView,
+  history: readonly { incident: { id: string } }[],
+): AgentOutput {
+  // `resolveElementId` passes "" through unchanged, so the non-nullable
+  // fields (everything but plan steps) need no null handling
+  const resolveSite = (id: string): string => resolveElementId(id, state.elements);
+  const resolveUnit = (id: string): string => resolveElementId(id, state.resources);
+  const resolveNullable = (id: string | null): string | null =>
+    id === null ? null : resolveElementId(id, state.elements);
+  return {
+    ...output,
+    steps: output.steps.map((s) => ({ ...s, elementId: resolveNullable(s.elementId) })),
+    communications: output.communications.map((c) => ({
+      ...c,
+      elementId: resolveSite(c.elementId),
+    })),
+    decisions: output.decisions.map((d) => ({
+      ...d,
+      elementId: resolveSite(d.elementId),
+      historyCitation:
+        d.historyCitation === null
+          ? null
+          : resolveElementId(d.historyCitation, history.map((h) => ({ id: h.incident.id }))),
+      actions: d.actions.map((a) => ({
+        ...a,
+        elementId: resolveSite(a.elementId),
+        resourceId: a.resourceId === null ? null : resolveUnit(a.resourceId),
+      })),
+    })),
+  };
+}
+
+/* ─── Mechanical pairing and sequential validation ───────────────────── */
+
+export interface GreedyAssignment {
+  resourceId: string;
+  resourceType: string;
+  elementId: string;
+  /** rule priority of the site it was paired with */
+  score: number;
+}
+
+/**
+ * Validates one proposed action against the fleet as it stands after the
+ * actions before it, and on success consumes the resource it assigns.
+ *
+ * Validating a whole output against the SAME pre-execution snapshot let two
+ * actions promise the same unit: both passed, the first `world.assign` took
+ * it, and the second died at execution as "not available (status
+ * in_transit)" — a blocked action the retry loop never got to fix. Here each
+ * action sees the state the previous ones leave behind, so the duplicate is
+ * caught as a rejection (the model gets to correct it) or stripped (the
+ * fallback keeps the first and drops the rest), and the hospital ration in
+ * `hospital-power-priority` re-engages the moment its surplus is consumed.
+ */
+function judge(
+  action: Pick<ProposedAction, "type" | "elementId" | "resourceId">,
+  elements: ValidationContext["elements"],
+  fleet: ValidatableResource[],
+): ReturnType<typeof validateAction> {
+  const verdict = validateAction(
+    {
+      type: action.type,
+      elementId: action.elementId,
+      resourceId: action.resourceId ?? undefined,
+    },
+    { elements, resources: fleet },
+  );
+  if (verdict.allowed && action.type === "assign_resource" && action.resourceId) {
+    const unit = fleet.find((r) => r.id === action.resourceId);
+    if (unit) {
+      unit.status = "in_transit";
+      unit.assignedElementId = action.elementId;
+    }
+  }
+  return verdict;
+}
+
+/**
+ * Greedy pairing of free units to uncovered sites, in rule-priority order.
+ *
+ * The one pairing both no-judgement paths share: the contingency playbook
+ * (the LLM failed outright) and the idle-capacity pass (nothing woke the
+ * engine and units sit next to gaps). Each pairing must satisfy three things
+ * — the site is uncovered, the remedy catalog declares the unit fits it, and
+ * the hard rules allow the assignment against the state the earlier pairings
+ * leave behind — so a unit is never promised to two sites at once.
+ */
+export function greedyAssignments(
+  candidates: readonly { elementId: string; score: number }[],
+  context: ValidationContext,
+  remedies: Remedies,
+): GreedyAssignment[] {
+  const typeOf = new Map(context.elements.map((e) => [e.id, e.type]));
+  const fleet = context.resources.map((r) => ({ ...r }));
+  const remedyApplies = (resourceType: string, elementType: string): boolean =>
+    remedies.remedies.some(
+      (r) =>
+        r.resource === resourceType && (r.appliesTo as readonly string[]).includes(elementType),
+    );
+  const assignments: GreedyAssignment[] = [];
+  for (const candidate of candidates) {
+    const covered = fleet.some(
+      (r) =>
+        r.assignedElementId === candidate.elementId &&
+        (r.status === "assigned" || r.status === "in_transit"),
+    );
+    if (covered) continue;
+    const unit = fleet.find(
+      (r) =>
+        r.status === "available" &&
+        remedyApplies(r.type, typeOf.get(candidate.elementId) ?? "") &&
+        judge(
+          { type: "assign_resource", elementId: candidate.elementId, resourceId: r.id },
+          context.elements,
+          fleet,
+        ).allowed,
+    );
+    if (!unit) continue;
+    assignments.push({
+      resourceId: unit.id,
+      resourceType: unit.type,
+      elementId: candidate.elementId,
+      score: candidate.score,
+    });
+  }
+  return assignments;
+}
+
+/**
+ * Rejections of a whole proposal, in output order, each action judged against
+ * the state its predecessors leave behind (see `judge`). This is what the
+ * retry loop hands back to the model.
+ */
+export function validateSequentially(
+  output: AgentOutput,
+  context: ValidationContext,
+): string[] {
+  const fleet = context.resources.map((r) => ({ ...r }));
+  const rejections: string[] = [];
+  for (const d of output.decisions) {
+    for (const a of d.actions) {
+      const verdict = judge(a, context.elements, fleet);
+      if (!verdict.allowed) {
+        rejections.push(`[${verdict.rule}] ${a.type} on ${a.elementId}: ${verdict.reason}`);
+      }
+    }
+  }
+  return rejections;
+}
+
+/**
+ * The retry budget is spent: drop the actions that are still illegal and let
+ * the rest of the plan go ahead. Sequential, like `validateSequentially` — a
+ * legal first assignment must not keep an illegal duplicate of the same unit
+ * alive.
+ */
+export function stripIllegalActions(
+  output: AgentOutput,
+  context: ValidationContext,
+): AgentOutput {
+  const fleet = context.resources.map((r) => ({ ...r }));
+  return {
+    ...output,
+    decisions: output.decisions.map((d) => ({
+      ...d,
+      actions: d.actions.filter((a) => judge(a, context.elements, fleet).allowed),
+    })),
+  };
+}
+
 export function createAgent(options: AgentOptions): Agent {
   const {
     world,
@@ -357,76 +581,12 @@ export function createAgent(options: AgentOptions): Agent {
   }
 
   /**
-   * A site is covered when a resource is working it OR already on its way. The
-   * prompt states the same rule for the model ("A resource in transit counts as
-   * covered"); the fallback has to honour it too. Measured without this check:
-   * it parked `generator-2` on `hosp-01`, which already had `generator-1`
-   * assigned, and `tower-01` went critical at 21% battery with nothing left to
-   * send.
-   */
-  function isCovered(elementId: string, state: StateView): boolean {
-    return state.resources.some(
-      (r) =>
-        r.assignedElementId === elementId &&
-        (r.status === "assigned" || r.status === "in_transit"),
-    );
-  }
-
-  /**
-   * Whether `data/remedies.json` declares a remedy this resource type offers for
-   * this kind of site. Measured without this check: it sent `tanker-1` to
-   * `sub-01`, a substation, for which no tanker remedy exists — a wasted trip
-   * that also locked the tanker away from the sites it could actually help.
-   */
-  function remedyApplies(resourceType: string, elementType: string): boolean {
-    return remedies.remedies.some(
-      (r) => r.resource === resourceType && (r.appliesTo as readonly string[]).includes(elementType),
-    );
-  }
-
-  /** Shared shape of every contingency-mode output: one site, one stated move */
-  function playbook(input: {
-    target: string;
-    objective: string;
-    reasoning: string;
-    action: ProposedAction | null;
-    reasons: string[];
-  }): AgentOutput {
-    const { target, objective, reasoning, action, reasons } = input;
-    const lead = leadFor(target);
-    return {
-      evaluation: { discarded: [], actionable: reasons },
-      objective,
-      steps: action ? [{ description: action.message, elementId: target }] : [],
-      // even without the LLM the site lead is warned: going silent is no option
-      communications: lead
-        ? [
-            {
-              recipient: lead,
-              channel: "chat_message" as const,
-              elementId: target,
-              message: `Active incident at ${target}. ${action?.message ?? "the contingency playbook has no move available"}.`,
-              reason: "Contingency mode: automatic notice to the site lead",
-            },
-          ]
-        : [],
-      decisions: [
-        {
-          elementId: target,
-          priority: 1,
-          reasoning,
-          historyCitation: null,
-          actions: action ? [action] : [],
-        },
-      ],
-    };
-  }
-
-  /**
    * Contingency playbook: the same ordering the model is given (rule priority),
-   * minus the judgement. It commits a resource only when the site is uncovered,
-   * the remedy applies and the hard rules allow it; otherwise it states why it
-   * is holding instead of inventing an assignment.
+   * minus the judgement. It commits a resource to EVERY uncovered site it can
+   * legally serve — one decision per site — instead of stopping at the first:
+   * measured on a live run, one move per pass left a whole cascade unattended
+   * while the units that could have served it stood free. What remains
+   * uncovered after the pairing gets the stated hold or the escalation.
    */
   function decideByRules(state: StateView, reasons: string[]): AgentOutput {
     const context = world.context(state.elements);
@@ -450,83 +610,139 @@ export function createAgent(options: AgentOptions): Agent {
       };
     }
 
-    // The first uncovered site a free, applicable and legal resource can take.
-    for (const candidate of open) {
-      const site = candidate.element;
-      if (isCovered(site.id, state)) continue;
-      const resource = state.resources.find(
-        (r) =>
-          r.status === "available" &&
-          remedyApplies(r.type, site.type) &&
-          validateAction(
-            { type: "assign_resource", elementId: site.id, resourceId: r.id },
-            context,
-          ).allowed,
-      );
-      if (!resource) continue;
+    const assignments = greedyAssignments(
+      open.map(({ element, score }) => ({ elementId: element.id, score })),
+      context,
+      remedies,
+    );
 
-      return playbook({
-        target: site.id,
-        objective: `Contingency mode — rule priority: ${resource.id} to ${site.id} (score ${candidate.score})`,
-        reasoning: `Contingency playbook: ${site.id} leads the computed priority (${candidate.score}), nothing covers it yet and ${resource.type} is the remedy declared for a ${site.type}.`,
-        action: {
-          type: "assign_resource",
-          elementId: site.id,
-          resourceId: resource.id,
+    const decisions: AgentOutput["decisions"] = assignments.map((a) => ({
+      elementId: a.elementId,
+      priority: a.score,
+      reasoning: `Contingency playbook: ${a.elementId} is uncovered and ${a.resourceType} is the remedy declared for a ${elementById.get(a.elementId)?.type ?? "site"}; the hard rules allow the pairing.`,
+      historyCitation: null,
+      actions: [
+        {
+          type: "assign_resource" as const,
+          elementId: a.elementId,
+          resourceId: a.resourceId,
           channel: null,
           recipient: null,
-          message: `Commit ${resource.id} (${resource.type}) to ${site.id}: highest-priority uncovered site and the remedy applies`,
+          message: `Commit ${a.resourceId} (${a.resourceType}) to ${a.elementId}: uncovered site, the remedy applies and the rules allow it`,
         },
-        reasons,
-      });
-    }
+      ],
+    }));
 
-    // Nothing sensible left to commit. Say so, on the most urgent site, with
-    // the reason: a stated hold is a decision, an invented assignment is a bug.
-    const uncovered = open.filter((c) => !isCovered(c.element.id, state));
-    const target = (uncovered[0] ?? open[0]).element.id;
-    const justification =
-      uncovered.length === 0
-        ? "every active site already has a resource assigned or in transit"
-        : "no free resource whose declared remedy applies to the sites still uncovered";
+    const communications = assignments
+      .map((a) => {
+        const lead = leadFor(a.elementId);
+        return lead
+          ? {
+              recipient: lead,
+              channel: "chat_message" as const,
+              elementId: a.elementId,
+              message: `Active incident at ${a.elementId}. ${a.resourceId} (${a.resourceType}) has been committed to you by the contingency playbook.`,
+              reason: "Contingency mode: automatic notice to the site lead",
+            }
+          : null;
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
 
-    // `wait` is not automatically legal: `critical-ups-act` and
-    // `hospital-power-deadline` veto it. Both demand the same thing — act or
-    // escalate — and `contact` is the one action the validator never blocks, so
-    // the playbook escalates rather than emit something its own validator vetoes.
-    const holding = validateAction({ type: "wait", elementId: target }, context);
-    const recipient = escalationContactFor(target);
-    const action: ProposedAction | null = holding.allowed
-      ? {
-          type: "wait",
-          elementId: target,
-          resourceId: null,
-          channel: null,
-          recipient: null,
-          message: `Holding on ${target}: ${justification}`,
-        }
-      : recipient
+    const steps: AgentOutput["steps"] = decisions.flatMap((d) =>
+      d.actions.map((a) => ({ description: a.message, elementId: a.elementId })),
+    );
+
+    // Sites the pairing could not cover: hold or escalate on the most urgent,
+    // with the reason — a stated hold is a decision, an invented assignment is
+    // a bug. When nothing is left uncovered there is nothing to state.
+    const servedByPlaybook = new Set(assignments.map((a) => a.elementId));
+    const uncovered = open.filter(
+      (c) =>
+        !servedByPlaybook.has(c.element.id) &&
+        !state.resources.some(
+          (r) =>
+            r.assignedElementId === c.element.id &&
+            (r.status === "assigned" || r.status === "in_transit"),
+        ),
+    );
+    let holdObjective: string | null = null;
+
+    if (uncovered.length > 0) {
+      const target = uncovered[0].element.id;
+      const justification =
+        "no free resource whose declared remedy applies to the sites still uncovered";
+
+      // `wait` is not automatically legal: `critical-ups-act` and
+      // `hospital-power-deadline` veto it. Both demand the same thing — act or
+      // escalate — and `contact` is the one action the validator never blocks,
+      // so the playbook escalates rather than emit something its own validator
+      // vetoes.
+      const holding = validateAction({ type: "wait", elementId: target }, context);
+      const recipient = escalationContactFor(target);
+      const action: ProposedAction | null = holding.allowed
         ? {
-            type: "contact",
+            type: "wait",
             elementId: target,
             resourceId: null,
-            channel: "voice_call",
-            recipient,
-            message: `${target} needs a move the contingency playbook cannot make: ${justification}. Rule ${holding.rule} forbids standing by, so this is escalated to you.`,
+            channel: null,
+            recipient: null,
+            message: `Holding on ${target}: ${justification}`,
           }
-        : null;
+        : recipient
+          ? {
+              type: "contact",
+              elementId: target,
+              resourceId: null,
+              channel: "voice_call",
+              recipient,
+              message: `${target} needs a move the contingency playbook cannot make: ${justification}. Rule ${holding.rule} forbids standing by, so this is escalated to you.`,
+            }
+          : null;
 
-    return playbook({
-      target,
-      objective: holding.allowed
+      holdObjective = holding.allowed
         ? `Contingency mode — holding on ${target}: ${justification}`
-        : `Contingency mode — escalating ${target}: ${justification}`,
-      reasoning: holding.allowed
-        ? `Contingency playbook: ${target} leads the computed priority, but ${justification}. Holding beats spending a resource that cannot help it.`
-        : `Contingency playbook: ${target} cannot be left waiting (${holding.rule}) and ${justification}. Escalated to a human instead of committing a resource that does not fit.`,
-      action,
-      reasons,
-    });
+        : `Contingency mode — escalating ${target}: ${justification}`;
+      const holdReasoning = holding.allowed
+        ? `Contingency playbook: ${target} leads the remaining priority, but ${justification}. Holding beats spending a resource that cannot help it.`
+        : `Contingency playbook: ${target} cannot be left waiting (${holding.rule}) and ${justification}. Escalated to a human instead of committing a resource that does not fit.`;
+
+      decisions.push({
+        elementId: target,
+        priority: uncovered[0].score,
+        reasoning: holdReasoning,
+        historyCitation: null,
+        actions: action ? [action] : [],
+      });
+      if (action) {
+        steps.push({ description: action.message, elementId: target });
+      }
+      const holdLead = leadFor(target);
+      if (holdLead) {
+        communications.push({
+          recipient: holdLead,
+          channel: "chat_message",
+          elementId: target,
+          message: `Active incident at ${target}. ${action?.message ?? "the contingency playbook has no move available"}.`,
+          reason: "Contingency mode: automatic notice to the site lead",
+        });
+      }
+    }
+
+    const objective =
+      assignments.length > 0
+        ? `Contingency mode — rule priority committed: ${assignments
+            .map((a) => `${a.resourceId} to ${a.elementId}`)
+            .join(", ")}${holdObjective ? `; ${holdObjective.replace("Contingency mode — ", "")}` : ""}`
+        : (holdObjective ??
+          "Contingency mode — every active site already has a resource assigned or in transit");
+
+    return {
+      evaluation: { discarded: [], actionable: reasons },
+      objective,
+      steps,
+      communications,
+      decisions,
+    };
   }
 
   /* ─── Deliberation: LLM with retry against the hard rules ────────────── */
@@ -582,8 +798,11 @@ export function createAgent(options: AgentOptions): Agent {
         AgentOutputSchema,
         "agent_decision",
       );
-      last = response.data;
-      rejections = collectRejections(last, state);
+      // The model mistypes the ids it was handed ("sub-O2" for "sub-02");
+      // recover them before anything judges or executes the proposal.
+      last = reanchorOutput(response.data, state, ctx.history);
+      // each action judged against the state its predecessors leave behind
+      rejections = validateSequentially(last, world.context(state.elements));
       if (rejections.length === 0) return last;
 
       for (const reason of rejections) {
@@ -593,41 +812,7 @@ export function createAgent(options: AgentOptions): Agent {
 
     // retries exhausted: illegal actions are discarded, the rest goes on
     if (!last) throw new Error("the LLM returned no proposal");
-    return {
-      ...last,
-      decisions: last.decisions.map((d) => ({
-        ...d,
-        actions: d.actions.filter((a) => isLegal(a, state)),
-      })),
-    };
-  }
-
-  function isLegal(action: ProposedAction, state: StateView): boolean {
-    return validateAction(
-      {
-        type: action.type,
-        elementId: action.elementId,
-        resourceId: action.resourceId ?? undefined,
-      },
-      world.context(state.elements),
-    ).allowed;
-  }
-
-  function collectRejections(output: AgentOutput, state: StateView): string[] {
-    const context = world.context(state.elements);
-    const reasons: string[] = [];
-    for (const d of output.decisions) {
-      for (const a of d.actions) {
-        const verdict = validateAction(
-          { type: a.type, elementId: a.elementId, resourceId: a.resourceId ?? undefined },
-          context,
-        );
-        if (!verdict.allowed) {
-          reasons.push(`[${verdict.rule}] ${a.type} on ${a.elementId}: ${verdict.reason}`);
-        }
-      }
-    }
-    return reasons;
+    return stripIllegalActions(last, world.context(state.elements));
   }
 
   /* ─── Execution ──────────────────────────────────────────────────────── */
@@ -823,6 +1008,84 @@ export function createAgent(options: AgentOptions): Agent {
     }
   }
 
+  /* ─── Idle-capacity pass ─────────────────────────────────────────────── */
+
+  /**
+   * Commits free units to uncovered sites WITHOUT a deliberation, and returns
+   * how many pairings landed.
+   *
+   * This runs only when nothing woke the engine: no trigger fired, no status
+   * changed, nothing is pending. That is exactly the state a freed resource
+   * leaves behind when its deliberation held it back or the release arrived
+   * between deliberations — on a live run, four units stood down at once and
+   * two of them waited for the LAST deliberation of the simulation, their
+   * ETAs landing after the crisis was over. The pairing is the mechanical
+   * `greedyAssignments`: uncovered site, remedy fits, hard rules allow — with
+   * the hospital ration enforced by the validator, so the pass can never
+   * spend a generator a hospital still needs. Judgement calls stay with the
+   * LLM: the pass adds no reasons, sends no communications and never touches
+   * the plan in flight.
+   */
+  function idleReassignments(state: StateView): number {
+    const context = world.context(state.elements);
+    const ranking = world.priorities(state.elements);
+    const elementById = new Map(state.elements.map((e) => [e.id, e]));
+    const open = ranking
+      .map((p) => ({ score: p.score, element: elementById.get(p.elementId) }))
+      .filter(
+        (c): c is { score: number; element: ElementView } =>
+          c.element !== undefined && c.element.status !== "normal" && c.element.status !== "resolved",
+      );
+
+    const assignments = greedyAssignments(
+      open.map(({ element, score }) => ({ elementId: element.id, score })),
+      context,
+      remedies,
+    );
+    if (assignments.length === 0) return 0;
+
+    feed.publish({
+      kind: "system",
+      message:
+        "Idle-capacity watch: free units committed to uncovered sites without a deliberation — no trigger woke the engine, and idle capacity is wasted capacity.",
+    });
+
+    let committed = 0;
+    for (const a of assignments) {
+      const result = world.assign(a.resourceId, a.elementId, seconds());
+      feed.publish({
+        kind: "system",
+        message: result.ok
+          ? `${a.resourceId} → ${a.elementId}, arrives in ${countdown(result.etaSeconds)}`
+          : `Could not assign ${a.resourceId}: ${result.reason}`,
+      });
+      if (!result.ok) continue;
+      committed += 1;
+      const decision: Decision = {
+        id: newId("dec"),
+        timestamp: state.simulationClock,
+        elementId: a.elementId,
+        priority: a.score,
+        reasoning: `Idle capacity: ${a.elementId} is uncovered, ${a.resourceId} is free and the ${a.resourceType} remedy applies to it, and the hard rules allow the pairing — committed without a deliberation.`,
+        provokesReplan: false,
+        actions: [],
+        assignments: [
+          {
+            resourceId: a.resourceId,
+            resourceType:
+              state.resources.find((r) => r.id === a.resourceId)?.type ?? "unknown",
+            elementId: a.elementId,
+            etaSeconds: result.etaSeconds,
+            ok: true,
+            reason: null,
+          },
+        ],
+      };
+      decisions = [decision, ...decisions].slice(0, MAX_DECISIONS);
+    }
+    return committed;
+  }
+
   /* ─── Public API ─────────────────────────────────────────────────────── */
 
   return {
@@ -836,7 +1099,13 @@ export function createAgent(options: AgentOptions): Agent {
       const reasons = deliberationReasons(state, seen);
       previousStatus = new Map(state.elements.map((e) => [e.id, e.status]));
 
-      if (reasons.length === 0 || state.paused) return;
+      if (state.paused) return;
+      if (reasons.length === 0) {
+        // Nothing woke the engine. Before letting the tick go by, close
+        // mechanically what can be closed: free units over uncovered sites.
+        idleReassignments(state);
+        return;
+      }
 
       deliberating = true;
       const reactionStart = performance.now();

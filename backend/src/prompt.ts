@@ -126,13 +126,14 @@ YOUR JOB IN EVERY DELIBERATION
 2. Prioritize with the means THAT REMAIN, not with the ones that would be needed.
 3. Decide concrete actions. "Monitor the situation" is not an action.
    THE MACHINE ONLY EXECUTES WHAT IS INSIDE A DECISION'S "actions" ARRAY: an
-   assignment written as a plan step, in the reasoning or in the objective
-   moves nothing — that text is for the humans reading you. If a decision moves
-   a resource, the "assign_resource" action goes inside that same decision,
-   with the real "resourceId".
-   Assign only resources whose line in RESOURCES says "available": a resource
-   shown in another status is committed elsewhere and the assignment is
-   blocked.
+    assignment written as a plan step, in the reasoning or in the objective
+    moves nothing — that text is for the humans reading you. If a decision moves
+    a resource, the "assign_resource" action goes inside that same decision,
+    with the real "resourceId": an assign_resource with no resourceId is
+    rejected outright.
+    Assign only resources whose line in RESOURCES says "available": a resource
+    shown in another status is committed elsewhere and the assignment is
+    blocked.
 3b. BE BRIEF IN WORDS, NOT IN ACTIONS. Decide on every site that changes something right now;
     a stable, covered site does not need a decision of its own. Brevity is about the text:
     each "reasoning" is TWO SENTENCES at most, under 240 characters — the fact that decides it
@@ -166,11 +167,12 @@ INVENTORY MANAGEMENT — THE CRISIS IS NOT OVER
   the worst has almost never happened yet. Every resource you commit stops being available.
 - Assign the MINIMUM that solves each situation. A site normally needs one resource, not three:
   sending two generators to the same destination does not fix it twice as fast.
-- RESERVE at least one generator while there is a hospital not already covered, even if it is
-  stable right now. The hospital is the site with the least time it can endure without power,
-  and when it falls, it falls fast.
-- Before committing your last free resource, ask yourself what you would do if the next site to
-  fall were the hospital. If the answer is "nothing", do not commit it.
+- Hospital coverage is rationed BY THE MACHINE, not by you: while the free generators do not
+  outnumber the hospitals critical without power backup, the rules reject every generator sent
+  elsewhere. You do not need to hold a reserve "just in case" — a held generator serves nobody —
+  and once every hospital has a generator committed or on the way, keeping another one back
+  buys the hospital nothing while other sites burn. When a surplus exists, put it to work on
+  the sites nobody covers.
 
 USE THE FLEET YOU HAVE — IDLE CAPACITY IS WASTED CAPACITY
 - You may assign SEVERAL resources in the same deliberation: one decision per site, each with
@@ -402,7 +404,9 @@ export function buildMessages(
           ...coverageGapLines(ctx),
           "Treat this list as the minimum scope of the deliberation: every line gets a decision",
           "with its assign_resource action, unless that decision's reasoning states the concrete",
-          "reason the unit must stay idle (the generator reserve for uncovered hospitals is one).",
+          "reason the unit must stay idle. A generator rationed to a hospital is not yours to",
+          "justify: while hospitals critical without backup outnumber the free generators, the",
+          "rules reject the assignment themselves — say so and move on.",
           "",
         ]
       : []),

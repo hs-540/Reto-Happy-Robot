@@ -134,6 +134,49 @@ test("hospital-power-priority: generators only to the critical hospital without 
 });
 
 /**
+ * The ration is for scarcity, not for ceremony: a hospital needs ONE
+ * generator, and a live run pinned three surplus units to its queue for most
+ * of the crisis while towers and datacenters burned. Free generators beyond
+ * what the uncovered hospitals need are legally free to work elsewhere.
+ */
+test("a surplus generator may leave the hospital queue", () => {
+  const ctx: ValidationContext = {
+    elements: [
+      element("hosp-01", "hospital", { status: "critical", secondsWithoutPower: 120 }),
+      element("dc-01", "datacenter", { status: "critical", secondsWithoutPower: 300 }),
+    ],
+    resources: [resource("generator-1", "generator"), resource("generator-2", "generator")],
+  };
+  assert.deepEqual(
+    validateAction({ type: "assign_resource", elementId: "hosp-01", resourceId: "generator-1" }, ctx),
+    { allowed: true },
+    "the hospital is still served first",
+  );
+  assert.deepEqual(
+    validateAction({ type: "assign_resource", elementId: "dc-01", resourceId: "generator-2" }, ctx),
+    { allowed: true },
+    "the surplus generator is not held hostage by the hospital queue",
+  );
+});
+
+test("the ration re-engages when the surplus is gone", () => {
+  const ctx: ValidationContext = {
+    elements: [
+      element("hosp-01", "hospital", { status: "critical", secondsWithoutPower: 120 }),
+      element("hosp-02", "hospital", { status: "critical", secondsWithoutPower: 90 }),
+      element("dc-01", "datacenter", { status: "degraded" }),
+    ],
+    resources: [resource("generator-1", "generator"), resource("generator-2", "generator")],
+  };
+  const toDatacenter = validateAction(
+    { type: "assign_resource", elementId: "dc-01", resourceId: "generator-1" },
+    ctx,
+  );
+  assert.equal(toDatacenter.allowed, false);
+  assert.equal(ruleOf(toDatacenter), "hospital-power-priority");
+});
+
+/**
  * Reproduces the corner the agent was driven into: a generator is already on
  * its way to a hospital past its limit, so the hospital is answered for — but
  * the deadline rule ignored inbound generators and vetoed every other option,
