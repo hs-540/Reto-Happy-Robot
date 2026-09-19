@@ -65,12 +65,13 @@ If a Chroma is already listening on its port, it gets reused instead of starting
 
 Everything from the UI, no `curl`:
 
-- **Start** the script — button in the header. It runs for 1800 s (30 min) of simulated clock: 54 scripted entries (18 sensor events, 35 citizen/press/field reports and 1 narrative event), of which five are the key moments — blackout at the substation (0 s), datacenter overheating (240 s), tower batteries draining (450 s), hospital loses its generator (540 s) and the crew missing its ETA (900 s). A demo run does not need all 30 minutes: the five moments are over by 900 s.
+- **Start** the script — button in the header. Each run draws a random crisis from a seed (`backend/src/scenario.ts`): 8-15 of the 15 sites, 4-10 of the 10 resources, and ~100-120 timeline entries spaced across the 30-minute window, most of them noise the agent must triage. The clock runs for 1800 s (30 min) of simulated time; a demo run does not need all of it.
 - **Pause / resume** — header.
 - **Inject live events** — injection panel. Crossing a threshold triggers a full re-plan on the next tick.
 
-`reset` has a UI button too: the CommandBar wires start, pause, resume and
-reset.
+`reset` draws a **new** scenario — a fresh seed, a different map, a different
+fleet — it does not rewind the current one. The CommandBar wires start, pause,
+resume and reset.
 
 The first deliberation **takes between 8 and 20 seconds** (measured against `deepseek-v4-flash` with the real prompt): alarms show up instantly in the feed and the agent's reasoning arrives later. It is not stuck, it is thinking.
 

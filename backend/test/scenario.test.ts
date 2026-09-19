@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { loadRemedies, loadTopology, type FeedItem } from "@swarmup/shared";
@@ -19,9 +19,8 @@ import {
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const topology = loadTopology(`${repoRoot}/data/topology.json`);
 const remedies = loadRemedies(`${repoRoot}/data/remedies.json`);
-const GOLDEN = JSON.parse(
-  readFileSync(fileURLToPath(new URL("./scenario.golden.json", import.meta.url)), "utf8"),
-) as unknown;
+const GOLDEN_PATH = fileURLToPath(new URL("./scenario.golden.json", import.meta.url));
+const GOLDEN = JSON.parse(readFileSync(GOLDEN_PATH, "utf8")) as unknown;
 
 const SEEDS = Array.from({ length: 100 }, (_, i) => i);
 
@@ -116,13 +115,20 @@ function assertTimelineWellFormed(scenario: Scenario): void {
   }
 }
 
-function assertFleetComplete(scenario: Scenario): void {
+/**
+ * The fleet shrinks with the drawn crisis: 4-10 units, never without one unit
+ * of every class, ids unique so contacts and topology keep pointing at units
+ * that exist.
+ */
+function assertFleetShape(scenario: Scenario): void {
   const byType = (type: string) => scenario.script.resources.filter((r) => r.type === type).length;
-  assert.equal(scenario.script.resources.length, 10);
-  assert.equal(byType("crew"), 2);
-  assert.equal(byType("generator"), 4);
-  assert.equal(byType("tanker"), 2);
-  assert.equal(byType("police"), 2);
+  const size = scenario.script.resources.length;
+  assert.ok(size >= 4 && size <= 10, `fleet of 4-10 units, got ${size}`);
+  const ids = new Set(scenario.script.resources.map((r) => r.id));
+  assert.equal(ids.size, size, "resource ids are unique");
+  for (const type of ["crew", "generator", "tanker", "police"]) {
+    assert.ok(byType(type) >= 1, `at least one ${type} in the fleet`);
+  }
 }
 
 test("the same seed always yields the same crisis", () => {
@@ -131,6 +137,10 @@ test("the same seed always yields the same crisis", () => {
 
 test("fixed seed produces the expected output", () => {
   const scenario = generateScenario(2026);
+  if (process.env.UPDATE_GOLDEN) {
+    writeFileSync(GOLDEN_PATH, `${JSON.stringify(projection(scenario), null, 1)}\n`);
+    return;
+  }
   assert.deepEqual(projection(scenario), GOLDEN);
 });
 
@@ -144,7 +154,7 @@ test("every accepted scenario satisfies the invariants, coverage and pacing", ()
     // structure holds for every draw, accepted or not
     assertSubsetInvariants(scenario);
     assertTimelineWellFormed(scenario);
-    assertFleetComplete(scenario);
+    assertFleetShape(scenario);
 
     if (problems.length === 0) {
       accepted += 1;

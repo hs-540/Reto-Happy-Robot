@@ -1,6 +1,6 @@
-import type { Contact, ElementType, Topology } from "@swarmup/shared";
+import type { Contact, ElementType, ResourceType, Topology } from "@swarmup/shared";
 import { dependentsOf, loadRemedies, loadTopology } from "@swarmup/shared";
-import { loadScript, type Script, type ScriptEvent } from "./script.js";
+import { loadScript, type Script, type ScriptEvent, type ScriptResource } from "./script.js";
 import { distanceKm } from "./world.js";
 import { createRng, deriveSeed, type Rng } from "./rng.js";
 import {
@@ -37,6 +37,10 @@ const FIRST_SLOT_SECONDS = 180;
 const LAST_START_SECONDS = 1500;
 const INDEPENDENT_CHANCE = 0.5;
 const MAX_INDEPENDENTS = 4;
+/** The fleet shrinks with the drawn crisis; one unit per class is the floor */
+const MIN_FLEET_SIZE = 4;
+/** Every class a playable world needs at least one unit of */
+const RESOURCE_CLASSES: readonly ResourceType[] = ["crew", "generator", "tanker", "police"];
 /** The needle lands mid-crisis, never at the opening */
 const NEEDLE_WINDOW: readonly [number, number] = [420, 1080];
 
@@ -99,10 +103,10 @@ function fillText(text: string, siteId: string): string {
 }
 
 /** Straight-line journey of the nearest base of the fixing resource class */
-function travelMinutes(siteId: string, fixResource: string): number {
+function travelMinutes(fleet: ScriptResource[], siteId: string, fixResource: string): number {
   const site = CATALOG.elements.find((e) => e.id === siteId);
   if (!site) return MIN_TRAVEL_MINUTES;
-  const bases = CATALOG.resources.filter((r) => r.type === fixResource);
+  const bases = fleet.filter((r) => r.type === fixResource);
   const nearest = Math.min(...bases.map((r) => distanceKm(r, site)));
   return Math.max((nearest / SPEED_KM_MIN) * TRAFFIC_PENALTY, MIN_TRAVEL_MINUTES);
 }
@@ -147,6 +151,34 @@ function drawStarts(rng: Rng, count: number): number[] {
     starts.push(FIRST_SLOT_SECONDS + i * slotWidth + rng.int(0, jitter));
   }
   return starts;
+}
+
+/**
+ * The fleet is drawn after the incidents: capacity is the scarce side, so its
+ * size is whatever keeps the drawn demand inside the difficulty band — a
+ * smaller world deploys fewer units and the scarcity that makes the demo
+ * interesting survives in every shape. One unit of every class always stays,
+ * so every remedy keeps a base to travel from; when no fleet size can reach
+ * the band the smallest legal fleet is drawn and validation rejects the
+ * attempt.
+ */
+function drawFleet(rng: Rng, demandMinutes: number, durationSeconds: number): ScriptResource[] {
+  const windowMinutes = durationSeconds / 60;
+  const clamp = (n: number) => Math.min(Math.max(n, MIN_FLEET_SIZE), CATALOG.resources.length);
+  const lo = clamp(Math.ceil(demandMinutes / (BAND_MAX * windowMinutes)));
+  const hi = clamp(Math.floor(demandMinutes / (BAND_MIN * windowMinutes)));
+  const size = lo <= hi ? rng.int(lo, hi) : MIN_FLEET_SIZE;
+
+  const core: ScriptResource[] = [];
+  const seenClasses = new Set<ResourceType>();
+  for (const unit of CATALOG.resources) {
+    if (!seenClasses.has(unit.type)) {
+      seenClasses.add(unit.type);
+      core.push(unit);
+    }
+  }
+  const extras = rng.shuffle(CATALOG.resources.filter((r) => !core.includes(r)));
+  return [...core, ...extras.slice(0, size - core.length)];
 }
 
 /**
@@ -239,15 +271,20 @@ export function drawScenario(seed: number): ScenarioDraft {
     .sort((a, b) => a.atSeconds - b.atSeconds);
   assignIds(playable);
 
+  // the fleet is sized to this draw: a smaller crisis deploys fewer units, so
+  // the demand stays inside the band and the dilemma outlives the world size
+  const preliminary = demand(incidents, downedSubs, active, durationSeconds, CATALOG.resources);
+  const fleet = drawFleet(rng, preliminary.demandMinutes, durationSeconds);
+  const resourceIds = new Set(fleet.map((r) => r.id));
+
   const script: Script = {
     title: "Seeded blackout — Getafe, Community of Madrid",
     durationSeconds,
     elements: CATALOG.elements.filter((e) => active.has(e.id)),
-    resources: CATALOG.resources,
+    resources: fleet,
     timeline: playable,
   };
 
-  const resourceIds = new Set(CATALOG.resources.map((r) => r.id));
   const topologyGraph: Topology = {
     edges: FULL_TOPOLOGY.edges.filter(
       (e) => active.has(e.from) && (e.to === "*" || active.has(e.to) || resourceIds.has(e.to)),
@@ -259,6 +296,7 @@ export function drawScenario(seed: number): ScenarioDraft {
     // original site may not even exist in this world
     if (c.id === "ventilator-citizen") return [{ ...c, elementId: needleHospitalId }];
     if (c.elementId !== undefined && !active.has(c.elementId)) return [];
+    if (c.resourceId !== undefined && !resourceIds.has(c.resourceId)) return [];
     return [{ ...c }];
   });
 
@@ -269,7 +307,7 @@ export function drawScenario(seed: number): ScenarioDraft {
     meta: {
       seed,
       incidentStarts: incidents.map((i) => i.startSeconds).sort((a, b) => a - b),
-      ...demand(incidents, downedSubs, active, durationSeconds),
+      ...demand(incidents, downedSubs, active, durationSeconds, fleet),
       needleHospitalId,
     },
   };
@@ -331,6 +369,7 @@ function demand(
   downedSubs: string[],
   active: Set<string>,
   durationSeconds: number,
+  fleet: ScriptResource[],
 ): { demandMinutes: number; capacityMinutes: number; demandRatio: number } {
   const windowMinutes = durationSeconds / 60;
   let demandMinutes = 0;
@@ -342,7 +381,7 @@ function demand(
     );
     if (!remedy) return 0;
     const work = remedy.sustains ? remedy.minutes + (windowMinutes - startSeconds / 60) : remedy.minutes;
-    return work + travelMinutes(siteId, fixResource);
+    return work + travelMinutes(fleet, siteId, fixResource);
   }
 
   for (const incident of incidents) {
@@ -359,7 +398,7 @@ function demand(
     }
   }
 
-  const capacityMinutes = CATALOG.resources.length * windowMinutes;
+  const capacityMinutes = fleet.length * windowMinutes;
   return {
     demandMinutes: Math.round(demandMinutes),
     capacityMinutes,
@@ -388,6 +427,13 @@ export function validateScenario(draft: ScenarioDraft): string[] {
   if (countOfType("hospital") < 2) problems.push("fewer than 2 hospitals");
   if (countOfType("fuel_station") < 1) problems.push("no fuel_station: the tankers are decorative");
   if (countOfType("junction") < 1) problems.push("no junction: the police units are decorative");
+
+  // one unit of every class: a template's fix resource must have a base
+  for (const type of RESOURCE_CLASSES) {
+    if (!script.resources.some((r) => r.type === type)) {
+      problems.push(`no ${type} in the fleet`);
+    }
+  }
 
   // topological upward closure: a dependent in implies its substation in
   for (const element of script.elements) {

@@ -1,37 +1,40 @@
 # Randomized scenario generation — design
 
-> Status: **decided, not built**. This is the agreed design for replacing the
-> single hand-written script with a seeded generator. Nothing in `backend/src`
-> implements it yet; `data/scripts/madrid-blackout.json` is still the only
-> scenario.
+> Status: **built** (branch `feat/scenario-generator`, fleet sizing fixed in
+> `fix/scenario-difficulty-band`). The generator is the only scenario source:
+> every boot and every reset draws a seed. Still pending: surfacing the seed
+> (header, feed, `POST /api/control { action: "reset", seed }`), the
+> `SCENARIO_MODE` escape hatch, the moments UI and RAG history for `tower`,
+> `fuel_station` and `junction`.
 
 ## Why
 
-The demo has to survive the question *"is this scripted?"*. Today it is: one
-fixed timeline, the same 93 entries in the same order every run, and a start
-overlay that lists the five key moments **before** they happen. The goal of the
-generator is **credibility with a safety net** — being able to hit reset in
-front of the jury and get a different, coherent, playable crisis, while keeping
-a known-good path for the live run.
+The demo has to survive the question *"is this scripted?"*. Before the generator
+it was: one fixed timeline, the same 93 entries in the same order every run, and
+a start overlay that listed the five key moments **before** they happened. The
+generator delivers **credibility with a safety net** — reset in front of the
+jury and get a different, coherent, playable crisis, while keeping a known-good
+path (the curated script) for the live run.
 
 Robustness testing (batch runs, metrics) is explicitly **not** the goal.
 
-## What the current code assumes
+## What the code assumed before the generator
 
-Facts the design has to work around:
+Facts the design had to work around; the rebuildable factory in `index.ts`
+resolved all of them:
 
-| Where | What it does today |
+| Where | What it did before |
 | --- | --- |
-| `backend/src/index.ts:26` | `loadScript` runs once at boot |
-| `backend/src/index.ts:29` | `loadTopology` runs once at boot |
-| `backend/src/index.ts:44` | `createWorld(script, …)` captures the script |
-| `backend/src/index.ts:101` | `toTopology(script)` computed once, served by `GET /api/topology` |
-| `frontend/src/api.ts:16` | The frontend fetches topology once |
-| `backend/src/sim.ts` | `createSimulation(script, …)` closes over the script; `reset()` rewinds it, never replaces it |
+| `backend/src/index.ts` | `loadScript`/`loadTopology` ran once at boot |
+| `backend/src/index.ts` | `world`, `sim`, `agent` and `topology` were module constants |
+| `frontend/src/api.ts` | The frontend fetched topology once |
+| `backend/src/sim.ts` | `createSimulation(script, …)` closed over the script; `reset()` rewound it, never replaced it |
 | 8 test files | Load `data/scripts/madrid-blackout.json` and assert on its content |
 
-So "reset gives a new crisis" is not free: those objects have to become
-rebuildable instead of module-level constants.
+So "reset gives a new crisis" was not free: those objects had to become
+rebuildable instead of module-level constants. They are: `createRuntime()`
+rebuilds world, sim, agent and topology per generation, and the frontend
+refetches `/api/topology` when the tick goes backwards (`useCrisis.ts`).
 
 Two numbers that bound the design:
 
@@ -40,23 +43,25 @@ Two numbers that bound the design:
   `low_fuel` and `blocked_transit` (junction), over 6 element types and 8
   `SensorMetric` values. Forty hand-written incidents would be the same arc with
   different site names.
-- **The ceiling is 15 concurrent problems, and scarcity bites at ~12.** There are
-  15 sites and 10 resources (2 crew, 4 generators, 2 tankers, 2 police). A
-  substation repair is 18 min against a 30 min crisis, so two crews cover ~3
-  substations at best. Difficulty is therefore budgeted, not counted.
+- **The catalog is 15 sites and 10 resources (2 crew, 4 generators, 2 tankers,
+  2 police) — but a generated scenario deploys a drawn fleet of 4-10.** A
+  substation repair is 18 min against a 30 min crisis, so scarcity has to
+  survive at every world size; the fleet shrinks with the world (see
+  Difficulty).
 
 ## Design
 
 ### Seeded generator, rebuilt on reset
 
-`generateScenario(seed)` returns `{ script, topologyGraph, contacts }`.
-`reset` calls it again. This requires pulling `script`, `world`, `sim`, `agent`
-and `topology` out of module scope in `index.ts` into a factory, and having the
-frontend refetch `/api/topology` after a reset.
+`generateScenario(seed)` returns `{ script, topologyGraph, contacts }`, and
+`createRuntime()` in `index.ts` rebuilds world, sim, agent and topology from it
+on every boot and every reset; the frontend refetches `/api/topology` when the
+tick goes backwards (`useCrisis.ts`).
 
 ### Unit of randomization: root causes + derived cascade
 
-The catalog holds **10-14 templates parameterized by element type**, each one an
+The catalog holds **14 templates parameterized by element type** (3 for
+hospitals and datacenters, 2 for the other site types), each one an
 arc (a series of escalating `sensor_event`s plus its own reports, with
 placeholders such as `{site}` / `{street}`), instantiated onto whichever sites
 the seed activated.
@@ -76,20 +81,34 @@ The seed picks a subset of sites. Four invariants make the subset playable:
    The `crew` remedy (widest coverage) always has a root cause to repair.
 2. **At least one `fuel_station` and one `junction`** — otherwise `tanker`
    (`requires: operational_fuel_station`) and `police` (only acts on junctions)
-   are decorative for the whole run, which is 4 of the 10 resources.
+   are decorative for the whole run.
 3. **Contacts filtered to the subset** — `prompt.ts` only offers contacts whose
    `elementId` / `resourceId` is present, so the agent never dials someone who
-   does not exist in the world.
+   does not exist in this generation of the world.
 4. **At least 2 hospitals and 2 substations** — preserves the dilemma that makes
    the demo interesting: more downed rings than crews, more lives at stake than
    generators.
 
-### Difficulty: resource-minute budget
+Validation also rejects a fleet without one unit of every class: a template's
+fix resource must have a base in the world.
 
-The generator sums the resource-minutes cost of what it draws (from
-`remedies.json` `minutes` plus travel) and targets a band of roughly **130-180%
-of the capacity available in the window**. Triage is always visible and
+### Difficulty: the fleet is sized to the draw
+
+The generator sums the resource-minutes cost of what it drew (from
+`remedies.json` `minutes` plus travel) and then **draws the fleet that keeps
+that demand inside the band of roughly 130-180% of the capacity available in
+the window** (`drawFleet`). Capacity is the scarce side: a smaller world deploys
+fewer units instead of drifting under the band. One unit of every class always
+stays (`MIN_FLEET_SIZE = 4`), so every remedy keeps a base to travel from and
+`tanker`/`police` never lose their site. Contacts and topology edges pointing at
+dropped units are filtered out with them. Triage is always visible and
 something is always closable. The band is two constants to tune.
+
+This was the fix for the first calibration: with the fleet fixed at 10, only
+full 15-site worlds could reach the band, so validation rejected every smaller
+draw and the retry loop funnelled every seed into the same map. With the fleet
+drawn, ~95% of seeds pass validation across shapes of 9-15 sites and 5-10
+units.
 
 ### Pacing: fixed opening, spaced arrivals
 
@@ -118,9 +137,10 @@ never lost to a dice roll, and is still not predictable.
 
 ### UI: reveal only what has happened
 
-`StartOverlay.tsx:43-47` currently lists "5 key moments" with their titles before
-the run starts, and `CommandBar.tsx:142` tracks "M1…M5" as it advances. The
-screen is announcing the script. It changes to:
+Generated events carry no `note`, so `GET /api/topology` serves no key moments
+(`toTopology` only surfaces `note` entries) and the moments UI is empty — the
+screen no longer announces the plot. Still pending (`StartOverlay.tsx`,
+`CommandBar.tsx`):
 
 - The start overlay states the crisis type and duration, not what will happen.
 - The command bar shows moments **already** past, as a narrative thread.
@@ -132,43 +152,45 @@ counterproductive.
 
 `data/history/` covers only `hospital`, `datacenter` and `substation`, and
 `search()` queries the collection of the affected element type. A seed weighted
-toward towers and junctions would leave the learning layer mute. Three synthetic
-historical incidents are added for `tower`, `fuel_station` and `junction`, in the
-same format.
+toward towers and junctions leaves the learning layer mute. Pending: three
+synthetic historical incidents for `tower`, `fuel_station` and `junction`, in
+the same format.
 
 `recordClosure()` writes resolved incidents into Chroma and `sim.reset()` does
 not clear them. That accumulation stays: it is literally the agent learning from
 the previous crisis, and it is worth saying out loud to the jury.
 
-### Seed handling
+### Seed handling (planned)
 
-Each reset draws a seed, shows it in the header and publishes it to the feed as a
-`system` entry. `POST /api/control` accepts `{ action: "reset", seed }`. A seed
-can therefore be pre-validated before the live run and an odd run reproduced
-exactly.
+Each reset will draw a seed, show it in the header and publish it to the feed as
+a `system` entry; `POST /api/control` will accept `{ action: "reset", seed }`.
+A seed can then be pre-validated before the live run and an odd run reproduced
+exactly. Today the seed is drawn in `createRuntime()` and discarded.
 
-### Escape hatch
+### Escape hatch (planned)
 
 `SCENARIO_MODE=curated|random` in `.env`, defaulting to `random`. In `curated`
-mode the backend loads `data/scripts/madrid-blackout.json` unchanged — the path
-the 8 existing tests already cover, and the same fallback the failed-retry branch
-uses. One variable, no code change, minutes before presenting.
+mode the backend would load `data/scripts/madrid-blackout.json` unchanged — the
+same fallback the failed-retry branch uses. One variable, no code change,
+minutes before presenting.
 
 ### Tests
 
-`madrid-blackout.json` stays untouched: it is both the fixture for the 8 tests
-that load it and the generator's fallback. The generator gets its own tests:
+`madrid-blackout.json` stays untouched: it is both the fixture for the tests
+that load it and the generator's fallback. The generator has its own tests in
+`backend/test/scenario.test.ts`:
 
-- fixed seed → expected output (catches unintended changes to the draw);
-- property tests over ~100 seeds asserting the invariants (topological closure,
-  no dangling contacts, resource coverage, budget band).
+- fixed seed → expected output (`scenario.golden.json`; regenerate with
+  `UPDATE_GOLDEN=1` when the draw intentionally changes);
+- property tests over 100 seeds asserting the invariants (topological closure,
+  no dangling contacts, fleet shape, budget band).
 
 ## Implementation order
 
-1. **Rebuildable factory** in `index.ts` plus topology refetch on reset. Unblocks
-   everything else and is the only step that touches architecture.
-2. **The generator**: site subset, invariants, templates, budget, retry and
-   fallback, with its tests.
-3. **Seed surfacing** and `SCENARIO_MODE`.
-4. **Moments UI**.
-5. **RAG history** for the three missing element types.
+1. ~~**Rebuildable factory** in `index.ts` plus topology refetch on reset.~~ Done.
+2. ~~**The generator**: site subset, invariants, templates, budget, retry and
+   fallback, with its tests.~~ Done; the budget became fleet sizing after the
+   first calibration (see Difficulty).
+3. **Seed surfacing** and `SCENARIO_MODE`. Pending.
+4. **Moments UI**. Pending.
+5. **RAG history** for the three missing element types. Pending.
