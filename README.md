@@ -30,7 +30,7 @@ If the LLM does not answer in time, the engine **degrades to the deterministic p
 
 - **LLM**: a provider with an OpenAI-compatible interface ([Helmcode](https://helmcode.com), model `deepseek-v4-flash`). The provider is configuration, not code: it changes in the `.env`. `createLlmClient` takes a list of gateways and fails over between them; `config.ts` currently builds exactly one, so today there is nothing to fail over to.
 - **Real actions**: **built and wired end to end, running simulated for want of a credential.** `backend/src/happyrobot.ts` has a real client that `POST`s to `{HAPPYROBOT_BASE_URL}/api/v1/dial/outbound` with a Bearer key, the agent calls it for every communication it decides (`execute()` in `agent.ts`), and the return path is live: HappyRobot posts the hang-up to `POST /api/call/outcome`, the backend validates it and hands it to `agent.closeCall()`, where a refusal or a delay becomes a replanning trigger. What is missing is only `HAPPYROBOT_API_KEY`: without a usable one, `createHappyRobotClient()` picks the simulated client, which exercises that exact same chain with scripted answers. Setting the key switches to real phone calls with no code change.
-- **Learning**: partly built. Local Chroma is started by the backend; `npm run rag:preload` vectorizes `data/history/<type>/` into a collection per element type, and every resolved incident is written back with `recordClosure()`. **Retrieval is not wired yet**: `HistoryRag.search()` exists in `backend/src/rag/history.ts` but nothing calls it, so what the agent actually receives each turn is the static JSON history filtered by the affected element types (`agent.ts`, `MAX_HISTORY_PER_TURN = 3`). The agent does cite the incidents it used by id (`historyCitation`); the selection is just not a vector search yet.
+- **Learning**: built. Local Chroma is started by the backend and seeded at boot; `npm run rag:preload` vectorizes `data/history/<type>/` into a collection per element type, and every resolved incident is written back with `recordClosure()`. Retrieval is wired into every deliberation: `tryRetrieveHistory()` (`agent.ts`) calls `rag.search()` per affected element type behind a 6 s timeout, falling back to the static JSON history (`MAX_HISTORY_PER_TURN = 3`) if the search fails or times out. Retrieved incidents reach the prompt with a "Retrieved because..." line and the agent cites the incidents it used by id (`historyCitation`).
 
 ## Requirements
 
@@ -69,8 +69,8 @@ Everything from the UI, no `curl`:
 - **Pause / resume** — header.
 - **Inject live events** — injection panel. Crossing a threshold triggers a full re-plan on the next tick.
 
-`reset` exists in the API but has no button yet: the UI only wires start, pause
-and resume.
+`reset` has a UI button too: the CommandBar wires start, pause, resume and
+reset.
 
 The first deliberation **takes between 8 and 20 seconds** (measured against `deepseek-v4-flash` with the real prompt): alarms show up instantly in the feed and the agent's reasoning arrives later. It is not stuck, it is thinking.
 
