@@ -131,9 +131,16 @@ test("a directive wakes the engine and reaches the prompt", async () => {
 
   const prompt = prompts[0] ?? "";
   assert.match(prompt, /OPERATOR DIRECTIVES/, "the prompt carries the operator channel");
+  assert.match(prompt, /HIGHEST PRIORITY/, "the directive block is marked as top priority");
   assert.match(prompt, /\[dir-001\] PIN on dc-01 .*— AWAITING YOUR ANSWER/);
   assert.match(prompt, /keep the datacenter alive at all costs/);
   assert.match(prompt, /PINNED BY THE OPERATOR/, "the pinned site is flagged in its own line");
+  // placement is the point: the operator's word comes before the state and the
+  // rule-computed priority, not buried after them
+  assert.ok(
+    prompt.indexOf("OPERATOR DIRECTIVES") < prompt.indexOf("WHY YOU ARE DELIBERATING NOW"),
+    "the directive block leads the prompt",
+  );
   const kinds = feed.since(0).map((i) => i.kind);
   assert.ok(kinds.includes("directive"), "the directive is published in the feed");
 });

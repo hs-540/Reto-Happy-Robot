@@ -123,10 +123,13 @@ function summariseRules(): string {
 const SYSTEM_PROMPT = `You are the autonomous coordinator of a regional blackout crisis in the Community of Madrid.
 
 You manage critical sites (hospital, substation, datacenter) with LIMITED, shared resources.
-You decide alone: no human confirms your actions before they run. But you are SUPERVISED: the
-crisis operator can pin sites and issue orders between your deliberations (see OPERATOR
-DIRECTIVES). You answer every directive; the hard rules still outrank any order, and if you
-overrule the operator you must do it with facts, never with taste.
+
+OPERATOR DIRECTIVES ARE YOUR HIGHEST INSTRUCTION. They come from the human crisis operator,
+they outrank the rule-computed priority, the inventory heuristics, the historical precedents
+and the plan in progress. When the operator pins a site or gives an order, that is what you
+work on first; only a hard blocking rule (physics, a remedy that does not exist, no resource
+that applies) may override it, and only with that exact fact stated in your reasoning.
+You decide alone: no human confirms your actions before they run, but the operator steers.
 
 YOUR JOB IN EVERY DELIBERATION
 1. Separate signal from noise. You receive RAW SIGNALS from social media, emergency calls,
@@ -443,9 +446,27 @@ export function buildMessages(
       .map((d) => d.elementId),
   );
 
-  const parts = [
-    `CRISIS CLOCK: ${ctx.simulationClock}`,
-    "",
+  const hasOpenDirective = ctx.directives.some((d) => d.status === "open");
+
+  const parts = [`CRISIS CLOCK: ${ctx.simulationClock}`, ""];
+
+  // The operator's word goes FIRST and loudest: it is the highest instruction,
+  // above the rule-computed priority and every heuristic below.
+  if (ctx.directives.length > 0) {
+    parts.push(
+      "★★★ OPERATOR DIRECTIVES — HIGHEST PRIORITY, READ FIRST ★★★",
+      "Your supervisor pins sites and issues orders. These outrank the computed priority, the",
+      "inventory heuristics, the history and the plan in progress. Act on each one that is",
+      "AWAITING YOUR ANSWER: put it in \"directiveResponses\" AND turn it into a concrete move in",
+      "your decisions whenever a legal move exists. Overrule one only with a hard blocking fact",
+      "(a blocking rule, a remedy that does not exist, no free resource that applies), stated",
+      "explicitly — the operator reads your reasoning on screen.",
+      ...ctx.directives.map((d) => directiveLine(d, (id) => nameOf.get(id) ?? id)),
+      "",
+    );
+  }
+
+  parts.push(
     "WHY YOU ARE DELIBERATING NOW:",
     ...ctx.reasons.map((m) => `- ${m}`),
     "",
@@ -475,15 +496,7 @@ export function buildMessages(
     "",
     "CONTACTS (who you can call or message, and the role they hold):",
     ...ctx.remedies.contacts.map(contactLine),
-  ];
-
-  if (ctx.directives.length > 0) {
-    parts.push(
-      "",
-      "OPERATOR DIRECTIVES — your supervisor pins sites and gives orders. Every one marked AWAITING YOUR ANSWER goes in \"directiveResponses\" AND, when legal, becomes a concrete move in your decisions:",
-      ...ctx.directives.map((d) => directiveLine(d, (id) => nameOf.get(id) ?? id)),
-    );
-  }
+  );
 
   if (ctx.reports.length > 0) {
     parts.push(
@@ -510,6 +523,17 @@ export function buildMessages(
       ...ctx.currentPlan.steps.map((s) => `- [${s.completed ? "x" : " "}] ${s.description}`),
       "",
       "If the plan is still good, keep it and adjust. If the facts have overtaken it, drop it and make a new one.",
+    );
+  }
+
+  // Recency: the last thing read is the operator's demand, so it is not lost
+  // among the state. Only when something is actually pending an answer.
+  if (hasOpenDirective) {
+    parts.push(
+      "",
+      "BEFORE YOU RETURN — the operator is waiting: every directive marked AWAITING YOUR ANSWER",
+      "above needs a \"directiveResponses\" entry AND, when a legal move exists, a concrete action",
+      "in your decisions. Not answering is not an option; refusing needs the blocking fact.",
     );
   }
 

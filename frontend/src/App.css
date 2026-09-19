@@ -2224,6 +2224,17 @@
 
 .opdir__status--open {
   color: var(--accent-strong);
+  animation: opdir-wait 1.4s ease-in-out infinite;
+}
+
+@keyframes opdir-wait {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .opdir__status--acknowledged {

@@ -506,6 +506,11 @@ app.post("/api/control", (req, res) => {
       runtime.agent.queueDirective("order", null, body.payload.text);
       break;
   }
+  // A directive is the operator waiting: wake the engine NOW instead of leaving
+  // it for the next tick. `advance` already ran before the directive existed, so
+  // without this second pass there is up to a full poll of dead time before the
+  // agent even starts thinking about it.
+  if (body.action === "prioritize" || body.action === "order") advance();
   res.json({ ok: true });
 });
 
