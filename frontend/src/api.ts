@@ -1,4 +1,11 @@
-import type { ControlBody, ControlResponse, StateView, TopologyView } from '@swarmup/shared'
+import type {
+  AgentView,
+  ControlBody,
+  ControlResponse,
+  FeedResponse,
+  StateView,
+  TopologyView,
+} from '@swarmup/shared'
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(path)
@@ -9,6 +16,11 @@ async function getJson<T>(path: string): Promise<T> {
 export const getTopology = () => getJson<TopologyView>('/api/topology')
 
 export const getState = () => getJson<StateView>('/api/state')
+
+export const getAgent = () => getJson<AgentView>('/api/agent')
+
+/** Solo lo nuevo: el cliente acumula por `seq` (CONTRACT.md, regla de oro 6) */
+export const getFeed = (since: number) => getJson<FeedResponse>(`/api/feed?since=${since}`)
 
 /** Acción del operador: la respuesta del POST es el feedback, no espera al poll */
 export async function postControl(body: ControlBody): Promise<ControlResponse> {
