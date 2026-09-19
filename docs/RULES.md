@@ -73,9 +73,12 @@ These raw thresholds **raise the status even when the event's severity is low** 
 
 ## 4. Resource constraints
 
-Total shared capacity of the scenario (`resources.capacity` in `rules.json`):
+Total shared capacity of the catalog (`resources.capacity` in `rules.json`):
 **2 crews + 4 generators + 2 tankers + 2 police units** — deliberately **fewer
-than the 15 troubled places** they must cover.
+than the 15 places** they must cover. A generated run deploys a drawn subset of
+that fleet (4-10 units), always at least one unit fewer than the sites it drew,
+so leaving something unattended is part of the job in every run
+([`SCENARIO-GENERATION.md`](SCENARIO-GENERATION.md)).
 
 - **Mutual exclusion**: a resource serves **one element at a time**. A resource in `assigned` or `in_transit` cannot be reassigned (blocking rule `no-double-assignment`).
 - **On release** a resource goes to `available` and can be reassigned on the next tick; releasing is an **incremental adjustment**, it does not trigger re-planning.
@@ -105,15 +108,22 @@ The LLM **cannot** propose an action that violates them; the rules layer rejects
 | id | Rule |
 | --- | --- |
 | `no-double-assignment` | A resource serves one element at a time; reassigning requires releasing it first. |
-| `hospital-power-priority` | While a hospital is `critical`, without power backup and with **no generator committed to it**, generators can only be assigned to it. |
+| `hospital-power-priority` | While a hospital is `critical`, without power backup and with **no generator committed to it**, free generators are **rationed** to the hospitals needing one: an assignment elsewhere is rejected only while the free generators do not outnumber those hospitals. A generator already on its way counts as committed. |
 | `hospital-power-deadline` | If a hospital exceeds its limit of minutes without power and has **no generator committed to it**, only acting on it or on the origin substation (if `critical`) is allowed. |
 | `critical-ups-act` | With `ups_load` below the act threshold (15) waiting is forbidden: a resource must be assigned or the issue escalated. |
 | `generator-without-fuel` | A generator cannot be deployed to a site whose `fuel` is at or below the critical threshold (15): it must be refuelled by the tanker first, or the journey is wasted. |
+| `no-emergency-services-calls` | Contacts marked `emergencyService` are **never** dialled, whatever the situation: escalation runs through the rules and the plan, never through a call to 112. Enforced in `agent.ts` on both the decision's contact and the plan's communications, and stated in the prompt (`prompt.ts`). |
 
 Application notes:
 
-- `contact` is **never** blocked (communicating consumes no physical resources).
-- When two blocking rules apply, the **stricter one** wins (e.g. with a hospital `critical` without backup, a generator cannot go to the substation even if the hospital has exceeded its deadline: `hospital-power-priority` rules).
+- `contact` consumes no physical resource, so it is never blocked by the resource rules — the one veto over it is `no-emergency-services-calls`.
+- When two blocking rules apply, the **stricter one** wins (with a hospital `critical` without backup and no surplus generator, a generator cannot go to the substation even if the hospital has exceeded its deadline: `hospital-power-priority` rules).
+- **The ration is scarcity-based, not absolute.** A hospital needs *one*
+  generator; pinning four to its queue left three units idle through a live run
+  while towers and datacenters burned. While free generators outnumber the
+  hospitals at risk, the surplus is legally free to work elsewhere, and the
+  ration re-engages by itself the moment the surplus is spent — each assignment
+  in a batch is validated against the state the earlier ones leave behind.
 - **"Committed" includes a generator still driving.** Both hospital rules protect a
   hospital that has *no answer coming*; once one is on its way the hospital is
   answered for and the rest of the fleet is released. Without this the two rules
@@ -131,4 +141,4 @@ They trigger a **full re-plan** (abandon the current plan), not just incremental
 3. A hospital **exceeds its limit of minutes without power**.
 4. A contact **refuses an action or reports a delay** on a call: the plan relied on an ETA that no longer holds. It arrives through `POST /api/call/outcome` → `agent.closeCall()`.
 
-The remaining ticks (5–10 s) are only incremental adjustments: reordering queues by `calculatePriority`, updating states, reassigning released resources.
+The remaining ticks are only incremental adjustments: reordering queues by `calculatePriority`, updating states, reassigning released resources. The cadence is `TICK_MS` (2 s by default) for a headless run; while the UI is open the 500 ms frontend poll drives it (`docs/CONTRACT.md`).
