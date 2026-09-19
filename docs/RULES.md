@@ -104,8 +104,8 @@ The LLM **cannot** propose an action that violates them; the rules layer rejects
 | id | Rule |
 | --- | --- |
 | `no-double-assignment` | A resource serves one element at a time; reassigning requires releasing it first. |
-| `hospital-power-priority` | While a hospital is `critical` and without power backup, generators can only be assigned to it. |
-| `hospital-power-deadline` | If a hospital exceeds its limit of minutes without power, only acting on it or on the origin substation (if `critical`) is allowed. |
+| `hospital-power-priority` | While a hospital is `critical`, without power backup and with **no generator committed to it**, generators can only be assigned to it. |
+| `hospital-power-deadline` | If a hospital exceeds its limit of minutes without power and has **no generator committed to it**, only acting on it or on the origin substation (if `critical`) is allowed. |
 | `critical-ups-act` | With `ups_load` below the act threshold (15) waiting is forbidden: a resource must be assigned or the issue escalated. |
 | `generator-without-fuel` | A generator cannot be deployed to a site whose `fuel` is at or below the critical threshold (15): it must be refuelled by the tanker first, or the journey is wasted. |
 
@@ -113,6 +113,13 @@ Application notes:
 
 - `contact` is **never** blocked (communicating consumes no physical resources).
 - When two blocking rules apply, the **stricter one** wins (e.g. with a hospital `critical` without backup, a generator cannot go to the substation even if the hospital has exceeded its deadline: `hospital-power-priority` rules).
+- **"Committed" includes a generator still driving.** Both hospital rules protect a
+  hospital that has *no answer coming*; once one is on its way the hospital is
+  answered for and the rest of the fleet is released. Without this the two rules
+  disagreed — the priority rule counted an inbound generator, the deadline rule
+  did not — and while a generator drove towards a hospital past its limit, every
+  other generator assignment **and** `wait` was vetoed, so the only legal move
+  left was to send a second generator to the same hospital.
 
 ## 7. Re-plan triggers
 

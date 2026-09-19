@@ -130,6 +130,89 @@ test("hospital-power-priority: generators only to the critical hospital without 
   );
 });
 
+/**
+ * Reproduces the corner the agent was driven into: a generator is already on
+ * its way to a hospital past its limit, so the hospital is answered for — but
+ * the deadline rule ignored inbound generators and vetoed every other option,
+ * leaving "send the second generator to the hospital too" as the only legal
+ * move. The tower, meanwhile, was dying with no generator left.
+ */
+test("a generator already en route answers for the hospital: the fleet is free", () => {
+  const pastDeadline = (MAX_MINUTES_WITHOUT_POWER.hospital + 1) * 60;
+  const ctx: ValidationContext = {
+    elements: [
+      element("hosp-01", "hospital", { status: "critical", secondsWithoutPower: pastDeadline }),
+      element("tower-01", "tower", { status: "critical", secondsWithoutPower: 400 }),
+    ],
+    resources: [
+      resource("generator-1", "generator", {
+        status: "in_transit",
+        assignedElementId: "hosp-01",
+      }),
+      resource("generator-2", "generator"),
+    ],
+  };
+
+  assert.deepEqual(
+    validateAction(
+      { type: "assign_resource", elementId: "tower-01", resourceId: "generator-2" },
+      ctx,
+    ),
+    { allowed: true },
+    "the second generator must be free to save the tower",
+  );
+  assert.deepEqual(
+    validateAction({ type: "wait", elementId: "tower-01" }, ctx),
+    { allowed: true },
+    "holding elsewhere is legitimate once the hospital has its answer coming",
+  );
+});
+
+test("with nothing on its way, the hospital deadline still binds everything", () => {
+  const pastDeadline = (MAX_MINUTES_WITHOUT_POWER.hospital + 1) * 60;
+  const unanswered: ValidationContext = {
+    elements: [
+      element("hosp-01", "hospital", { status: "critical", secondsWithoutPower: pastDeadline }),
+      element("tower-01", "tower", { status: "critical" }),
+    ],
+    resources: [resource("generator-2", "generator"), resource("tanker-1", "tanker")],
+  };
+
+  // a tanker competes with the hospital but is not a generator, so it reaches
+  // the deadline rule instead of being stopped earlier by the priority one
+  const tankerAway = validateAction(
+    { type: "assign_resource", elementId: "tower-01", resourceId: "tanker-1" },
+    unanswered,
+  );
+  assert.equal(tankerAway.allowed, false, "the rule must still protect an unanswered hospital");
+  assert.equal(ruleOf(tankerAway), "hospital-power-deadline");
+
+  assert.equal(
+    validateAction({ type: "wait", elementId: "tower-01" }, unanswered).allowed,
+    false,
+    "nor may it stand and watch while the hospital has nothing coming",
+  );
+
+  // the same tanker is free again as soon as a generator is on its way
+  const answered: ValidationContext = {
+    ...unanswered,
+    resources: [
+      resource("generator-2", "generator", {
+        status: "in_transit",
+        assignedElementId: "hosp-01",
+      }),
+      resource("tanker-1", "tanker"),
+    ],
+  };
+  assert.deepEqual(
+    validateAction(
+      { type: "assign_resource", elementId: "tower-01", resourceId: "tanker-1" },
+      answered,
+    ),
+    { allowed: true },
+  );
+});
+
 test("hospital-power-deadline only binds resources that compete with the hospital", () => {
   const ctx: ValidationContext = {
     elements: [
