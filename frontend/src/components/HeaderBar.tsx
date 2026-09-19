@@ -7,6 +7,7 @@ interface HeaderBarProps {
   tick: number
   reloj: string
   pausado: boolean
+  iniciado: boolean
   onControlOk: () => void
   segundoActual: number
   duracionSegundos: number
@@ -30,6 +31,7 @@ export function HeaderBar({
   tick,
   reloj,
   pausado,
+  iniciado,
   onControlOk,
   segundoActual,
   duracionSegundos,
@@ -39,11 +41,11 @@ export function HeaderBar({
   const [pendiente, setPendiente] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function manejarPausa() {
+  async function manejarControl(accion: 'iniciar' | 'pausar' | 'reanudar') {
     setPendiente(true)
     setError(null)
     try {
-      await postControl({ accion: pausado ? 'reanudar' : 'pausar' })
+      await postControl({ accion })
       onControlOk()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error de control')
@@ -51,6 +53,8 @@ export function HeaderBar({
       setPendiente(false)
     }
   }
+
+  const enMarcha = iniciado && !pausado
 
   const progreso = Math.min(100, (segundoActual / duracionSegundos) * 100)
   const momentoActual = [...momentos]
@@ -61,7 +65,7 @@ export function HeaderBar({
     <header className="header">
       <div className="header__row">
         <div className="header__title">
-          <span className={`dot ${pausado ? 'dot--paused' : 'dot--live'}`} />
+          <span className={`dot ${enMarcha ? 'dot--live' : 'dot--paused'}`} />
           <div>
             <h1>{titulo}</h1>
             <span className="header__subtitle">
@@ -74,14 +78,25 @@ export function HeaderBar({
             <span className="header__moment">M{momentos.indexOf(momentoActual) + 1} · {momentoActual.titulo}</span>
           )}
           {error && <span className="header__error">{error}</span>}
-          <button
-            type="button"
-            className={`btn ${pausado ? 'btn--primary' : ''}`}
-            onClick={manejarPausa}
-            disabled={pendiente}
-          >
-            {pausado ? 'Reanudar' : 'Pausar'}
-          </button>
+          {!iniciado ? (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => manejarControl('iniciar')}
+              disabled={pendiente}
+            >
+              Iniciar
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={`btn ${pausado ? 'btn--primary' : ''}`}
+              onClick={() => manejarControl(pausado ? 'reanudar' : 'pausar')}
+              disabled={pendiente}
+            >
+              {pausado ? 'Reanudar' : 'Pausar'}
+            </button>
+          )}
         </div>
       </div>
 
