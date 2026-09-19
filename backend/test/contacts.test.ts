@@ -50,6 +50,16 @@ test("a role alone is enough when no id and no name are given", () => {
   assert.equal(resolveContact(contacts, "the Hospital duty lead")?.id, "hospital-lead");
 });
 
+test("a numbered id written in prose does not fall back to the shorter one", () => {
+  assert.equal(resolveContact(contacts, "put me through to crew-chief-2")?.id, "crew-chief-2");
+  assert.equal(resolveContact(contacts, "call tanker-driver-2 now")?.id, "tanker-driver-2");
+  assert.equal(
+    resolveContact(contacts, "hospital-lead-2 wants an update")?.id,
+    "hospital-lead-2",
+  );
+  assert.equal(resolveContact(contacts, "traffic-patrol-2 reports jams")?.id, "traffic-patrol-2");
+});
+
 test("someone who is not in the catalog is still refused", () => {
   assert.equal(resolveContact(contacts, "the mayor of Madrid"), null);
   assert.equal(resolveContact(contacts, "   "), null);

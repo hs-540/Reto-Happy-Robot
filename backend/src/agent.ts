@@ -185,12 +185,19 @@ export function resolveContact(
   const written = normalise(recipient);
   if (written === "") return null;
 
-  return (
-    contacts.find((c) => written.includes(normalise(c.id))) ??
-    contacts.find((c) => written.includes(normalise(c.name))) ??
-    contacts.find((c) => written.includes(normalise(c.role))) ??
-    null
-  );
+  /** Among the contacts whose field appears in the text, the longest one wins:
+   *  "crew-chief-2" written in prose must not fall back to "crew-chief". */
+  function mostSpecific(field: "id" | "name" | "role"): Contact | undefined {
+    let best: Contact | undefined;
+    for (const c of contacts) {
+      const needle = normalise(c[field]);
+      if (needle === "" || !written.includes(needle)) continue;
+      if (!best || needle.length > normalise(best[field]).length) best = c;
+    }
+    return best;
+  }
+
+  return mostSpecific("id") ?? mostSpecific("name") ?? mostSpecific("role") ?? null;
 }
 
 export function createAgent(options: AgentOptions): Agent {
