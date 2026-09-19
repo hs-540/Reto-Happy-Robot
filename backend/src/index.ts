@@ -6,6 +6,7 @@ import type {
   FeedResponse,
   HealthResponse,
   HistoricalIncident,
+  RunSummaryView,
   StateView,
   TopologyView,
 } from "@swarmup/shared";
@@ -14,9 +15,10 @@ import { createAgent, type Agent } from "./agent.js";
 import { config, redactSecrets } from "./config.js";
 import { createActionRegistry, controlSchema } from "./control.js";
 import { createFeed, parseSince } from "./feed.js";
-import { toTopology } from "./script.js";
+import { toTopology, type Script } from "./script.js";
 import { createHappyRobotClient } from "./happyrobot.js";
 import { createLlmClient } from "./llm.js";
+import { createRunStats } from "./stats.js";
 import { createWorld, type World } from "./world.js";
 import { startChroma } from "./rag/chroma.js";
 import { createHistoryRag, type HistoryRag } from "./rag/history.js";
@@ -39,6 +41,13 @@ const roads = (() => {
     return undefined;
   }
 })();
+
+/** Per-run counters: LLM latency/tokens and trigger-to-decision reaction times */
+const stats = createRunStats();
+/** Incidents closed this run; feeds the end-of-simulation summary */
+let resolvedClosures = 0;
+/** The end-of-run summary is published exactly once per run */
+let summaryPublished = false;
 
 /** History shipped with the repo, per site type: the seed of the incident memory */
 const history: HistoricalIncident[] = ["hospital", "datacenter", "substation"].flatMap((type) =>
@@ -78,6 +87,7 @@ const ragReady: Promise<HistoryRag | null> = startChroma({
   });
 
 function onResolved(closure: IncidentClosure): void {
+  resolvedClosures += 1;
   void ragReady.then((rag) => {
     if (!rag) return;
     rag
@@ -107,6 +117,8 @@ const happyrobot = createHappyRobotClient({
 
 /** One generation of the crisis: everything a reset throws away and rebuilds */
 interface Runtime {
+  /** the drawn crisis this generation runs on */
+  script: Script;
   world: World;
   sim: Simulation;
   agent: Agent;
@@ -130,7 +142,7 @@ function createRuntime(): Runtime {
   const agent = createAgent({
     world,
     feed,
-    llm: createLlmClient(config.llm.gateways),
+    llm: createLlmClient(config.llm.gateways, stats),
     actionRegistry,
     happyrobot,
     history,
@@ -139,11 +151,78 @@ function createRuntime(): Runtime {
     // the agent can only reach people who exist in this generation of the world
     remedies: { ...remedies, contacts },
     seconds: () => sim.seconds(),
+    stats,
   });
-  return { world, sim, agent, topology: toTopology(script) };
+  return { script, world, sim, agent, topology: toTopology(script) };
 }
 
 let runtime: Runtime = createRuntime();
+
+/**
+ * End-of-run report: what happened, how the agent reacted and what it cost.
+ * Built live from the feed, the world and the per-run stats; served by
+ * GET /api/summary and logged + feed-summarized once when the script ends.
+ */
+function buildRunSummary(): RunSummaryView {
+  const items = feed.since(0);
+  const byKind = new Map<string, number>();
+  for (const item of items) {
+    byKind.set(item.kind, (byKind.get(item.kind) ?? 0) + 1);
+  }
+  const { sim } = runtime;
+  const state = sim.state();
+  const open = state.elements.filter((e) => e.status === "critical" || e.status === "degraded");
+  const snapshot = stats.snapshot();
+  return {
+    available: sim.finished,
+    events: {
+      total: items.length,
+      alarms: byKind.get("alarm") ?? 0,
+      reports: byKind.get("report") ?? 0,
+      decisions: byKind.get("decision") ?? 0,
+      actions: byKind.get("action") ?? 0,
+      outcomes: byKind.get("outcome") ?? 0,
+      system: byKind.get("system") ?? 0,
+    },
+    incidents: { resolved: resolvedClosures, open: open.length },
+    llm: snapshot.llm,
+    meanReactionMs: snapshot.meanReactionMs,
+  };
+}
+
+function publishRunSummary(): void {
+  const summary = buildRunSummary();
+  const { events, incidents, llm } = summary;
+  const fmtSeconds = (ms: number | null) => (ms === null ? "n/a" : `${(ms / 1000).toFixed(1)}s`);
+  const fmtInt = (n: number) => n.toLocaleString("en-US");
+
+  console.log(
+    `[summary] simulation complete at crisis second ${Math.round(runtime.sim.seconds())} of ${runtime.script.durationSeconds}`,
+  );
+  console.log(
+    `[summary] events: ${events.total} total — ` +
+      `${events.alarms} alarms, ${events.reports} raw signals, ` +
+      `${events.decisions} decisions, ${events.actions} actions, ` +
+      `${events.outcomes} call outcomes, ${events.system} system`,
+  );
+  console.log(`[summary] incidents: ${incidents.resolved} resolved, ${incidents.open} still open`);
+  console.log(
+    `[summary] llm: ${llm.calls} calls, latency min ${fmtSeconds(llm.minLatencyMs)} / ` +
+      `avg ${fmtSeconds(llm.meanLatencyMs)} / max ${fmtSeconds(llm.maxLatencyMs)}, ` +
+      `tokens ${fmtInt(llm.totalTokens)} total ` +
+      `(${fmtInt(llm.promptTokens)} prompt / ${fmtInt(llm.completionTokens)} completion)`,
+  );
+  console.log(`[summary] mean reaction time (trigger to decision executed): ${fmtSeconds(summary.meanReactionMs)}`);
+
+  feed.publish({
+    kind: "system",
+    message:
+      `Run complete: ${events.total} events processed, ${incidents.resolved} incidents resolved, ` +
+      `${llm.calls} LLM calls (min/avg/max ${fmtSeconds(llm.minLatencyMs)}/` +
+      `${fmtSeconds(llm.meanLatencyMs)}/${fmtSeconds(llm.maxLatencyMs)}), ` +
+      `${fmtInt(llm.totalTokens)} tokens, mean reaction ${fmtSeconds(summary.meanReactionMs)}.`,
+  });
+}
 
 /**
  * One tick of the system: the sim applies the script's due events and the world
@@ -201,6 +280,10 @@ function advance(): void {
   void agent.observe(fullState(), events).catch((err: unknown) => {
     console.error(`[agent] observation failed: ${redactSecrets(err instanceof Error ? err.message : String(err))}`);
   });
+  if (sim.finished && !summaryPublished) {
+    summaryPublished = true;
+    publishRunSummary();
+  }
 }
 
 /** `attention` is derived and computed by the backend (CONTRACT.md, golden rule 4) */
@@ -262,6 +345,11 @@ app.get("/api/health", (_req, res) => {
   res.json(health);
 });
 
+app.get("/api/summary", (_req, res) => {
+  advance();
+  res.json(buildRunSummary());
+});
+
 /**
  * The return path of a real call. HappyRobot invokes it on hang-up with what the
  * person answered; if they refused or asked for more time, `delayMinutes`
@@ -308,6 +396,9 @@ app.post("/api/control", (req, res) => {
       // feed is cleared here because its `seq` must stay monotonic across runs
       feed.reset();
       runtime = createRuntime();
+      stats.reset();
+      resolvedClosures = 0;
+      summaryPublished = false;
       break;
     case "pause":
       sim.pause();

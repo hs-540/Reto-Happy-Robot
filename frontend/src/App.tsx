@@ -6,6 +6,7 @@ import { AgentPanel } from './components/AgentPanel'
 import { ResourcesDock } from './components/ResourcesDock'
 import { InjectionModal } from './components/InjectionModal'
 import { StartOverlay } from './components/StartOverlay'
+import { RunSummaryOverlay } from './components/RunSummaryOverlay'
 import { Icon } from './components/icons'
 import { useCrisis } from './hooks/useCrisis'
 import { useTheme } from './hooks/useTheme'
@@ -29,7 +30,7 @@ function Loading() {
 }
 
 function App() {
-  const { topology, state, agent, feed, live, refresh } = useCrisis()
+  const { topology, state, agent, feed, summary, live, refresh } = useCrisis()
   const [selectedElementId, setSelectedElementId] = useState<string | null>('hosp-01')
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
   const [injectOpen, setInjectOpen] = useState(false)
@@ -38,6 +39,7 @@ function App() {
   const [theme, toggleTheme] = useTheme()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reportDismissed, setReportDismissed] = useState(false)
 
   const ready = state.elements.length > 0 && topology.elements.length > 0
 
@@ -56,6 +58,7 @@ function App() {
     setError(null)
     try {
       await postControl({ action })
+      if (action === 'reset') setReportDismissed(false)
       refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Control error')
@@ -126,6 +129,7 @@ function App() {
           live={live}
           started={state.started}
           paused={state.paused}
+          finished={state.finished}
           currentSecond={state.tick * TICK_SECONDS}
           durationSeconds={topology.crisis.durationSeconds}
           moments={topology.crisis.moments}
@@ -195,6 +199,16 @@ function App() {
           pending={pending}
           error={error}
           onLaunch={() => runControl('start')}
+        />
+      )}
+
+      {state.started && state.finished && summary && !reportDismissed && (
+        <RunSummaryOverlay
+          title={topology.crisis.title}
+          summary={summary}
+          pending={pending}
+          onRunAgain={() => runControl('reset')}
+          onDismiss={() => setReportDismissed(true)}
         />
       )}
 

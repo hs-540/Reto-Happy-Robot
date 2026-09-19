@@ -2,6 +2,7 @@ import OpenAI, { APIConnectionError, APIError } from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import type { z } from "zod";
+import type { LlmUsage, RunStats } from "./stats.js";
 
 /**
  * Budget per gateway attempt, and the wall clock the agent's own deliberation
@@ -87,7 +88,7 @@ interface GatewayAttempt {
   client: OpenAI;
 }
 
-export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
+export function createLlmClient(gateways: readonly LlmGateway[], stats?: RunStats): LlmClient {
   const attempts: GatewayAttempt[] = gateways.map((gw) => ({
     gw,
     client: new OpenAI({
@@ -100,6 +101,7 @@ export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
 
   async function withFailover<T>(
     operation: (attempt: GatewayAttempt) => Promise<T>,
+    describe?: (result: T) => string,
   ): Promise<{ result: T; gw: LlmGateway; latencyMs: number }> {
     let lastError: unknown;
     for (const attempt of attempts) {
@@ -107,7 +109,9 @@ export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
       try {
         const result = await operation(attempt);
         const latencyMs = Math.round(performance.now() - start);
-        console.log(`[llm] response via ${attempt.gw.id} (${latencyMs} ms)`);
+        console.log(
+          `[llm] response via ${attempt.gw.id} (${latencyMs} ms${describe ? describe(result) : ""})`,
+        );
         return { result, gw: attempt.gw, latencyMs };
       } catch (err) {
         lastError = err;
@@ -126,14 +130,28 @@ export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
 
   return {
     structured: async (messages, schema, name) => {
-      const { result, gw, latencyMs } = await withFailover(({ client, gw }: GatewayAttempt) =>
-        client.chat.completions.parse({
-          model: gw.model,
-          messages,
-          response_format: zodResponseFormat(schema, name),
-          max_tokens: MAX_OUTPUT_TOKENS,
-        }),
+      const { result, gw, latencyMs } = await withFailover(
+        ({ client, gw }: GatewayAttempt) =>
+          client.chat.completions.parse({
+            model: gw.model,
+            messages,
+            response_format: zodResponseFormat(schema, name),
+            max_tokens: MAX_OUTPUT_TOKENS,
+          }),
+        (completion) => {
+          const usage = completion.usage;
+          if (!usage) return "";
+          return `, ${usage.prompt_tokens} prompt + ${usage.completion_tokens} completion = ${usage.total_tokens} tokens`;
+        },
       );
+      const usage: LlmUsage | null = result.usage
+        ? {
+            promptTokens: result.usage.prompt_tokens,
+            completionTokens: result.usage.completion_tokens,
+            totalTokens: result.usage.total_tokens,
+          }
+        : null;
+      stats?.recordLlmCall(latencyMs, usage);
       const message = result.choices[0]?.message;
       const text = message?.content ?? "";
       const data = message?.parsed;
@@ -145,8 +163,14 @@ export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
 
     embeddings: async (texts) => {
       if (texts.length === 0) return [];
-      const { result, gw } = await withFailover(({ client, gw }: GatewayAttempt) =>
-        client.embeddings.create({ model: gw.embeddingModel, input: [...texts] }),
+      const { result, gw } = await withFailover(
+        ({ client, gw }: GatewayAttempt) =>
+          client.embeddings.create({ model: gw.embeddingModel, input: [...texts] }),
+        (response) => {
+          const usage = response.usage;
+          if (!usage) return "";
+          return `, ${usage.prompt_tokens} prompt = ${usage.total_tokens} tokens`;
+        },
       );
       const vectors = result.data.map((d) => d.embedding);
       if (

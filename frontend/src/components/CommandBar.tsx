@@ -10,6 +10,7 @@ interface CommandBarProps {
   live: boolean
   started: boolean
   paused: boolean
+  finished: boolean
   currentSecond: number
   durationSeconds: number
   moments: ScriptMoment[]
@@ -21,9 +22,10 @@ interface CommandBarProps {
   onToggleTheme: () => void
 }
 
-function statusPill(live: boolean, started: boolean, paused: boolean) {
+function statusPill(live: boolean, started: boolean, paused: boolean, finished: boolean) {
   if (!live) return { key: 'offline', label: 'OFFLINE' }
   if (!started) return { key: 'standby', label: 'STANDBY' }
+  if (finished) return { key: 'complete', label: 'COMPLETE' }
   return paused ? { key: 'paused', label: 'PAUSED' } : { key: 'live', label: 'LIVE' }
 }
 
@@ -35,6 +37,7 @@ export function CommandBar({
   live,
   started,
   paused,
+  finished,
   currentSecond,
   durationSeconds,
   moments,
@@ -45,7 +48,7 @@ export function CommandBar({
   onOpenInject,
   onToggleTheme,
 }: CommandBarProps) {
-  const pill = statusPill(live, started, paused)
+  const pill = statusPill(live, started, paused, finished)
   const progress = durationSeconds > 0 ? Math.min(100, (currentSecond / durationSeconds) * 100) : 0
   const currentMoment = [...moments].reverse().find((m) => m.atSeconds <= currentSecond)
 

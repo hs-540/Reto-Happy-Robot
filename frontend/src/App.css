@@ -414,6 +414,12 @@
   background: color-mix(in srgb, var(--degraded) 9%, transparent);
 }
 
+.statuspill--complete {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
 .statuspill--offline {
   color: var(--critical);
   border-color: color-mix(in srgb, var(--critical) 40%, transparent);
@@ -1595,6 +1601,56 @@
   color: var(--critical);
   font-weight: 600;
   margin-top: 10px;
+}
+
+/* ---------- End-of-run report overlay ---------- */
+
+.report__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 18px 0 4px;
+}
+
+.report__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  text-align: left;
+}
+
+.report__stat small {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.report__stat strong {
+  font-family: var(--mono);
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.report__stat span {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.report__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
 }
 
 @keyframes fade-in {
