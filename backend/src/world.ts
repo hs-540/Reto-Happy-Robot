@@ -81,7 +81,13 @@ export type WorldEvent =
       metric: SensorMetric;
       value: number;
       severity: number;
-    };
+    }
+  /**
+   * The site no longer needs the resource, which goes back to `available`.
+   * Capacity the agent did not have a moment ago: without this the whole fleet
+   * ends a run pinned to sites that were fixed ten minutes earlier.
+   */
+  | { type: "released"; resourceId: string; elementId: string; reason: string };
 
 export type AssignmentResult =
   | { ok: true; etaSeconds: number }
@@ -241,6 +247,23 @@ export function createWorld(
     return directed ? false : highCongestion;
   }
 
+  /**
+   * Frees the resource in place: it keeps the coordinates it has reached, so a
+   * resource that stands down mid-route does it where it is rather than
+   * teleporting back to base.
+   */
+  function standDown(r: ResourceState): void {
+    r.status = "available";
+    r.assignedElementId = null;
+    r.origin = null;
+    r.destination = null;
+    r.departedAt = null;
+    r.etaSeconds = 0;
+    r.delayReported = false;
+    r.arrivedAt = null;
+    r.remedyApplied = false;
+  }
+
   function positionOnRoute(r: ResourceState, seconds: number): { lat: number; lng: number } {
     if (!r.origin || !r.destination || r.departedAt === null || r.etaSeconds <= 0) {
       return { lat: r.lat, lng: r.lng };
@@ -343,6 +366,53 @@ export function createWorld(
         }
       }
 
+      // A resource whose site no longer needs it goes back to the pool. Runs
+      // after the remedy loop on purpose: the remedy has to take hold on this
+      // same tick before the release is even considered, or a one-shot job is
+      // judged unfinished for a whole extra tick.
+      for (const r of resources.values()) {
+        if (r.status === "available") continue;
+        const targetId = r.assignedElementId;
+        if (!targetId) continue;
+        const elementType = typeOf.get(targetId);
+        if (!elementType) continue;
+        const remedy = remedyFor(r.type, elementType);
+        if (!remedy) continue;
+
+        if (!remedy.sustains) {
+          // One-shot: it does the job and leaves. Still in transit it has not
+          // even started, so only `remedyApplied` frees it.
+          if (r.status !== "assigned" || !r.remedyApplied) continue;
+          standDown(r);
+          events.push({
+            type: "released",
+            resourceId: r.id,
+            elementId: targetId,
+            reason: `its work at ${targetId} is finished`,
+          });
+          continue;
+        }
+
+        // Sustaining: the resource IS the missing service while it sits there,
+        // so letting it go early puts the site straight back where it started.
+        // Only the site no longer needing it frees it — and a resource still en
+        // route stands down where it is instead of finishing a pointless trip.
+        const element = elements.find((e) => e.id === targetId);
+        if (!element) continue;
+        const voltage = element.sensors.grid_voltage;
+        // Missing data is not evidence of a fix: without a voltage reading we
+        // keep the resource in place rather than gamble the site's supply.
+        const gridBack = voltage !== undefined && voltage >= VOLTAGE_WITH_GRID;
+        if (!gridBack && element.status !== "resolved") continue;
+        standDown(r);
+        events.push({
+          type: "released",
+          resourceId: r.id,
+          elementId: targetId,
+          reason: gridBack ? `${targetId} has grid power again` : `${targetId} is resolved`,
+        });
+      }
+
       // With the grid back, a site's own metrics stop being frozen at their
       // worst reading and converge toward healthy. Without this the demo ends
       // with three sites in red even though the agent solved everything.
@@ -407,15 +477,7 @@ export function createWorld(
     release(resourceId: string): void {
       const r = resources.get(resourceId);
       if (!r) return;
-      r.status = "available";
-      r.assignedElementId = null;
-      r.origin = null;
-      r.destination = null;
-      r.departedAt = null;
-      r.etaSeconds = 0;
-      r.delayReported = false;
-      r.arrivedAt = null;
-      r.remedyApplied = false;
+      standDown(r);
     },
 
     delay(resourceId: string, extraSeconds: number): void {

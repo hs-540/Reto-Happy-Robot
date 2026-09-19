@@ -39,6 +39,13 @@ export const RemedySchema = z.object({
   appliesTo: z.array(ElementTypeSchema),
   minutes: z.number().int().positive(),
   effect: z.string().min(1),
+  /**
+   * The resource IS the missing service while it stays on site (a connected
+   * generator, police directing the junction), so it is only free once the site
+   * stops needing it. `false` is a one-shot job — repairing, refuelling — and
+   * the resource leaves as soon as the remedy takes hold.
+   */
+  sustains: z.boolean(),
   /** precondition without which the remedy is useless */
   requires: z.string().min(1).nullable(),
   $note: z.string().optional(),

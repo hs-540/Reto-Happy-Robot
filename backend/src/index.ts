@@ -127,6 +127,14 @@ function advance(): void {
         kind: "system",
         message: `${ev.resourceId} takes effect on ${ev.elementId}: ${ev.effect}`,
       });
+    } else if (ev.type === "released") {
+      // no reading to inject: the site did not change, the fleet did. Checked
+      // before the final `else`, which assumes whatever is left is a sensor
+      // reading and would hand `sim.inject` an event with no metric.
+      feed.publish({
+        kind: "system",
+        message: `${ev.resourceId} stands down from ${ev.elementId}: ${ev.reason}`,
+      });
     } else {
       // recovery: silent, it does not clutter the feed but the world improves
       sim.inject({

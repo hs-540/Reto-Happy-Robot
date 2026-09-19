@@ -139,6 +139,12 @@ export function createAgent(options: AgentOptions): Agent {
         reasons.push(
           `${ev.elementId} has been ${ev.minutesWithoutPower} min without power and has exceeded its limit`,
         );
+      } else if (ev.type === "released") {
+        // A freed resource is capacity the engine did not have a moment ago,
+        // and nothing else would wake it: no sensor moved. Deliberate, but do
+        // not replan — the plan in flight is still valid, it just has one more
+        // resource to spend (see REPLAN_REASONS).
+        reasons.push(`${ev.resourceId} is free again after ${ev.elementId} and can be reassigned`);
       }
       // `arrival` is incremental adjustment: it does not justify regenerating the strategy
     }
