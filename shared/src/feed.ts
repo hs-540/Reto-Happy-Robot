@@ -1,5 +1,6 @@
 import type { SensorMetric } from "./world.js";
 import type { ActionStatus, ActionType, CallOutcome } from "./agent.js";
+import type { ChatAuthor } from "./chat.js";
 
 export type FeedItemKind =
   | "alarm"
@@ -7,6 +8,7 @@ export type FeedItemKind =
   | "decision"
   | "action"
   | "outcome"
+  | "chat"
   | "system";
 
 interface FeedBase {
@@ -58,6 +60,15 @@ export interface FeedOutcome extends FeedBase {
   summary: string;
 }
 
+/** A turn of the operator channel, so a human intervention leaves a trace in the log */
+export interface FeedChat extends FeedBase {
+  kind: "chat";
+  author: ChatAuthor;
+  text: string;
+  /** site the turn is about, when it names one */
+  elementId: string | null;
+}
+
 export interface FeedSystem extends FeedBase {
   kind: "system";
   message: string;
@@ -71,6 +82,7 @@ export type FeedItem =
   | FeedDecision
   | FeedAction
   | FeedOutcome
+  | FeedChat
   | FeedSystem;
 
 export interface FeedResponse {

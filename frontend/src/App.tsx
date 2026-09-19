@@ -28,7 +28,8 @@ function Loading() {
 }
 
 function App() {
-  const { topology, state, agent, feed, moments, summary, live, refresh } = useCrisis()
+  const { topology, state, agent, feed, moments, summary, chat, live, sendChat, refresh } =
+    useCrisis()
   const [selectedElementId, setSelectedElementId] = useState<string | null>('hosp-01')
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
   const [injectOpen, setInjectOpen] = useState(false)
@@ -154,6 +155,9 @@ function App() {
           onSelectElement={selectElement}
           elementNames={elementNames}
           onCollapse={() => setAgentOpen(false)}
+          chat={chat}
+          onSend={sendChat}
+          canChat={state.started && !state.finished}
         />
 
         <ResourcesDock

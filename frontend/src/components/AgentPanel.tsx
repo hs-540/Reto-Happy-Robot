@@ -1,6 +1,12 @@
-import { useState } from 'react'
-import type { ReactNode } from 'react'
-import type { AgentView, FeedItem } from '@swarmup/shared'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent, KeyboardEvent, ReactNode } from 'react'
+import type {
+  AgentView,
+  ChatView,
+  DirectiveKind,
+  FeedItem,
+  OperatorDirective,
+} from '@swarmup/shared'
 import { Icon } from './icons'
 import { formatTimeOfDay } from '../lib/format'
 
@@ -11,9 +17,14 @@ interface AgentPanelProps {
   onSelectElement: (id: string) => void
   elementNames: Record<string, string>
   onCollapse: () => void
+  chat: ChatView
+  /** resolves when the turn has been accepted, rejects with the reason it was not */
+  onSend: (text: string) => Promise<void>
+  /** the channel only makes sense over a running crisis */
+  canChat: boolean
 }
 
-type Tab = 'stream' | 'decisions' | 'actions'
+type Tab = 'stream' | 'decisions' | 'actions' | 'chat'
 
 const ACTION_LABEL: Record<string, string> = {
   voice_call: 'Voice call',
@@ -35,8 +46,39 @@ const OUTCOME_LABEL: Record<string, string> = {
   no_answer: 'no answer',
 }
 
+const DIRECTIVE_VERB: Record<DirectiveKind, string> = {
+  prioritize: 'Prioritize',
+  deprioritize: 'Deprioritize',
+  assign: 'Send',
+  release: 'Release',
+  note: 'Note',
+}
+
+const DIRECTIVE_ICON: Record<DirectiveKind, string> = {
+  prioritize: 'alarm',
+  deprioritize: 'check',
+  assign: 'send',
+  release: 'check',
+  note: 'chat',
+}
+
+/** What the operator ordered, in the panel's own vocabulary of sites and units */
+function directiveLabel(d: OperatorDirective, names: Record<string, string>): string {
+  const site = d.elementId ? names[d.elementId] ?? d.elementId : null
+  switch (d.kind) {
+    case 'assign':
+      return `Send ${d.resourceId ?? 'unit'} → ${site ?? 'site'}`
+    case 'release':
+      return `Release ${d.resourceId ?? 'unit'}`
+    default:
+      return site ? `${DIRECTIVE_VERB[d.kind]} ${site}` : DIRECTIVE_VERB[d.kind]
+  }
+}
+
 function feedIcon(item: FeedItem): string {
   switch (item.kind) {
+    case 'chat':
+      return 'chat'
     case 'alarm':
       return 'alarm'
     case 'report':
@@ -54,6 +96,8 @@ function feedIcon(item: FeedItem): string {
 
 function feedTone(item: FeedItem): string {
   switch (item.kind) {
+    case 'chat':
+      return 'operator'
     case 'alarm':
       return 'alarm'
     case 'report':
@@ -80,6 +124,8 @@ function feedTone(item: FeedItem): string {
 
 function feedTitle(item: FeedItem): string {
   switch (item.kind) {
+    case 'chat':
+      return item.author === 'operator' ? 'Operator → agent' : 'Agent → operator'
     case 'alarm':
       return `Alarm · ${item.metric.replace(/_/g, ' ')} = ${item.value}`
     case 'report':
@@ -99,6 +145,8 @@ function feedTitle(item: FeedItem): string {
 
 function feedDetail(item: FeedItem, names: Record<string, string>): string {
   switch (item.kind) {
+    case 'chat':
+      return item.text
     case 'alarm':
       return `${names[item.elementId] ?? item.elementId} · severity ${item.severity}`
     case 'report':
@@ -120,6 +168,13 @@ function feedDetails(
   names: Record<string, string>,
 ): Array<{ label: string; value: string }> {
   switch (item.kind) {
+    case 'chat':
+      return [
+        { label: 'Channel', value: 'operator chat' },
+        { label: 'From', value: item.author === 'operator' ? 'operator' : 'agent' },
+        { label: 'Site', value: item.elementId ? names[item.elementId] ?? item.elementId : '—' },
+        { label: 'Message', value: item.text },
+      ]
     case 'alarm':
       return [
         { label: 'Site', value: names[item.elementId] ?? item.elementId },
@@ -211,14 +266,49 @@ export function AgentPanel({
   onSelectElement,
   elementNames,
   onCollapse,
+  chat,
+  onSend,
+  canChat,
 }: AgentPanelProps) {
   const [tab, setTab] = useState<Tab>('stream')
   const [planOpen, setPlanOpen] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const [chatError, setChatError] = useState<string | null>(null)
+  const logRef = useRef<HTMLUListElement>(null)
   const plan = agent.currentPlan
   const stream = [...feed].sort((a, b) => b.seq - a.seq)
   const decisions = agent.decisions
   const actions = [...agent.actions].reverse()
+  const blocked = !canChat || chat.thinking || sending
+
+  // the newest turn is the one being read: follow it, like any console
+  useEffect(() => {
+    const log = logRef.current
+    if (log) log.scrollTop = log.scrollHeight
+  }, [chat.messages.length, chat.thinking, tab])
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    const text = draft.trim()
+    if (text === '' || blocked) return
+    setSending(true)
+    setChatError(null)
+    try {
+      await onSend(text)
+      setDraft('')
+    } catch (err: unknown) {
+      setChatError(err instanceof Error ? err.message : 'the message could not be sent')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function onComposerKey(e: KeyboardEvent<HTMLTextAreaElement>) {
+    // Enter sends, Shift+Enter breaks the line: an order is usually one line
+    if (e.key === 'Enter' && !e.shiftKey) void submit(e)
+  }
 
   function toggle(key: string) {
     setExpanded((prev) => {
@@ -316,7 +406,102 @@ export function AgentPanel({
             Actions
             {actions.length > 0 && <span className="tab__count">{actions.length}</span>}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'chat'}
+            className={`tab ${tab === 'chat' ? 'is-active' : ''}`}
+            onClick={() => setTab('chat')}
+          >
+            Chat
+            {chat.standing.length > 0 && <span className="tab__count">{chat.standing.length}</span>}
+          </button>
         </nav>
+
+        {tab === 'chat' && (
+          <div className="chat">
+            {chat.standing.length > 0 && (
+              <div className="chat__standing">
+                <span className="chat__standing-label">Standing orders</span>
+                <div className="chat__chips">
+                  {chat.standing.map((d) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      className="chip"
+                      title={d.note}
+                      onClick={() => d.elementId && onSelectElement(d.elementId)}
+                    >
+                      <Icon name={DIRECTIVE_ICON[d.kind]} size={10} />
+                      {directiveLabel(d, elementNames)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <ul className="chat__log" ref={logRef}>
+              {chat.messages.length === 0 && (
+                <li className="chat__hint">
+                  <EmptyState
+                    icon="chat"
+                    text="Talk to the agent: “prioritize the hospital on Calle de Atocha”, “send generator-2 to sub-01”, “why is crew-1 there?”. Orders face the same rules the agent's own decisions do."
+                  />
+                </li>
+              )}
+              {chat.messages.map((m) => (
+                <li key={m.id} className={`bubble bubble--${m.author}`}>
+                  <div className="bubble__top">
+                    <span className="bubble__who">{m.author === 'operator' ? 'You' : 'Agent'}</span>
+                    <time>{formatTimeOfDay(m.ts)}</time>
+                  </div>
+                  <p className="bubble__text">{m.text}</p>
+                  {m.directives.length > 0 && (
+                    <div className="chat__chips">
+                      {m.directives.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          className={`chip ${d.accepted ? 'is-accepted' : 'is-refused'}`}
+                          title={d.accepted ? d.note : (d.reason ?? 'refused')}
+                          onClick={() => d.elementId && onSelectElement(d.elementId)}
+                        >
+                          <Icon name={d.accepted ? 'check' : 'alarm'} size={10} />
+                          {directiveLabel(d, elementNames)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+              {chat.thinking && (
+                <li className="bubble bubble--agent is-thinking">
+                  <span className="bubble__text muted">thinking…</span>
+                </li>
+              )}
+            </ul>
+
+            <form className="chat__composer" onSubmit={submit}>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={onComposerKey}
+                maxLength={800}
+                rows={2}
+                placeholder={
+                  canChat
+                    ? 'Change a priority, send a unit, or ask why…'
+                    : 'Start the simulation to talk to the agent'
+                }
+                disabled={!canChat}
+              />
+              <button type="submit" disabled={blocked || draft.trim() === ''} title="Send">
+                <Icon name="send" size={13} />
+              </button>
+            </form>
+            {chatError && <p className="chat__error">{chatError}</p>}
+          </div>
+        )}
 
         {tab === 'stream' &&
           (stream.length === 0 ? (

@@ -2,6 +2,8 @@ import express from "express";
 import { z } from "zod";
 import type {
   AgentView,
+  ChatResponse,
+  ChatView,
   ControlResponse,
   FeedResponse,
   HealthResponse,
@@ -14,6 +16,7 @@ import { loadHistory, loadRemedies, loadRoads } from "@swarmup/shared";
 import { createAgent, type Agent } from "./agent.js";
 import { createCallQueue } from "./call-queue.js";
 import { config, redactSecrets } from "./config.js";
+import { createOperatorChat, type OperatorChat } from "./chat.js";
 import { createActionRegistry, controlSchema } from "./control.js";
 import { createFeed, parseSince } from "./feed.js";
 import { toTopology, type Script } from "./script.js";
@@ -183,6 +186,8 @@ interface Runtime {
   world: World;
   sim: Simulation;
   agent: Agent;
+  /** the operator channel: its conversation belongs to this run, not the next */
+  chat: OperatorChat;
   /** served by `GET /api/topology`; derived from this generation's script */
   topology: TopologyView;
 }
@@ -214,7 +219,16 @@ function createRuntime(): Runtime {
     seconds: () => sim.seconds(),
     stats,
   });
-  return { script, world, sim, agent, topology: toTopology(script) };
+  const chat = createOperatorChat({
+    llm: createLlmClient(config.llm.gateways, stats),
+    feed,
+    agent,
+    world,
+    remedies: { ...remedies, contacts },
+    // read when the answer is composed, not when the runtime is built
+    state: () => fullState(),
+  });
+  return { script, world, sim, agent, chat, topology: toTopology(script) };
 }
 
 let runtime: Runtime = createRuntime();
@@ -394,6 +408,41 @@ app.get("/api/feed", (req, res) => {
     return;
   }
   const response: FeedResponse = { items: feed.since(since), lastSeq: feed.lastSeq() };
+  res.json(response);
+});
+
+/**
+ * The operator channel. `GET` is polled with everything else and carries the
+ * whole conversation: it is a handful of turns, so a cursor would be more
+ * bookkeeping than the payload it saves.
+ */
+app.get("/api/chat", (_req, res) => {
+  advance();
+  const view: ChatView = runtime.chat.view();
+  res.json(view);
+});
+
+const chatSchema = z.object({ text: z.string().min(1).max(800) });
+
+/**
+ * An operator turn. It answers as soon as the turn is RECORDED, not when the
+ * agent has answered: the model takes seconds and the reply arrives through
+ * the same poll as everything else.
+ */
+app.post("/api/chat", (req, res) => {
+  advance();
+  const parsed = chatSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    res.status(400).json(errorResponse(`invalid body: ${details}`));
+    return;
+  }
+  const result = runtime.chat.send(parsed.data.text);
+  if (!result.ok) {
+    res.status(409).json(errorResponse(result.error));
+    return;
+  }
+  const response: ChatResponse = { ok: true };
   res.json(response);
 });
 

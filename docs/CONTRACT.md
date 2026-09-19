@@ -15,6 +15,8 @@ then this document gets updated. The issue tracker does not rule.
 | `/api/agent` | GET | Current plan, live decisions, actions | 2s |
 | `/api/feed?since=<seq>` | GET | Append-only log (`alarm`/`report`/`decision`/`action`/`outcome`/`system`) | 2s |
 | `/api/control` | POST | `start`/`reset`/`pause`/`resume`/`inject` | — |
+| `/api/chat` | GET | Operator channel: messages, standing orders, `thinking` | 2s |
+| `/api/chat` | POST | An operator turn: talk, re-prioritize, order a unit | — |
 | `/api/call/outcome` | POST | HappyRobot webhook: what the person answered, on hang-up | — |
 | `/api/health` | GET | Connection status | — |
 | `/api/summary` | GET | End-of-run report (totals, LLM tokens, reaction time) | when finished |
@@ -217,12 +219,15 @@ Returns only what is new. The frontend accumulates and dedups by `seq`.
 }
 ```
 
-`kind`: `alarm` | `report` | `decision` | `action` | `outcome` | `system`
-(`shared/src/feed.ts`).
+`kind`: `alarm` | `report` | `decision` | `action` | `outcome` | `system` |
+`chat` (`shared/src/feed.ts`).
 
 - `report` is a **raw signal**, not a reading: social, press, an emergency call
   or a field team. `elementId` may be `null` — attributing it is the agent's job,
   and most of them are noise. That triage is the point.
+- `chat` is a turn of the operator channel (`author`: `operator` | `agent`).
+  A human intervention that left no trace in the feed could not be read back
+  afterwards, and the feed is what the run is judged on.
 - `outcome` is what the person on the other end of a call answered:
   `accepted` | `accepted_with_delay` | `refused` | `no_answer`. Anything other
   than `accepted` forces a re-plan on the next tick.
@@ -246,6 +251,54 @@ The simulation **does not start on boot**: `start` begins the timed script and `
 `pause` freezes the simulation clock and stops the LLM tick.
 `inject` requires `payload` (sensor event without `id`, assigned by the backend); an unknown `elementId` answers `400 {ok:false, error}`.
 An invalid body answers `400 {ok:false, error}`.
+
+## GET /api/chat
+
+The operator channel, whole on every read (it is a demo-length conversation,
+capped at 60 turns).
+
+```json
+{
+  "messages": [
+    { "id": "msg-001", "author": "operator", "ts": "2026-09-18T10:05:02.000Z", "text": "send generator-2 to sub-01", "directives": [] },
+    {
+      "id": "msg-002",
+      "author": "agent",
+      "ts": "2026-09-18T10:05:09.000Z",
+      "text": "On its way.\n\n✕ Not done — [hospital-power-priority] the last free generator is committed to hosp-01.",
+      "directives": [
+        { "id": "dir-001", "kind": "assign", "elementId": "sub-01", "resourceId": "generator-2", "note": "the operator asked for it", "accepted": false, "reason": "[hospital-power-priority] the last free generator is committed to hosp-01" }
+      ]
+    }
+  ],
+  "standing": [
+    { "id": "dir-002", "kind": "prioritize", "elementId": "junction-01", "resourceId": null, "note": "a school is being evacuated through it", "accepted": true, "reason": null }
+  ],
+  "thinking": false
+}
+```
+
+- `directives` are the orders read out of that turn, **after execution**:
+  `accepted` and `reason` are written by the engine, never promised by the
+  model. `assign`/`release` pass `validateAction` — the same hard rules that
+  veto the agent's own proposals — and a refusal moves nothing.
+- `standing` are the accepted `prioritize`/`deprioritize`/`note` orders still in
+  force; they shape every deliberation until a reset. A priority order applies
+  as a boost inside `World.priorities`, so prompt, playbook, idle pairing and
+  call queue cannot disagree about the ranking.
+- `thinking` is `true` while an answer is in flight; the next turn is refused
+  with `409` until it lands.
+
+## POST /api/chat
+
+```json
+{ "text": "the hospital on Calle de Atocha comes first" }
+```
+
+`text`: 1-800 characters. Answers `{ "ok": true }` as soon as the turn is
+accepted — the reply costs a model call and arrives through `GET /api/chat`,
+like everything else the agent does. `400` on an invalid body, `409` while the
+agent is still answering the previous turn.
 
 ## POST /api/call/outcome
 
