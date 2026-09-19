@@ -18,6 +18,7 @@ import { REGLAS_PARA_AGENTE } from "@swarmup/shared";
 
 export const AccionPropuestaSchema = z.object({
   tipo: z.enum(["asignar_recurso", "contactar", "esperar"]),
+  /** id de un SITIO de la lista (sub-01, hosp-01…). Nunca un recurso ni un contacto */
   elementId: z.string(),
   /** obligatorio si tipo === "asignar_recurso"; null en el resto */
   recursoId: z.string().nullable(),
@@ -42,6 +43,7 @@ export const SalidaAgenteSchema = z.object({
   ),
   decisiones: z.array(
     z.object({
+      /** id de un SITIO de la lista. Nunca un recurso ni un contacto */
       elementId: z.string(),
       /** 1 = lo más urgente */
       prioridad: z.number(),
@@ -108,6 +110,11 @@ TU TRABAJO EN CADA DELIBERACIÓN
    - Un paso del plan NO es una comunicación. Escribir "avisar al hospital" o "solicitar
      confirmación al jefe de brigada" como paso del plan no avisa a nadie: no sale de tu
      cabeza. Si quieres que alguien se entere, la acción "contactar" es el único camino.
+   - "elementId" es SIEMPRE el id de un sitio de la lista de SITIOS (sub-01, hosp-01,
+     dc-01, torre-01, gas-01, cruce-01). Nunca metas ahí el id de un recurso ni de un
+     contacto: para decir a quién llamas está "destinatario", y el sitio es aquel del que
+     trata la decisión. Una llamada al jefe de brigada sobre la subestación es
+     elementId "sub-01" con destinatario "jefe-brigada".
    - Cada destinatario necesita algo distinto. A la responsable del hospital le das plazos
      e instrucciones operativas; al operador del CPD, datos técnicos secos; a una ciudadana
      preocupada, lenguaje llano y un plazo concreto; al jefe de brigada, una orden con su

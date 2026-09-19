@@ -221,6 +221,15 @@ export function derivarStatusElemento(
 
 export type AccionMotorTipo = "contactar" | "asignar_recurso" | "esperar";
 
+/**
+ * Recursos que pueden cubrir la necesidad energética de un hospital y que, por
+ * tanto, compiten con él. Las reglas de prioridad y plazo del hospital solo
+ * aplican a estos: una brigada reparando la causa raíz o una patrulla regulando
+ * un cruce no son sustitutos de un generador, y bloquearlas paraliza al agente
+ * sin darle nada al hospital a cambio.
+ */
+const RECURSOS_QUE_COMPITEN_CON_HOSPITAL: readonly ResourceType[] = ["generador", "cisterna"];
+
 export interface IntentoAccion {
   tipo: AccionMotorTipo;
   elementId: string;
@@ -324,7 +333,8 @@ export function validarAccion(
         };
       }
     }
-    if (hospitalEnPlazo && objetivo && objetivo.id !== hospitalEnPlazo.id) {
+    const compite = RECURSOS_QUE_COMPITEN_CON_HOSPITAL.includes(recurso.type);
+    if (compite && hospitalEnPlazo && objetivo && objetivo.id !== hospitalEnPlazo.id) {
       const destinoValido =
         objetivo.type === "subestacion" && objetivo.status === "critico";
       if (!destinoValido) {

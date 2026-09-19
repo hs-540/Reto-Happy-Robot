@@ -292,6 +292,27 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
 
   /* ─── Ejecución ──────────────────────────────────────────────────────── */
 
+  /**
+   * El LLM a veces usa `elementId` como campo libre y mete ahí un recurso o un
+   * contacto. La decisión sigue siendo buena; lo que falla es la etiqueta. La
+   * reanclamos al sitio del que realmente trata en vez de tirar la acción.
+   */
+  function anclarASitio(id: string, estado: StateView): string {
+    if (estado.elementos.some((e) => e.id === id)) return id;
+    const porRecurso = estado.recursos.find((r) => r.id === id)?.assignedElementId;
+    if (porRecurso && estado.elementos.some((e) => e.id === porRecurso)) return porRecurso;
+    const contacto = remedios.contactos.find((c) => c.id === id);
+    if (contacto?.elementId && estado.elementos.some((e) => e.id === contacto.elementId)) {
+      return contacto.elementId;
+    }
+    if (contacto?.recursoId) {
+      const destino = estado.recursos.find((r) => r.id === contacto.recursoId)?.assignedElementId;
+      if (destino) return destino;
+    }
+    // sin ancla posible: el sitio de mayor prioridad es el contexto más probable
+    return mundo.prioridades(estado.elementos)[0]?.elementId ?? id;
+  }
+
   function ejecutar(salida: SalidaAgente, estado: StateView, provocaReplan: boolean): void {
     const ahora = estado.relojSimulacion;
 
@@ -318,7 +339,7 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
       const decision: Decision = {
         id: nuevoId("dec"),
         timestamp: ahora,
-        elementId: d.elementId,
+        elementId: anclarASitio(d.elementId, estado),
         prioridad: d.prioridad,
         razonamiento: d.citaHistorico
           ? `${d.razonamiento} [histórico: ${d.citaHistorico}]`
@@ -340,7 +361,7 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
           // Sin gate humano (#43): el registro la sella como ejecutada y la publica
           const accion = registroAcciones.proponer({
             type: a.canal,
-            targetElementId: a.elementId,
+            targetElementId: anclarASitio(a.elementId, estado),
             destinatario: a.destinatario ?? undefined,
             mensaje: a.mensaje,
           });

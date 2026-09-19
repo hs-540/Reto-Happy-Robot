@@ -133,7 +133,7 @@ test("hospital-prioridad-energia: generadores solo al hospital crítico sin resp
   );
 });
 
-test("hospital-plazo-energia: superado el límite solo se actúa en el hospital o la subestación crítica", () => {
+test("hospital-plazo-energia solo ata a los recursos que compiten con el hospital", () => {
   const ctx: ContextoValidacion = {
     elementos: [
       elemento("hosp-01", "hospital", {
@@ -143,25 +143,50 @@ test("hospital-plazo-energia: superado el límite solo se actúa en el hospital 
       elemento("dc-01", "datacenter", { status: "degradado" }),
       elemento("sub-01", "subestacion", { status: "critico" }),
     ],
-    recursos: [recurso("cuadrilla-1", "cuadrilla"), recurso("generador-1", "generador")],
+    recursos: [
+      recurso("brigada-1", "brigada"),
+      recurso("generador-1", "generador"),
+      recurso("cisterna-1", "cisterna"),
+      recurso("policia-1", "policia"),
+    ],
   };
   const esperarDatacenter = validarAccion({ tipo: "esperar", elementId: "dc-01" }, ctx);
   assert.equal(esperarDatacenter.permitido, false);
   assert.equal(reglaDe(esperarDatacenter), "hospital-plazo-energia");
 
-  const alDatacenter = validarAccion(
-    { tipo: "asignar_recurso", elementId: "dc-01", recursoId: "cuadrilla-1" },
+  // un generador sí compite con el hospital: sigue bloqueado fuera de él
+  const generadorAlDatacenter = validarAccion(
+    { tipo: "asignar_recurso", elementId: "dc-01", recursoId: "generador-1" },
     ctx,
   );
-  assert.equal(alDatacenter.permitido, false);
-  assert.equal(reglaDe(alDatacenter), "hospital-plazo-energia");
+  assert.equal(generadorAlDatacenter.permitido, false);
+
+  // la cisterna también reabastece hospitales: compite
+  const cisternaAlDatacenter = validarAccion(
+    { tipo: "asignar_recurso", elementId: "dc-01", recursoId: "cisterna-1" },
+    ctx,
+  );
+  assert.equal(cisternaAlDatacenter.permitido, false);
+  assert.equal(reglaDe(cisternaAlDatacenter), "hospital-plazo-energia");
+
+  // una patrulla de tráfico NO es sustituta de un generador: bloquearla solo
+  // paraliza al agente sin darle nada al hospital
+  assert.deepEqual(
+    validarAccion({ tipo: "asignar_recurso", elementId: "cruce-01", recursoId: "policia-1" }, ctx),
+    { permitido: true },
+  );
+  // ni la brigada, que es quien repara la causa raíz
+  assert.deepEqual(
+    validarAccion({ tipo: "asignar_recurso", elementId: "dc-01", recursoId: "brigada-1" }, ctx),
+    { permitido: true },
+  );
 
   assert.deepEqual(
-    validarAccion({ tipo: "asignar_recurso", elementId: "hosp-01", recursoId: "cuadrilla-1" }, ctx),
+    validarAccion({ tipo: "asignar_recurso", elementId: "hosp-01", recursoId: "brigada-1" }, ctx),
     { permitido: true },
   );
   assert.deepEqual(
-    validarAccion({ tipo: "asignar_recurso", elementId: "sub-01", recursoId: "cuadrilla-1" }, ctx),
+    validarAccion({ tipo: "asignar_recurso", elementId: "sub-01", recursoId: "brigada-1" }, ctx),
     { permitido: true },
   );
   const generadorALaSubestacion = validarAccion(
