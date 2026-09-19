@@ -1,5 +1,5 @@
--- Anade `mission_id` a los eventos. Es opcional: las filas que ya existen
--- quedan con NULL y siguen siendo validas. No se pierde nada.
+-- Add `mission_id` to events. It is optional: existing rows keep NULL and stay
+-- valid. Nothing is lost.
 
 ALTER TABLE events ADD COLUMN mission_id TEXT;
 

@@ -1,8 +1,8 @@
--- Esquema completo. Es idempotente a proposito: NO borra datos, se puede
--- lanzar contra produccion sin miedo.
+-- Full schema. Deliberately idempotent: it does NOT drop data, so it is safe
+-- to run against production.
 --
--- Solo hay un tipo de evento, el resumen de una llamada de voz, asi que la
--- tabla no tiene ni `type` ni `payload`.
+-- There is a single kind of event, the summary of a voice call, so the table
+-- has neither `type` nor `payload`.
 
 CREATE TABLE IF NOT EXISTS events (
   id         TEXT PRIMARY KEY,

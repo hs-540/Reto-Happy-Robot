@@ -1,9 +1,9 @@
--- Pasa de la tabla vieja (type / payload / status) a la nueva, que solo guarda
--- el resumen de la llamada.
+-- Move from the old table (type / payload / status) to the new one, which only
+-- stores the call summary.
 --
--- CUIDADO: las filas viejas se pierden. Sus datos vivian en `payload`, que ya
--- no existe; no hay forma automatica de convertirlos en un `summary`. Revisa
--- que no haya nada que quieras conservar antes de lanzarlo.
+-- WARNING: existing rows are lost. Their data lived in `payload`, which no
+-- longer exists, and there is no automatic way to turn it into a `summary`.
+-- Check that nothing worth keeping is in there before running this.
 
 DROP INDEX IF EXISTS idx_events_origin;
 DROP INDEX IF EXISTS idx_events_dest;

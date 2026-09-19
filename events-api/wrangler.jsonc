@@ -8,7 +8,7 @@
     {
       "binding": "DB",
       "database_name": "eventos",
-      // Lo rellena `wrangler d1 create eventos` — pega aqui el uuid que te devuelva.
+      // Filled in by `wrangler d1 create` — paste the uuid it returns here.
       "database_id": "f4ef295f-53b2-459a-8f3f-41347a5c8e03"
     }
   ]

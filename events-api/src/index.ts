@@ -21,9 +21,9 @@ app.use('/api/*', cors())
 
 /* ---------------------------------------------------------------- auth --- */
 
-// Comparamos hashes en vez de las claves en crudo: asi el tiempo de respuesta
-// no depende de cuantos caracteres ha acertado quien lo intenta, y funciona
-// aunque las dos cadenas midan distinto.
+// Compare hashes rather than the raw keys: response time then does not depend
+// on how many characters the caller guessed right, and it works even when the
+// two strings differ in length.
 async function safeEqual(a: string, b: string) {
   const enc = new TextEncoder()
   const [ha, hb] = await Promise.all([
@@ -36,7 +36,7 @@ async function safeEqual(a: string, b: string) {
 app.use('/api/*', async (c, next) => {
   const expected = c.env.API_KEY
   if (!expected) {
-    return c.json({ error: 'API_KEY no configurada en el worker' }, 500)
+    return c.json({ error: 'API_KEY is not configured on the worker' }, 500)
   }
 
   const header = c.req.header('x-api-key')
@@ -50,10 +50,10 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 
-/* ------------------------------------------------------------ helpers --- */
+/* ------------------------------------------------------------- helpers --- */
 
-// Las columnas van en snake_case (convencion de SQLite) pero la API habla
-// camelCase, que es como lo manda el cliente.
+// Columns are snake_case (SQLite convention) but the API speaks camelCase,
+// which is how clients send it.
 const toEvent = (row: EventRow) => ({
   id: row.id,
   summary: row.summary,
@@ -63,18 +63,19 @@ const toEvent = (row: EventRow) => ({
   updated_at: row.updated_at,
 })
 
-// `missionId` y `context` son opcionales: si no vienen se guardan null. Si
-// vienen, tienen que ser un string no vacio.
-function leerOpcional(valor: unknown): { ok: true; valor: string | null } | { ok: false } {
-  if (valor === undefined || valor === null) return { ok: true, valor: null }
-  if (typeof valor !== 'string' || !valor.trim()) return { ok: false }
-  return { ok: true, valor }
+// `missionId` and `context` are optional: absent means null. When present they
+// must be a non-empty string.
+function readOptional(value: unknown): { ok: true; value: string | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, value: null }
+  if (typeof value !== 'string' || !value.trim()) return { ok: false }
+  return { ok: true, value }
 }
 
-/* ------------------------------------------------------------ endpoints --- */
+/* ----------------------------------------------------------- endpoints --- */
 
-// Solo hay un tipo de evento: el resumen de una llamada de voz. Por eso no hay
-// campo `type` ni `payload` — un evento es su resumen, su mision y poco mas.
+// There is a single kind of event: the summary of a voice call. Hence no
+// `type` and no `payload` — an event is its summary, its mission and the
+// prompt the call was launched with.
 
 app.get('/', (c) => c.json({ ok: true, service: 'events-api' }))
 
@@ -82,25 +83,25 @@ app.post('/api/post-event', async (c) => {
   const body = await c.req.json().catch(() => null)
 
   if (!body || typeof body.summary !== 'string' || !body.summary.trim()) {
-    return c.json({ error: '`summary` es obligatorio y debe ser un string no vacio' }, 400)
+    return c.json({ error: '`summary` is required and must be a non-empty string' }, 400)
   }
 
-  const mission = leerOpcional(body.missionId)
+  const mission = readOptional(body.missionId)
   if (!mission.ok) {
-    return c.json({ error: '`missionId`, si viene, debe ser un string no vacio' }, 400)
+    return c.json({ error: '`missionId`, when present, must be a non-empty string' }, 400)
   }
 
-  const context = leerOpcional(body.context)
+  const context = readOptional(body.context)
   if (!context.ok) {
-    return c.json({ error: '`context`, si viene, debe ser un string no vacio' }, 400)
+    return c.json({ error: '`context`, when present, must be a non-empty string' }, 400)
   }
 
   const now = new Date().toISOString()
   const event: EventRow = {
     id: body.id ?? crypto.randomUUID(),
     summary: body.summary,
-    mission_id: mission.valor,
-    context: context.valor,
+    mission_id: mission.value,
+    context: context.value,
     created_at: now,
     updated_at: now,
   }
@@ -142,30 +143,30 @@ app.on(['POST', 'PATCH'], '/api/update-event', async (c) => {
   const body = await c.req.json().catch(() => null)
   const id = body?.id ?? c.req.query('id')
 
-  if (!id) return c.json({ error: '`id` es obligatorio' }, 400)
+  if (!id) return c.json({ error: '`id` is required' }, 400)
 
   const sets: string[] = []
   const params: unknown[] = []
 
   if (body.summary !== undefined) {
     if (typeof body.summary !== 'string' || !body.summary.trim()) {
-      return c.json({ error: '`summary` debe ser un string no vacio' }, 400)
+      return c.json({ error: '`summary` must be a non-empty string' }, 400)
     }
     sets.push('summary = ?'); params.push(body.summary)
   }
 
-  // Aqui null si vale: es como se vacia uno de los dos campos opcionales.
-  for (const [campo, columna] of [['missionId', 'mission_id'], ['context', 'context']] as const) {
-    const valor = body[campo]
-    if (valor === undefined) continue
-    if (valor !== null && (typeof valor !== 'string' || !valor.trim())) {
-      return c.json({ error: `\`${campo}\` debe ser un string no vacio o null` }, 400)
+  // null is allowed here: that is how either optional field gets cleared.
+  for (const [field, column] of [['missionId', 'mission_id'], ['context', 'context']] as const) {
+    const value = body[field]
+    if (value === undefined) continue
+    if (value !== null && (typeof value !== 'string' || !value.trim())) {
+      return c.json({ error: `\`${field}\` must be a non-empty string or null` }, 400)
     }
-    sets.push(`${columna} = ?`); params.push(valor)
+    sets.push(`${column} = ?`); params.push(value)
   }
 
   if (!sets.length) {
-    return c.json({ error: 'nada que actualizar: manda summary, missionId y/o context' }, 400)
+    return c.json({ error: 'nothing to update: send summary, missionId and/or context' }, 400)
   }
 
   sets.push('updated_at = ?')
@@ -177,7 +178,7 @@ app.on(['POST', 'PATCH'], '/api/update-event', async (c) => {
     .bind(...params, id)
     .first<EventRow>()
 
-  if (!row) return c.json({ error: 'evento no encontrado' }, 404)
+  if (!row) return c.json({ error: 'event not found' }, 404)
   return c.json(toEvent(row))
 })
 
