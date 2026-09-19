@@ -135,6 +135,7 @@ const dispatchedMissions = new Set<string>();
 const happyrobot = createCallQueue(
   createHappyRobotClient({
     webhookUrl: config.happyrobot.webhookUrl,
+    apiKey: config.happyrobot.apiKey,
     onClosed: (closure) => happyrobot.onClosed(closure),
     onDispatched: (missionId) => dispatchedMissions.add(missionId),
   }),

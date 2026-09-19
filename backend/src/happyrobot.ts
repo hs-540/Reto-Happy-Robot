@@ -29,6 +29,8 @@ export interface HappyRobotClient {
 export interface HappyRobotOptions {
   /** Full URL of the mission hook; its presence selects the real client */
   webhookUrl?: string;
+  /** Key for the hook's `x-api-key`; empty when the hook is left unguarded */
+  apiKey?: string;
   onClosed: (closure: CallClosure) => void;
   /** A mission the hook accepted (2xx); the outcome poller only closes these */
   onDispatched?: (missionId: string) => void;
@@ -37,27 +39,53 @@ export interface HappyRobotOptions {
 const TIMEOUT_MS = 90_000;
 
 /* ─── Real client ────────────────────────────────────────────────────────
- * The hook is a secret URL: POST { prompt, missionId } and the mission's voice
- * agent places the call — no credential header, no phone number (the mission
- * knows who it calls). `missionId` is our `actionId`, the id of the action the
- * orchestrator decided, so a call is traceable end to end: dispatch, summary
- * event in the events-api and closure all carry it. If the hook's contract
- * changes, ONLY this function does; the outcome comes back through the poller
- * in `outcome-poll.ts`.
+ * POST { prompt, missionId } to the mission hook and its voice agent places the
+ * call — no phone number, the mission knows who it calls. A hook guarded on the
+ * HappyRobot side rejects anything without a valid `x-api-key`, so the key goes
+ * on every dispatch when there is one. `missionId` is our `actionId`, the id of
+ * the action the orchestrator decided, so a call is traceable end to end:
+ * dispatch, summary event in the events-api and closure all carry it. If the
+ * hook's contract changes, ONLY this function does; the outcome comes back
+ * through the poller in `outcome-poll.ts`.
  */
+/**
+ * The brief the voice agent improvises from. It is not the message on its own:
+ * a bare fragment leaves the agent with no role, nobody to address and nothing
+ * to come back with, and the mission hangs up without dialling. Measured
+ * against the hook: a two-sentence prompt produced a run with no transcript at
+ * all, the same brief with role, recipient, situation and an explicit ask
+ * produced a real conversation that closed with a commitment in minutes.
+ */
+export function buildPrompt(request: ContactRequest): string {
+  const { contact, context, message, actionId } = request;
+  return [
+    "You are an autonomous emergency coordination agent for the Blackout Coordination Unit.",
+    `You are CALLING ${contact.name}, ${contact.role}; the person on the other side is the field responder, not a customer.`,
+    `Mission ${actionId}.`,
+    context.situation ? `Situation: ${context.situation}` : "",
+    `Affected site: ${context.elementId}.`,
+    `Convey this and nothing else: "${message}"`,
+    "Goal: get a concrete answer — whether they accept, and how many minutes they need. Obtain a commitment in minutes before ending the call.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function createRealClient(webhookUrl: string, options: HappyRobotOptions): HappyRobotClient {
-  const { onClosed, onDispatched } = options;
+  const { apiKey, onClosed, onDispatched } = options;
 
   return {
     mode: "real",
     contact(request) {
-      // The prompt is what the voice agent asks the person it calls: the
-      // message written for this recipient, framed by the incident situation.
-      const prompt = [request.context.situation, request.message].filter(Boolean).join(" ");
+      const prompt = buildPrompt(request);
 
       void fetch(webhookUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // An unguarded hook takes no key; sending an empty one would fail it
+          ...(apiKey ? { "x-api-key": apiKey } : {}),
+        },
         body: JSON.stringify({ prompt, missionId: request.actionId }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })

@@ -35,10 +35,15 @@ const envSchema = z.object({
   LLM_PROVIDER: z.string().min(1).default("helmcode"),
   /**
    * Full URL of the HappyRobot mission hook. Its PRESENCE is the real/simulated
-   * switch: the hook is a secret URL, so there is no credential to validate —
-   * unset means the calls are simulated and the demo keeps standing.
+   * switch: unset means the calls are simulated and the demo keeps standing.
    */
   HAPPYROBOT_WEBHOOK_URL: z.preprocess(emptyToUndefined, z.url().optional()),
+  /**
+   * Key for the hook's `x-api-key`. HappyRobot can guard a webhook trigger with
+   * one, and a guarded hook rejects every unauthenticated dispatch. Optional:
+   * a hook left unguarded needs no key and the header is then not sent.
+   */
+  HAPPYROBOT_API_KEY: z.string().default(""),
   /** Outbound call queue: slots in flight, pending depth and the slot backstop */
   HAPPYROBOT_MAX_CONCURRENT_CALLS: z.coerce.number().int().positive().default(1),
   HAPPYROBOT_MAX_QUEUED_CALLS: z.coerce.number().int().positive().default(3),
@@ -66,8 +71,12 @@ if (!parsed.success) {
 
 /* An empty secret would splice [REDACTED] into every character boundary, so
    only real values make the list */
-const secrets = [parsed.data.LLM_API_KEY, parsed.data.HAPPYROBOT_WEBHOOK_URL ?? "", parsed.data.EVENTS_API_KEY]
-  .filter((secret) => secret.length > 0);
+const secrets = [
+  parsed.data.LLM_API_KEY,
+  parsed.data.HAPPYROBOT_WEBHOOK_URL ?? "",
+  parsed.data.HAPPYROBOT_API_KEY,
+  parsed.data.EVENTS_API_KEY,
+].filter((secret) => secret.length > 0);
 
 export function redactSecrets(text: string): string {
   return secrets.reduce((acc, secret) => acc.split(secret).join("[REDACTED]"), text);
@@ -104,6 +113,7 @@ export const config = deepFreeze({
   },
   happyrobot: {
     webhookUrl: parsed.data.HAPPYROBOT_WEBHOOK_URL,
+    apiKey: parsed.data.HAPPYROBOT_API_KEY,
     maxConcurrentCalls: parsed.data.HAPPYROBOT_MAX_CONCURRENT_CALLS,
     maxQueuedCalls: parsed.data.HAPPYROBOT_MAX_QUEUED_CALLS,
     callSlotTimeoutMs: parsed.data.HAPPYROBOT_CALL_SLOT_TIMEOUT_MS,
