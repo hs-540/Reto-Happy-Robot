@@ -51,7 +51,13 @@ const envSchema = z.object({
   /** Outbound call queue: slots in flight, pending depth and the slot backstop */
   HAPPYROBOT_MAX_CONCURRENT_CALLS: z.coerce.number().int().positive().default(1),
   HAPPYROBOT_MAX_QUEUED_CALLS: z.coerce.number().int().positive().default(3),
-  HAPPYROBOT_CALL_SLOT_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+  /* Backstop, not a deadline: it only fires when a closure never arrives. It
+     has to clear the whole real round trip — call, summary, poll cadence and
+     the LLM classification of the summary — or it releases the slot as
+     no_answer moments before the true outcome lands. Measured on the live hook:
+     an 87 s conversation closed at 120.3 s and lost to a 120 s backstop by
+     287 ms, publishing a spurious no_answer over a call that had been accepted. */
+  HAPPYROBOT_CALL_SLOT_TIMEOUT_MS: z.coerce.number().int().positive().default(240_000),
   /* Return path of a real call: the hook posts a call-summary event to this
      worker and the backend polls it for closures of the missions it sent. */
   EVENTS_API_URL: z.url().default("https://events-api.hs540events.workers.dev"),
