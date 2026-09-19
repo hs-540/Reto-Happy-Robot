@@ -41,12 +41,22 @@ const HIGH_SIGNAL_SOURCES: readonly string[] = ["emergency_call", "field"];
 const REPORT_BACKLOG = 8;
 
 /**
+ * Reports and historical incidents handed over per deliberation. Measured: with
+ * everything at once the model burns its budget on decisions and leaves the
+ * communications field EMPTY — the very thing it exists for. Trimmed, it gets
+ * there. High-signal reports go first, so the needle in the haystack survives
+ * the cut; the rest is a sample large enough for the triage to be real.
+ */
+const MAX_REPORTS_PER_TURN = 12;
+const MAX_HISTORY_PER_TURN = 3;
+
+/**
  * Total budget of a deliberation, retries included; once spent, the
  * deterministic fallback takes over. It has to cover the realistic worst case
  * with the provider's measured latency: one long call (~19s) plus a retry
  * after a hard-rule rejection.
  */
-const DELIBERATION_BUDGET_MS = 60_000;
+const DELIBERATION_BUDGET_MS = 75_000;
 
 /** Decisions kept for `/api/agent` */
 const MAX_DECISIONS = 20;
@@ -254,10 +264,13 @@ export function createAgent(options: AgentOptions): Agent {
       secondsWithoutPower: (id: string) => world.secondsWithoutPower(id),
       priorities: world.priorities(state.elements),
       currentPlan: plan,
-      history: history.filter((h) => involvedTypes.has(h.type)),
+      history: history.filter((h) => involvedTypes.has(h.type)).slice(0, MAX_HISTORY_PER_TURN),
       topology,
       remedies,
-      reports: pendingReports,
+      reports: [
+        ...pendingReports.filter((r) => HIGH_SIGNAL_SOURCES.includes(r.source)),
+        ...pendingReports.filter((r) => !HIGH_SIGNAL_SOURCES.includes(r.source)),
+      ].slice(0, MAX_REPORTS_PER_TURN),
       reasons,
     };
 

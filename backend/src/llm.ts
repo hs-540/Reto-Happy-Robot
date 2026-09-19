@@ -12,7 +12,16 @@ import type { z } from "zod";
  * deliberation, so this does not slow the simulation: it only avoids killing
  * responses that were already on their way.
  */
-const TIMEOUT_MS = 35_000;
+const TIMEOUT_MS = 45_000;
+
+/**
+ * Hard ceiling on the answer. Measured: the real agent prompt left unbounded
+ * produced 11.8k output tokens — a reasoning model given six sites, two graphs
+ * and 35 reports thinks in proportion, and that alone was 60s before structured
+ * decoding pushed it past two minutes. The input (4.3k tokens) was never the
+ * problem. This caps how long it can ramble, which is what caps the latency.
+ */
+const MAX_OUTPUT_TOKENS = 3_000;
 
 export interface LlmGateway {
   id: string;
@@ -116,6 +125,7 @@ export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
           model: gw.model,
           messages,
           response_format: zodResponseFormat(schema, name),
+          max_tokens: MAX_OUTPUT_TOKENS,
         }),
       );
       const message = result.choices[0]?.message;
