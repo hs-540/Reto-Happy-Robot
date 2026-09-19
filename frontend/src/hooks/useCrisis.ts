@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentView, FeedItem, StateView, TopologyView } from '@swarmup/shared'
-import { getAgent, getFeed, getState, getTopology } from '../api'
+import type { AgentView, FeedItem, RunSummaryView, StateView, TopologyView } from '@swarmup/shared'
+import { getAgent, getFeed, getState, getSummary, getTopology } from '../api'
 
 const POLL_MS = 2000
 
@@ -34,12 +34,15 @@ export function useCrisis() {
   const [state, setState] = useState<StateView>(EMPTY_STATE)
   const [agent, setAgent] = useState<AgentView>(EMPTY_AGENT)
   const [feed, setFeed] = useState<FeedItem[]>([])
+  const [summary, setSummary] = useState<RunSummaryView | null>(null)
   const [live, setLive] = useState(false)
   const [nonce, setNonce] = useState(0)
 
   /** feed cursor; lives in a ref so the effect is not restarted on every poll */
   const cursor = useRef(0)
   const previousTick = useRef(0)
+  /** the end-of-run report is fetched once per run, the moment the run finishes */
+  const summaryLoaded = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -75,6 +78,20 @@ export function useCrisis() {
         }
         setLive(true)
 
+        if (s.finished) {
+          if (!summaryLoaded.current) {
+            summaryLoaded.current = true
+            getSummary()
+              .then((r) => active && setSummary(r))
+              .catch(() => {
+                if (active) summaryLoaded.current = false
+              })
+          }
+        } else if (summaryLoaded.current) {
+          summaryLoaded.current = false
+          setSummary(null)
+        }
+
         if (firstTime) {
           firstTime = false
           getTopology()
@@ -101,6 +118,7 @@ export function useCrisis() {
     state,
     agent,
     feed,
+    summary,
     live,
     /** immediate re-query after an operator action, without waiting for the poll */
     refresh: () => setNonce((n) => n + 1),

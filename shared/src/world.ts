@@ -114,3 +114,33 @@ export interface StateView {
   elements: ElementView[];
   resources: ResourceView[];
 }
+
+/** End-of-run report served by GET /api/summary (populated once the script is over) */
+export interface RunSummaryView {
+  /** false while the run is still going or has not started */
+  available: boolean;
+  /** feed publications grouped by kind, for the run's activity totals */
+  events: {
+    total: number;
+    alarms: number;
+    reports: number;
+    decisions: number;
+    actions: number;
+    outcomes: number;
+    system: number;
+  };
+  /** incidents resolved this run vs sites still degraded or critical */
+  incidents: { resolved: number; open: number };
+  /** LLM consumption across the whole run */
+  llm: {
+    calls: number;
+    minLatencyMs: number | null;
+    meanLatencyMs: number | null;
+    maxLatencyMs: number | null;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  /** wall time from a deliberation trigger to its decision being executed */
+  meanReactionMs: number | null;
+}

@@ -6,6 +6,7 @@ import type {
   FeedResponse,
   HealthResponse,
   HistoricalIncident,
+  RunSummaryView,
   StateView,
   TopologyView,
 } from "@swarmup/shared";
@@ -136,9 +137,10 @@ const agent = createAgent({
 
 /**
  * End-of-run report: what happened, how the agent reacted and what it cost.
- * Logged to the console and summarized into the feed as a system item.
+ * Built live from the feed, the world and the per-run stats; served by
+ * GET /api/summary and logged + feed-summarized once when the script ends.
  */
-function publishRunSummary(): void {
+function buildRunSummary(): RunSummaryView {
   const items = feed.since(0);
   const byKind = new Map<string, number>();
   for (const item of items) {
@@ -147,32 +149,52 @@ function publishRunSummary(): void {
   const state = sim.state();
   const open = state.elements.filter((e) => e.status === "critical" || e.status === "degraded");
   const snapshot = stats.snapshot();
+  return {
+    available: sim.finished,
+    events: {
+      total: items.length,
+      alarms: byKind.get("alarm") ?? 0,
+      reports: byKind.get("report") ?? 0,
+      decisions: byKind.get("decision") ?? 0,
+      actions: byKind.get("action") ?? 0,
+      outcomes: byKind.get("outcome") ?? 0,
+      system: byKind.get("system") ?? 0,
+    },
+    incidents: { resolved: resolvedClosures, open: open.length },
+    llm: snapshot.llm,
+    meanReactionMs: snapshot.meanReactionMs,
+  };
+}
+
+function publishRunSummary(): void {
+  const summary = buildRunSummary();
+  const { events, incidents, llm } = summary;
   const fmtSeconds = (ms: number | null) => (ms === null ? "n/a" : `${(ms / 1000).toFixed(1)}s`);
   const fmtInt = (n: number) => n.toLocaleString("en-US");
 
   console.log(`[summary] simulation complete at crisis second ${Math.round(sim.seconds())} of ${script.durationSeconds}`);
   console.log(
-    `[summary] events: ${items.length} total — ` +
-      `${byKind.get("alarm") ?? 0} alarms, ${byKind.get("report") ?? 0} raw signals, ` +
-      `${byKind.get("decision") ?? 0} decisions, ${byKind.get("action") ?? 0} actions, ` +
-      `${byKind.get("outcome") ?? 0} call outcomes, ${byKind.get("system") ?? 0} system`,
+    `[summary] events: ${events.total} total — ` +
+      `${events.alarms} alarms, ${events.reports} raw signals, ` +
+      `${events.decisions} decisions, ${events.actions} actions, ` +
+      `${events.outcomes} call outcomes, ${events.system} system`,
   );
-  console.log(`[summary] incidents: ${resolvedClosures} resolved, ${open.length} still open`);
+  console.log(`[summary] incidents: ${incidents.resolved} resolved, ${incidents.open} still open`);
   console.log(
-    `[summary] llm: ${snapshot.llm.calls} calls, latency min ${fmtSeconds(snapshot.llm.minLatencyMs)} / ` +
-      `avg ${fmtSeconds(snapshot.llm.meanLatencyMs)} / max ${fmtSeconds(snapshot.llm.maxLatencyMs)}, ` +
-      `tokens ${fmtInt(snapshot.llm.totalTokens)} total ` +
-      `(${fmtInt(snapshot.llm.promptTokens)} prompt / ${fmtInt(snapshot.llm.completionTokens)} completion)`,
+    `[summary] llm: ${llm.calls} calls, latency min ${fmtSeconds(llm.minLatencyMs)} / ` +
+      `avg ${fmtSeconds(llm.meanLatencyMs)} / max ${fmtSeconds(llm.maxLatencyMs)}, ` +
+      `tokens ${fmtInt(llm.totalTokens)} total ` +
+      `(${fmtInt(llm.promptTokens)} prompt / ${fmtInt(llm.completionTokens)} completion)`,
   );
-  console.log(`[summary] mean reaction time (trigger to decision executed): ${fmtSeconds(snapshot.meanReactionMs)}`);
+  console.log(`[summary] mean reaction time (trigger to decision executed): ${fmtSeconds(summary.meanReactionMs)}`);
 
   feed.publish({
     kind: "system",
     message:
-      `Run complete: ${items.length} events processed, ${resolvedClosures} incidents resolved, ` +
-      `${snapshot.llm.calls} LLM calls (min/avg/max ${fmtSeconds(snapshot.llm.minLatencyMs)}/` +
-      `${fmtSeconds(snapshot.llm.meanLatencyMs)}/${fmtSeconds(snapshot.llm.maxLatencyMs)}), ` +
-      `${fmtInt(snapshot.llm.totalTokens)} tokens, mean reaction ${fmtSeconds(snapshot.meanReactionMs)}.`,
+      `Run complete: ${events.total} events processed, ${incidents.resolved} incidents resolved, ` +
+      `${llm.calls} LLM calls (min/avg/max ${fmtSeconds(llm.minLatencyMs)}/` +
+      `${fmtSeconds(llm.meanLatencyMs)}/${fmtSeconds(llm.maxLatencyMs)}), ` +
+      `${fmtInt(llm.totalTokens)} tokens, mean reaction ${fmtSeconds(summary.meanReactionMs)}.`,
   });
 }
 
@@ -291,6 +313,11 @@ app.get("/api/health", (_req, res) => {
     started: sim.started,
   };
   res.json(health);
+});
+
+app.get("/api/summary", (_req, res) => {
+  advance();
+  res.json(buildRunSummary());
 });
 
 /**

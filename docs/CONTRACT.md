@@ -17,6 +17,7 @@ then this document gets updated. The issue tracker does not rule.
 | `/api/control` | POST | `start`/`reset`/`pause`/`resume`/`inject` | — |
 | `/api/call/outcome` | POST | HappyRobot webhook: what the person answered, on hang-up | — |
 | `/api/health` | GET | Connection status | — |
+| `/api/summary` | GET | End-of-run report (totals, LLM tokens, reaction time) | when finished |
 
 `/api/state`, `/api/agent` and `/api/feed` are polled by a single 2 s loop in the
 frontend (`useCrisis.ts`, `POLL_MS = 2000`). `/api/health` is served but the UI
@@ -279,6 +280,14 @@ Response: `{ "ok": true }`. An invalid body answers `400 {ok:false, error}`.
 ```json
 { "status": "ok", "tick": 42, "paused": false, "started": true }
 ```
+
+## GET /api/summary
+
+End-of-run report for the finished-state screen. `available` is `false` while the
+run is still going or has not started; once the script plays out it carries the
+activity totals (feed items by kind), incidents resolved vs still open, the LLM
+consumption (calls, min/mean/max latency, prompt/completion/total tokens) and
+the mean trigger-to-decision reaction time.
 
 ## Map ↔ agent correlation
 
