@@ -117,9 +117,9 @@ is why `critical-ups-act` forbids waiting.
 `npm run rag:preload` vectorizes them into Chroma, one collection per type
 (idempotent: upsert by incident id, re-running does not duplicate).
 
-**Caveat, as of this writing:** the vectors are not what the agent reads.
-`HistoryRag.search()` exists in `backend/src/rag/history.ts` and is never
-called — the agent receives these JSON files directly, filtered by the affected
-element types and capped at three per turn (`agent.ts`). Chroma is written to
-(including every resolved incident, via `recordClosure`) and not read from.
-Wiring retrieval in is the remaining step.
+**Wired:** `HistoryRag.search()` (`backend/src/rag/history.ts`) is called on
+every deliberation by `tryRetrieveHistory()` (`agent.ts`, behind a 6 s timeout),
+so Chroma is both written to (`rag:preload`, plus every resolved incident via
+`recordClosure`) and read from. These JSON files filtered by the affected
+element types and capped at three per turn (`agent.ts`) remain as the fallback
+when the vector search fails or times out.

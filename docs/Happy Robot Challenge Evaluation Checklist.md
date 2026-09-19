@@ -29,9 +29,9 @@
 
 - [x] **Operational transparency** + possible human intervention *(append-only feed with reasoning, manual injection, pause/reset)*
 - [x] **Original** scenario and management *(cascading blackout in the Community of Madrid)*
-- [ ] **Iterative learning** from previous runs *(⚠️ half built: Chroma is started, `data/history/` is vectorized per element type by `npm run rag:preload` and every resolved incident is written back by `recordClosure()`. But **retrieval is not wired**: `HistoryRag.search()` is never called, so the agent's history comes from the static JSON filtered by element type (`agent.ts`, 3 per turn) and Chroma is only ever written to. The agent does cite what it used by id (`historyCitation`); the selection is not a vector search)*
+- [x] **Iterative learning** from previous runs *(Chroma is started, `data/history/` is vectorized per element type by `npm run rag:preload` and every resolved incident is written back by `recordClosure()`. **Retrieval is wired**: `tryRetrieveHistory()` calls `HistoryRag.search()` on every deliberation (`agent.ts`, 6 s timeout), with the static JSON filtered by element type (3 per turn) as fallback. Retrieved incidents appear in the prompt with a `Retrieved because...` line and the agent cites what it used by id (`historyCitation`))*
 
 ## 🎁 Bonus / Presentation
 
-- [ ] **Learning** — analysis of previous runs for continuous improvement (bonus) *(same gap as above: the write side of the loop is closed, the read side goes through static JSON instead of Chroma)*
+- [x] **Learning** — analysis of previous runs for continuous improvement (bonus) *(the loop is closed on both sides: writes via `rag:preload` + `recordClosure()`, reads via `tryRetrieveHistory()` on every deliberation, as above)*
 - [ ] **Polished demo** — "the demo counts as much as the system" *(pending a full rehearsal; without a HappyRobot credential the "real call" moment lands as a simulated one)*

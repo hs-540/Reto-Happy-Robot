@@ -115,14 +115,15 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
   - **Organization**: history segmented into folders/collections per element type (`hospital/`, `datacenter/`, `substation/`). When the crisis affects a hospital, the historical records of the hospital collection are retrieved.
   - **Pre-load**: **3-5 synthetic incidents** per type, written before the event, so the agent already has historical context from the first live run.
 
-> **Partially built — the loop is closed on the write side only.** Chroma starts
-> with the backend, `npm run rag:preload` vectorizes `data/history/<type>/` into
-> a collection per element type (idempotent upsert by id), and `recordClosure()`
-> writes every resolved incident back. `HistoryRag.search()` is implemented and
-> **never called**: what reaches the prompt is the static JSON filtered by the
-> affected element types, three per turn (`agent.ts`). So Chroma is written to
-> and not read from. Wiring `search()` into the deliberation is the remaining
-> step; until then, "RAG" describes the storage, not the retrieval.
+> **Built — the loop is closed on both sides.** Chroma starts with the backend
+> and is seeded at boot, `npm run rag:preload` vectorizes `data/history/<type>/`
+> into a collection per element type (idempotent upsert by id), and
+> `recordClosure()` writes every resolved incident back. On the read side,
+> `tryRetrieveHistory()` (`agent.ts`) calls `rag.search()` per affected element
+> type on every deliberation with a 6 s timeout, falling back to the static JSON
+> filtered by element types, three per turn, if the search fails. Retrieved
+> incidents reach the prompt with a `Retrieved because...` line and the agent
+> cites what it used by id (`historyCitation`).
 
 ## Real actions (HappyRobot)
 
@@ -173,9 +174,9 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > (`#43, no human gate` in `agent.ts` and `control.ts`) and in `CONTRACT.md`
 > (`Action.status` is born `executed`).
 >
-> The frontend ships map, feed, agent panel and injection panel; pause/resume and
-> start are wired, `reset` exists in the API without a button yet. Manually
-> overriding a decision is still a future extension.
+> The frontend ships map, feed, agent panel and injection panel; start,
+> pause/resume and reset are wired — reset has a button in the CommandBar.
+> Manually overriding a decision is still a future extension.
 
 ## Project stack and infrastructure
 
