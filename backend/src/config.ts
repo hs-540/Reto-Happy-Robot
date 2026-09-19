@@ -48,8 +48,14 @@ const envSchema = z.object({
    * a hook left unguarded needs no key and the header is then not sent.
    */
   HAPPYROBOT_API_KEY: z.string().default(""),
-  /** Outbound call queue: slots in flight, pending depth and the slot backstop */
-  HAPPYROBOT_MAX_CONCURRENT_CALLS: z.coerce.number().int().positive().default(1),
+  /**
+   * The callable HappyRobot contacts, comma-separated ("a,b,c"). This list is
+   * the outbound capacity: one live call per contact, so three contacts dial
+   * three people at once and one contact serialises every call. Empty means no
+   * contact can be reached and the hook is never used.
+   */
+  CONTACTS: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Outbound call queue: pending depth and the slot backstop */
   HAPPYROBOT_MAX_QUEUED_CALLS: z.coerce.number().int().positive().default(3),
   /* Backstop, not a deadline: it only fires when a closure never arrives. It
      has to clear the whole real round trip — call, summary, poll cadence and
@@ -106,6 +112,20 @@ const llmProvider = {
   embeddingModel: parsed.data.LLM_EMBEDDING_MODEL,
 } as const;
 
+/**
+ * The contact pool, in the order it was written. Deduplicated on purpose: the
+ * balancer holds one call per contact, and a name repeated by mistake would let
+ * two calls ring the same person at the same time — the single thing the pool
+ * exists to prevent.
+ */
+function parseContacts(raw: string | undefined): string[] {
+  const written = (raw ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return [...new Set(written)];
+}
+
 function deepFreeze<T>(value: T): Readonly<T> {
   if (typeof value === "object" && value !== null) {
     Object.freeze(value);
@@ -125,7 +145,7 @@ export const config = deepFreeze({
     realCallsEnabled: parsed.data.HAPPYROBOT_REAL_CALLS_ENABLED,
     webhookUrl: parsed.data.HAPPYROBOT_WEBHOOK_URL,
     apiKey: parsed.data.HAPPYROBOT_API_KEY,
-    maxConcurrentCalls: parsed.data.HAPPYROBOT_MAX_CONCURRENT_CALLS,
+    contacts: parseContacts(parsed.data.CONTACTS),
     maxQueuedCalls: parsed.data.HAPPYROBOT_MAX_QUEUED_CALLS,
     callSlotTimeoutMs: parsed.data.HAPPYROBOT_CALL_SLOT_TIMEOUT_MS,
   },

@@ -130,22 +130,24 @@ const dispatchedMissions = new Set<string>();
 /**
  * The channel to the real world. Created once and receiving the closure by
  * callback: a call takes a minute to resolve and the engine does not wait for
- * it. The call queue sits between the agent and the client: one phone line by
- * default, so a deliberation returning eight calls does not dial eight people
- * at once. `onClosed` reads the current runtime, so a hang-up that lands after
- * a reset closes on the run that owns the action.
+ * it. The call queue sits between the agent and the client and balances over
+ * the contact pool: one live call per contact in CONTACTS, so a deliberation
+ * returning eight calls does not dial eight people at once and no one contact
+ * is asked to take two. `onClosed` reads the current runtime, so a hang-up that
+ * lands after a reset closes on the run that owns the action.
  */
 const happyrobot = createCallQueue(
   createHappyRobotClient({
     enabled: config.happyrobot.realCallsEnabled,
     webhookUrl: config.happyrobot.webhookUrl,
     apiKey: config.happyrobot.apiKey,
+    contacts: config.happyrobot.contacts,
     onClosed: (closure) => happyrobot.onClosed(closure),
     onDispatched: (missionId) => dispatchedMissions.add(missionId),
   }),
   {
     feed,
-    maxInFlight: config.happyrobot.maxConcurrentCalls,
+    lines: config.happyrobot.contacts,
     maxQueued: config.happyrobot.maxQueuedCalls,
     slotTimeoutMs: config.happyrobot.callSlotTimeoutMs,
     onClosed: (closure) => runtime.agent.closeCall(closure),

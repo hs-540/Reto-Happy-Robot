@@ -4,13 +4,16 @@ import type { ContactRequest, HappyRobotClient } from "./happyrobot.js";
 
 export interface CallQueueOptions {
   feed: Feed;
-  /** slots in flight (HAPPYROBOT_MAX_CONCURRENT_CALLS) */
-  maxInFlight: number;
+  /**
+   * The callable HappyRobot contacts (CONTACTS), in the order they were
+   * written. This list IS the outbound capacity: one live call per contact.
+   */
+  lines: string[];
   /** pending depth (HAPPYROBOT_MAX_QUEUED_CALLS) */
   maxQueued: number;
-  /** backstop: a slot with no closure for this long is released as no_answer */
+  /** backstop: a contact with no closure for this long is released as no_answer */
   slotTimeoutMs: number;
-  /** the agent's callback: invoked after the slot accounting, closure untouched */
+  /** the agent's callback: invoked after the contact is released, closure untouched */
   onClosed: (closure: CallClosure) => void;
   /**
    * Staleness gate, evaluated when the call is about to be dialled, not when it
@@ -25,24 +28,61 @@ interface PendingCall {
   seq: number;
 }
 
+interface HeldLine {
+  timer: ReturnType<typeof setTimeout>;
+  /** index into `lines`, not the contact itself: a release must be unambiguous */
+  lineIndex: number;
+}
+
 /**
  * Bounded outbound-call concurrency between the agent and the HappyRobot
- * client. A decorator, not a rewrite: the agent keeps calling
- * `happyrobot.contact(...)` and does not learn that a queue exists — the queue
- * only shapes what reaches the phone network, while the agent decides at full
- * speed. A slot is held from dial until the closure for that `actionId`
- * arrives (or the timeout fires); only `voice_call` consumes a line,
- * `chat_message` passes straight through.
+ * client, and the balancer over the contact pool. A decorator, not a rewrite:
+ * the agent keeps calling `happyrobot.contact(...)` and does not learn that a
+ * queue exists — the queue only shapes what reaches the phone network, while
+ * the agent decides at full speed. Each contact holds one call, from dial until
+ * the closure for that `actionId` arrives (or the timeout fires); with every
+ * contact busy the rest wait rather than going out, so shrinking the pool
+ * narrows the whole system and a single contact serialises it. Only
+ * `voice_call` takes a contact, `chat_message` passes straight through.
  */
 export function createCallQueue(
   client: HappyRobotClient,
   options: CallQueueOptions,
 ): HappyRobotClient & { onClosed(closure: CallClosure): void } {
-  const { feed, maxInFlight, maxQueued, slotTimeoutMs, onClosed, isStillRelevant } = options;
-  /** actionIds currently holding a slot, each with its timeout backstop */
-  const inFlight = new Map<string, ReturnType<typeof setTimeout>>();
+  const { feed, maxQueued, slotTimeoutMs, onClosed, isStillRelevant } = options;
+  /* An empty pool still leaves one anonymous line, so the queue keeps working
+     and the dispatch carries no contact — the body the hook took before the
+     pool existed. Only reachable with the simulated client: a real one is never
+     built without contacts. */
+  const lines: (string | undefined)[] = options.lines.length > 0 ? options.lines : [undefined];
+  /** actionIds currently holding a contact, each with its timeout backstop */
+  const inFlight = new Map<string, HeldLine>();
+  /** indices of `lines` on a call right now */
+  const busy = new Set<number>();
+  /** where the round-robin resumes, so the load spreads instead of piling on the first */
+  let cursor = 0;
   const pending: PendingCall[] = [];
   let arrivals = 0;
+
+  /** The next free contact, from the cursor onwards; -1 when all are busy */
+  function takeLine(): number {
+    for (let i = 0; i < lines.length; i++) {
+      const index = (cursor + i) % lines.length;
+      if (busy.has(index)) continue;
+      busy.add(index);
+      cursor = (index + 1) % lines.length;
+      return index;
+    }
+    return -1;
+  }
+
+  function release(actionId: string): void {
+    const held = inFlight.get(actionId);
+    if (!held) return;
+    clearTimeout(held.timer);
+    busy.delete(held.lineIndex);
+    inFlight.delete(actionId);
+  }
 
   function publishStatus(request: ContactRequest, status: "executed" | "discarded"): void {
     feed.publish({
@@ -63,10 +103,13 @@ export function createCallQueue(
     });
   }
 
-  function dial(request: ContactRequest): void {
+  function dial(request: ContactRequest, lineIndex: number): void {
     publishStatus(request, "executed");
-    inFlight.set(request.actionId, setTimeout(() => onSlotTimeout(request), slotTimeoutMs));
-    client.contact(request);
+    inFlight.set(request.actionId, {
+      timer: setTimeout(() => onSlotTimeout(request), slotTimeoutMs),
+      lineIndex,
+    });
+    client.contact({ ...request, line: lines[lineIndex] });
   }
 
   /** Index of the most urgent pending call; arrival order as tie-break */
@@ -89,18 +132,19 @@ export function createCallQueue(
 
   /** Fills freed capacity: stale calls fall out and the next live one dials, in the same pass */
   function pump(): void {
-    while (inFlight.size < maxInFlight && pending.length > 0) {
+    while (busy.size < lines.length && pending.length > 0) {
       const next = pending.splice(mostUrgentIndex(), 1)[0];
-      if (isStillRelevant(next.request)) {
-        dial(next.request);
-      } else {
+      if (!isStillRelevant(next.request)) {
         discard(next.request, `${next.request.context.elementId} no longer needs the call`);
+        continue;
       }
+      // Guaranteed by the loop condition: a contact is free
+      dial(next.request, takeLine());
     }
   }
 
   function onSlotTimeout(request: ContactRequest): void {
-    inFlight.delete(request.actionId);
+    release(request.actionId);
     pump();
     // Same shape the client emits on a transport failure: without this, a lost
     // webhook would hold the slot forever and the demo would go silent.
@@ -120,8 +164,9 @@ export function createCallQueue(
         client.contact(request);
         return;
       }
-      if (inFlight.size < maxInFlight) {
-        dial(request);
+      const lineIndex = takeLine();
+      if (lineIndex !== -1) {
+        dial(request, lineIndex);
         return;
       }
       if (pending.length < maxQueued) {
@@ -149,9 +194,7 @@ export function createCallQueue(
         onClosed(closure);
         return;
       }
-      const timer = inFlight.get(closure.actionId);
-      clearTimeout(timer);
-      inFlight.delete(closure.actionId);
+      release(closure.actionId);
       pump();
       onClosed(closure);
     },
