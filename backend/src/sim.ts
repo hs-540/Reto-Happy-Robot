@@ -107,6 +107,17 @@ export function crearSimulacion(
   }
 
   function aplicarEvento(ev: GuionEvento): void {
+    if (ev.kind === "reporte") {
+      // Señal en bruto: la mayoría es ruido. No toca el mundo; es el agente
+      // quien decide si cambia algo, y esa criba es parte de su trabajo.
+      feed.publicar({
+        kind: "reporte",
+        fuente: ev.payload.fuente,
+        texto: ev.payload.texto,
+        elementId: ev.payload.elementId,
+      });
+      return;
+    }
     if (ev.kind === "narrative") {
       if (ev.nota !== undefined) {
         feed.publicar({ kind: "sistema", mensaje: ev.nota });

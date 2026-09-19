@@ -8,6 +8,14 @@ interface AgentPanelProps {
   nombresElemento: Record<string, string>
 }
 
+const ETIQUETA_FUENTE: Record<string, string> = {
+  redes: 'Redes sociales',
+  llamada_112: 'Llamada al 112',
+  prensa: 'Prensa',
+  campo: 'Equipo en campo',
+  sensor_averiado: 'Sensor con lectura dudosa',
+}
+
 const ETIQUETA_ACCION: Record<string, string> = {
   llamada_voz: 'Llamada de voz',
   mensaje_chat: 'Mensaje',
@@ -36,6 +44,11 @@ function descripcionFeed(
       return {
         titulo: `${ETIQUETA_ACCION[item.tipo] ?? item.tipo} · ${item.estado}`,
         detalle: item.mensaje,
+      }
+    case 'reporte':
+      return {
+        titulo: `${ETIQUETA_FUENTE[item.fuente] ?? item.fuente}`,
+        detalle: item.texto,
       }
     case 'sistema':
       return { titulo: 'Sistema', detalle: item.mensaje }

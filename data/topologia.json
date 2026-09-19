@@ -1,0 +1,53 @@
+{
+  "$comentario": "Hechos físicos del escenario: qué depende de qué. Describe el mundo, NUNCA decisiones ni prioridades. El juicio lo pone el agente; esto solo le dice cómo está cableada la realidad.",
+  "aristas": [
+    {
+      "de": "sub-01",
+      "a": "hosp-01",
+      "tipo": "alimenta",
+      "nota": "El hospital cuelga de esta subestación. Restaurarla le devuelve la red."
+    },
+    {
+      "de": "sub-01",
+      "a": "dc-01",
+      "tipo": "alimenta",
+      "nota": "El datacenter cuelga de la misma subestación."
+    },
+    {
+      "de": "sub-01",
+      "a": "torre-01",
+      "tipo": "alimenta",
+      "nota": "La torre cuelga de la misma subestación; mientras tanto tira de sus baterías."
+    },
+    {
+      "de": "sub-01",
+      "a": "gas-01",
+      "tipo": "alimenta",
+      "nota": "Los surtidores son eléctricos: sin red, la gasolinera no despacha."
+    },
+    {
+      "de": "sub-01",
+      "a": "cruce-01",
+      "tipo": "alimenta",
+      "nota": "Los semáforos cuelgan de la misma subestación."
+    },
+    {
+      "de": "torre-01",
+      "a": "*",
+      "tipo": "habilita_comunicacion",
+      "nota": "Con la torre operativa se pueden hacer llamadas y enviar mensajes. Si sus baterías se agotan, el coordinador se queda sin canal para contactar con nadie."
+    },
+    {
+      "de": "cruce-01",
+      "a": "*",
+      "tipo": "habilita_transito",
+      "nota": "Semáforos apagados y sin regulación manual: cualquier trayecto por la zona tarda hasta el doble. Regular el cruce devuelve los tiempos a su valor normal."
+    },
+    {
+      "de": "gas-01",
+      "a": "cisterna-1",
+      "tipo": "reabastece",
+      "nota": "La cisterna reposta aquí. Sin gasolinera operativa, cuando agote su carga deja de poder reabastecer generadores."
+    }
+  ]
+}

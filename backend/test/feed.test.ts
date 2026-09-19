@@ -41,7 +41,7 @@ test("el feed asigna seq monotónico y ts, y desde(since) corta sin huecos", () 
   assert.equal(feed.ultimoSeq(), 3);
 });
 
-test("la simulación publica los 5 momentos clave como sistema en orden", () => {
+test("la simulación publica los momentos clave del guion como sistema en orden", () => {
   const guion = cargarGuion(
     new URL("../../data/scripts/apagon-madrid.json", import.meta.url),
   );
@@ -53,7 +53,7 @@ test("la simulación publica los 5 momentos clave como sistema en orden", () => 
 
   const notas = guion.timeline.flatMap((e) => (e.nota === undefined ? [] : [e.nota]));
   const sistemas = feed.desde(0).filter((i) => i.kind === "sistema");
-  assert.equal(sistemas.length, 5);
+  assert.equal(sistemas.length, notas.length);
   assert.deepEqual(
     sistemas.map((i) => (i.kind === "sistema" ? i.mensaje : "")),
     notas,

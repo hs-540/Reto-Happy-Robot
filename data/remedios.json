@@ -1,0 +1,89 @@
+{
+  "$comentario": "Qué recurso arregla qué problema, a qué coste y con qué requisitos. Igual que topologia.json: son hechos, no órdenes. Aquí no se dice qué hacer primero — eso lo decide el agente.",
+  "remedios": [
+    {
+      "recurso": "brigada",
+      "resuelve": "fallo_de_red",
+      "aplicableA": ["subestacion"],
+      "minutos": 25,
+      "efecto": "Restaura la alimentación de red a TODO lo que cuelga del nodo reparado. Es la acción de mayor cobertura por recurso gastado.",
+      "requiere": null,
+      "$nota": "Un generador no sustituye a esto: una subestación no se alimenta, se repara."
+    },
+    {
+      "recurso": "generador",
+      "resuelve": "falta_de_energia",
+      "aplicableA": ["hospital", "datacenter", "torre"],
+      "minutos": 5,
+      "efecto": "Suministro local mientras quede combustible. No arregla la causa, compra tiempo.",
+      "requiere": "combustible",
+      "$nota": "Ocupa el recurso mientras esté conectado: no se puede repartir entre dos sitios."
+    },
+    {
+      "recurso": "cisterna",
+      "resuelve": "combustible_bajo",
+      "aplicableA": ["hospital", "datacenter", "torre", "gasolinera"],
+      "minutos": 10,
+      "efecto": "Reabastece el depósito del sitio o del generador conectado: +8 h de autonomía.",
+      "requiere": "gasolinera_operativa",
+      "$nota": "Sin carga y sin gasolinera donde repostar, la cisterna deja de servir."
+    },
+    {
+      "recurso": "policia",
+      "resuelve": "transito_bloqueado",
+      "aplicableA": ["cruce"],
+      "minutos": 8,
+      "efecto": "Regula el cruce manualmente y devuelve los tiempos de desplazamiento a su valor normal para todos los recursos.",
+      "requiere": null,
+      "$nota": "No salva a nadie por sí sola. Habilita que los demás recursos lleguen a tiempo."
+    }
+  ],
+  "contactos": [
+    {
+      "id": "jefe-brigada",
+      "nombre": "Ángel Rivas",
+      "rol": "Jefe de brigada eléctrica",
+      "recursoId": "brigada-1",
+      "$nota": "Puede negarse con razón si se le pide abandonar una reparación a medias. Si se niega, indica cuántos minutos se retrasaría la nueva tarea."
+    },
+    {
+      "id": "patrulla-trafico",
+      "nombre": "Patrulla 14",
+      "rol": "Policía municipal de tráfico",
+      "recursoId": "policia-1"
+    },
+    {
+      "id": "conductor-cisterna",
+      "nombre": "Marta Sáez",
+      "rol": "Conductora de cisterna de gasóleo",
+      "recursoId": "cisterna-1"
+    },
+    {
+      "id": "responsable-hospital",
+      "nombre": "Dra. Elena Duarte",
+      "rol": "Responsable de guardia del hospital",
+      "elementId": "hosp-01",
+      "$nota": "Necesita instrucciones operativas y plazos concretos, no detalles de red."
+    },
+    {
+      "id": "operador-datacenter",
+      "nombre": "Iván Pombo",
+      "rol": "Operador de turno del CPD",
+      "elementId": "dc-01",
+      "$nota": "Técnico: entiende de carga, racks y refrigeración. Mensajes secos."
+    },
+    {
+      "id": "ciudadano-respirador",
+      "nombre": "Lucía Marín",
+      "rol": "Ciudadana con familiar en respirador domiciliario",
+      "elementId": "hosp-01",
+      "$nota": "No es personal técnico. Lenguaje llano, instrucciones simples y un plazo concreto."
+    },
+    {
+      "id": "coordinador-112",
+      "nombre": "Sala 112 Madrid",
+      "rol": "Coordinación de emergencias",
+      "$nota": "Destinatario de escalados cuando los recursos disponibles no alcanzan."
+    }
+  ]
+}

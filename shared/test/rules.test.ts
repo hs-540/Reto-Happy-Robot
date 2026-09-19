@@ -48,11 +48,14 @@ function reglaDe(r: ReturnType<typeof validarAccion>) {
 }
 
 test("capacidades y límites del catálogo", () => {
-  assert.equal(CAPACIDAD_RECURSOS.cuadrilla, 1);
+  assert.equal(CAPACIDAD_RECURSOS.brigada, 1);
   assert.equal(CAPACIDAD_RECURSOS.generador, 2);
   assert.equal(MAX_MINUTOS_SIN_ENERGIA.hospital, 8);
   assert.equal(MAX_MINUTOS_SIN_ENERGIA.datacenter, 12);
   assert.equal(MAX_MINUTOS_SIN_ENERGIA.subestacion, 20);
+  assert.equal(CAPACIDAD_RECURSOS.cisterna, 1);
+  assert.equal(CAPACIDAD_RECURSOS.policia, 1);
+  assert.equal(MAX_MINUTOS_SIN_ENERGIA.torre, 15);
 });
 
 test("cortes de severidad → status", () => {
@@ -221,7 +224,7 @@ test("calcularPrioridad: hospital crítico sin energía gana al datacenter degra
 
 test("REGLAS_PARA_AGENTE es serializable para inyectar en el prompt del LLM", () => {
   const json = JSON.parse(JSON.stringify(REGLAS_PARA_AGENTE));
-  assert.equal(json.reglasBloqueantes.length, 4);
+  assert.equal(json.reglasBloqueantes.length, 5);
   assert.equal(json.prioridad.ordenTipos[0], "hospital");
   assert.equal(json.limitesSinEnergiaMin.hospital, MAX_MINUTOS_SIN_ENERGIA.hospital);
 });

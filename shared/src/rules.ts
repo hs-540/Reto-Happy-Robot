@@ -14,6 +14,7 @@ export const IDS_REGLAS_BLOQUEANTES = [
   "hospital-prioridad-energia",
   "hospital-plazo-energia",
   "ups-critica-actuar",
+  "generador-sin-combustible",
 ] as const;
 
 export type ReglaBloqueanteId = (typeof IDS_REGLAS_BLOQUEANTES)[number];
@@ -53,14 +54,24 @@ export interface ReglasCatalogo {
 
 /* ─── Validación al cargar: fail fast si el JSON se edita mal ─── */
 
-const TIPOS_ELEMENTO: readonly ElementType[] = ["datacenter", "hospital", "subestacion"];
-const TIPOS_RECURSO: readonly ResourceType[] = ["cuadrilla", "generador"];
+const TIPOS_ELEMENTO: readonly ElementType[] = [
+  "datacenter",
+  "hospital",
+  "subestacion",
+  "torre",
+  "gasolinera",
+  "cruce",
+];
+const TIPOS_RECURSO: readonly ResourceType[] = ["brigada", "generador", "cisterna", "policia"];
 const METRICAS: readonly SensorMetric[] = [
   "temperatura",
   "carga_ups",
   "bateria_generador",
   "cobertura_red",
   "tension_red",
+  "bateria_torre",
+  "combustible",
+  "congestion",
 ];
 const STATUS: readonly ElementStatus[] = ["normal", "degradado", "critico", "resuelto"];
 

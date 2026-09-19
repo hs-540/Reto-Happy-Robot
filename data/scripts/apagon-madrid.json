@@ -1,5 +1,5 @@
 {
-  "titulo": "Apagón regional — Getafe, Comunidad de Madrid",
+  "titulo": "Apagón en cascada — Getafe, Comunidad de Madrid",
   "duracionSegundos": 300,
   "elements": [
     {
@@ -12,6 +12,15 @@
       "criticidad": 70
     },
     {
+      "id": "hosp-01",
+      "type": "hospital",
+      "name": "Hospital Regional Getafe-Sur",
+      "lat": 40.31,
+      "lng": -3.71,
+      "status": "normal",
+      "criticidad": 95
+    },
+    {
       "id": "dc-01",
       "type": "datacenter",
       "name": "CPD Metropolitano Getafe",
@@ -21,19 +30,37 @@
       "criticidad": 60
     },
     {
-      "id": "hosp-01",
-      "type": "hospital",
-      "name": "Hospital Regional Getafe-Sur",
-      "lat": 40.31,
-      "lng": -3.71,
+      "id": "torre-01",
+      "type": "torre",
+      "name": "Torre de telecomunicaciones Getafe Norte",
+      "lat": 40.3125,
+      "lng": -3.7285,
       "status": "normal",
-      "criticidad": 95
+      "criticidad": 75
+    },
+    {
+      "id": "gas-01",
+      "type": "gasolinera",
+      "name": "Estación de servicio A-42",
+      "lat": 40.2998,
+      "lng": -3.7352,
+      "status": "normal",
+      "criticidad": 40
+    },
+    {
+      "id": "cruce-01",
+      "type": "cruce",
+      "name": "Cruce Av. Juan Carlos I",
+      "lat": 40.3082,
+      "lng": -3.7156,
+      "status": "normal",
+      "criticidad": 35
     }
   ],
   "resources": [
     {
-      "id": "cuadrilla-1",
-      "type": "cuadrilla",
+      "id": "brigada-1",
+      "type": "brigada",
       "status": "disponible",
       "assignedElementId": null,
       "lat": 40.302,
@@ -54,26 +81,228 @@
       "assignedElementId": null,
       "lat": 40.302,
       "lng": -3.722
+    },
+    {
+      "id": "cisterna-1",
+      "type": "cisterna",
+      "status": "disponible",
+      "assignedElementId": null,
+      "lat": 40.2985,
+      "lng": -3.7312
+    },
+    {
+      "id": "policia-1",
+      "type": "policia",
+      "status": "disponible",
+      "assignedElementId": null,
+      "lat": 40.3062,
+      "lng": -3.7191
     }
   ],
   "timeline": [
     {
       "atSeconds": 0,
       "kind": "sensor_event",
-      "nota": "Momento 1 — apagón inicial en la subestación de origen.",
       "payload": {
         "id": "evt-001",
         "elementId": "sub-01",
         "metric": "tension_red",
         "value": 12,
         "severidad": 90
+      },
+      "nota": "Momento 1 — apagón en la subestación Getafe-Sur: caen todos los sitios que alimenta."
+    },
+    {
+      "atSeconds": 2,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-001",
+        "fuente": "redes",
+        "texto": "Se ha ido la luz en todo Getafe Norte",
+        "elementId": null
       }
     },
     {
-      "atSeconds": 15,
+      "atSeconds": 3,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-002",
+        "elementId": "hosp-01",
+        "metric": "tension_red",
+        "value": 8,
+        "severidad": 80
+      }
+    },
+    {
+      "atSeconds": 4,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-003",
+        "elementId": "dc-01",
+        "metric": "tension_red",
+        "value": 8,
+        "severidad": 80
+      }
+    },
+    {
+      "atSeconds": 4,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-002",
+        "fuente": "redes",
+        "texto": "Alguien más sin luz en Getafe? #apagon",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 5,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-004",
+        "elementId": "torre-01",
+        "metric": "tension_red",
+        "value": 8,
+        "severidad": 75
+      }
+    },
+    {
+      "atSeconds": 6,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-005",
+        "elementId": "gas-01",
+        "metric": "tension_red",
+        "value": 8,
+        "severidad": 60
+      }
+    },
+    {
+      "atSeconds": 6,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-003",
+        "fuente": "redes",
+        "texto": "Llevamos 5 min sin luz, esto es vergonzoso",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 7,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-006",
+        "elementId": "cruce-01",
+        "metric": "tension_red",
+        "value": 0,
+        "severidad": 55
+      }
+    },
+    {
+      "atSeconds": 8,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-004",
+        "fuente": "redes",
+        "texto": "@iberdrola qué pasa en Getafe??",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 9,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-007",
+        "elementId": "cruce-01",
+        "metric": "congestion",
+        "value": 14,
+        "severidad": 45
+      }
+    },
+    {
+      "atSeconds": 10,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-009",
+        "fuente": "llamada_112",
+        "texto": "Vecino pregunta cuándo vuelve la luz en su calle",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 11,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-005",
+        "fuente": "redes",
+        "texto": "mi nevera lleva parada un rato, se me va a estropear todo",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 13,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-006",
+        "fuente": "redes",
+        "texto": "Sin luz en Getafe otra vez, como en abril de 2025",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 14,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-010",
+        "fuente": "prensa",
+        "texto": "Medio local solicita declaración sobre el alcance del corte",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 16,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-007",
+        "fuente": "redes",
+        "texto": "No va el wifi ni la tele, alguien sabe algo",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 17,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-011",
+        "fuente": "campo",
+        "texto": "Patrulla 14 informa: semáforos apagados en Av. Juan Carlos I, circulación lenta",
+        "elementId": "cruce-01"
+      }
+    },
+    {
+      "atSeconds": 19,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-008",
+        "fuente": "redes",
+        "texto": "#apagon Getafe trending ya",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 21,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-012",
+        "fuente": "llamada_112",
+        "texto": "Persona atrapada en ascensor en calle Madrid 12 — bomberos ya avisados por otra vía",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 24,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-008",
         "elementId": "dc-01",
         "metric": "carga_ups",
         "value": 35,
@@ -81,54 +310,310 @@
       }
     },
     {
+      "atSeconds": 26,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-013",
+        "fuente": "redes",
+        "texto": "En el polígono hay un zumbido raro, será el generador del CPD",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 31,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-014",
+        "fuente": "redes",
+        "texto": "Mi router lleva 20 min sin dar señal",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 35,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-015",
+        "fuente": "sensor_averiado",
+        "texto": "Sensor T-14 del CPD reporta 87 °C — incoherente con los sensores contiguos",
+        "elementId": "dc-01"
+      }
+    },
+    {
+      "atSeconds": 38,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-016",
+        "fuente": "prensa",
+        "texto": "Solicitud de entrevista para el telediario de las 15h",
+        "elementId": null
+      }
+    },
+    {
       "atSeconds": 40,
       "kind": "sensor_event",
-      "nota": "Momento 2 — el datacenter empieza a sobrecalentarse, UPS con batería limitada.",
       "payload": {
-        "id": "evt-003",
+        "id": "evt-009",
         "elementId": "dc-01",
         "metric": "temperatura",
         "value": 41,
         "severidad": 55
+      },
+      "nota": "Momento 2 — el CPD empieza a sobrecalentarse con la UPS limitada."
+    },
+    {
+      "atSeconds": 43,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-017",
+        "fuente": "redes",
+        "texto": "Se ha ido la luz en Getafe!! (publicado hace 40 min)",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 46,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-010",
+        "elementId": "dc-01",
+        "metric": "carga_ups",
+        "value": 22,
+        "severidad": 60
+      }
+    },
+    {
+      "atSeconds": 49,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-018",
+        "fuente": "campo",
+        "texto": "Operario del CPD confirma pasillo caliente en la fila B",
+        "elementId": "dc-01"
       }
     },
     {
       "atSeconds": 60,
       "kind": "sensor_event",
       "payload": {
-        "id": "evt-004",
-        "elementId": "dc-01",
-        "metric": "carga_ups",
-        "value": 12,
-        "severidad": 75
+        "id": "evt-011",
+        "elementId": "torre-01",
+        "metric": "bateria_torre",
+        "value": 52,
+        "severidad": 35
+      }
+    },
+    {
+      "atSeconds": 63,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-019",
+        "fuente": "campo",
+        "texto": "Cobertura móvil intermitente en la zona norte; algunas llamadas no entran",
+        "elementId": "torre-01"
+      }
+    },
+    {
+      "atSeconds": 70,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-020",
+        "fuente": "redes",
+        "texto": "No me va el móvil, ni llamadas ni datos",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 75,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-012",
+        "elementId": "torre-01",
+        "metric": "bateria_torre",
+        "value": 34,
+        "severidad": 65
+      },
+      "nota": "Momento 3 — las baterías de la torre bajan: si cae, se pierde la capacidad de coordinar."
+    },
+    {
+      "atSeconds": 78,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-021",
+        "fuente": "llamada_112",
+        "texto": "Ciudadana informa de que su padre usa respirador domiciliario y la batería aguanta 1 hora",
+        "elementId": "hosp-01"
+      }
+    },
+    {
+      "atSeconds": 80,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-022",
+        "fuente": "redes",
+        "texto": "alguien sabe si el Mercadona abre?",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 83,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-023",
+        "fuente": "redes",
+        "texto": "3 horas sin luz ya",
+        "elementId": null
       }
     },
     {
       "atSeconds": 90,
       "kind": "sensor_event",
-      "nota": "Momento 3 — el hospital pierde el generador de respaldo: conflicto de recursos, llamada de voz en vivo.",
       "payload": {
-        "id": "evt-005",
+        "id": "evt-013",
         "elementId": "hosp-01",
         "metric": "bateria_generador",
         "value": 18,
         "severidad": 85
+      },
+      "nota": "Momento 4 — el hospital pierde su generador de respaldo: conflicto directo de recursos."
+    },
+    {
+      "atSeconds": 92,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-024",
+        "fuente": "campo",
+        "texto": "Hospital confirma que el grupo electrógeno principal no arranca",
+        "elementId": "hosp-01"
+      }
+    },
+    {
+      "atSeconds": 95,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-014",
+        "elementId": "hosp-01",
+        "metric": "combustible",
+        "value": 22,
+        "severidad": 70
+      }
+    },
+    {
+      "atSeconds": 97,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-025",
+        "fuente": "redes",
+        "texto": "En el hospital hay gente saliendo, qué pasa?",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 101,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-026",
+        "fuente": "prensa",
+        "texto": "Confirman ustedes incidencia en el Hospital Regional?",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 105,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-027",
+        "fuente": "llamada_112",
+        "texto": "Vecino reporta que no funciona el cajero de la sucursal",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 110,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-015",
+        "elementId": "gas-01",
+        "metric": "combustible",
+        "value": 30,
+        "severidad": 50
+      }
+    },
+    {
+      "atSeconds": 112,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-028",
+        "fuente": "campo",
+        "texto": "Estación de servicio A-42: surtidores sin corriente, no pueden despachar",
+        "elementId": "gas-01"
       }
     },
     {
       "atSeconds": 150,
       "kind": "narrative",
-      "nota": "Momento 4 — la cuadrilla enviada no cumple su ETA / el datacenter empeora: dispara replanteamiento completo.",
       "payload": {
-        "resourceId": "cuadrilla-1",
+        "resourceId": "brigada-1",
         "evento": "eta_incumplida"
+      },
+      "nota": "Momento 5 — la brigada no cumple su ETA: el plan contaba con ella y hay que replantear."
+    },
+    {
+      "atSeconds": 152,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-029",
+        "fuente": "redes",
+        "texto": "Atasco monumental en la Juan Carlos I",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 155,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-016",
+        "elementId": "cruce-01",
+        "metric": "congestion",
+        "value": 28,
+        "severidad": 65
+      }
+    },
+    {
+      "atSeconds": 158,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-030",
+        "fuente": "campo",
+        "texto": "Tráfico detenido en el acceso al hospital",
+        "elementId": "cruce-01"
+      }
+    },
+    {
+      "atSeconds": 163,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-031",
+        "fuente": "redes",
+        "texto": "llevo 25 min parado en el coche",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 168,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-032",
+        "fuente": "sensor_averiado",
+        "texto": "Sensor de tensión SUB-3 reporta 400% — fuera de rango físico",
+        "elementId": "sub-01"
       }
     },
     {
       "atSeconds": 170,
       "kind": "sensor_event",
       "payload": {
-        "id": "evt-006",
+        "id": "evt-017",
         "elementId": "dc-01",
         "metric": "temperatura",
         "value": 48,
@@ -136,22 +621,118 @@
       }
     },
     {
+      "atSeconds": 175,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-018",
+        "elementId": "torre-01",
+        "metric": "bateria_torre",
+        "value": 21,
+        "severidad": 80
+      }
+    },
+    {
+      "atSeconds": 180,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-033",
+        "fuente": "prensa",
+        "texto": "¿Hay previsión de restablecimiento?",
+        "elementId": null
+      }
+    },
+    {
       "atSeconds": 240,
       "kind": "sensor_event",
-      "nota": "Momento 5 — la subestación se repara, vuelve la energía, se cierra el incidente.",
       "payload": {
-        "id": "evt-007",
+        "id": "evt-019",
         "elementId": "sub-01",
         "metric": "tension_red",
         "value": 98,
         "severidad": 5
+      },
+      "nota": "Resolución — la subestación queda reparada y vuelve la energía a todo lo que alimenta."
+    },
+    {
+      "atSeconds": 243,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-034",
+        "fuente": "redes",
+        "texto": "HA VUELTO LA LUZ 🎉",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 245,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-020",
+        "elementId": "hosp-01",
+        "metric": "tension_red",
+        "value": 96,
+        "severidad": 5
+      }
+    },
+    {
+      "atSeconds": 247,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-021",
+        "elementId": "dc-01",
+        "metric": "tension_red",
+        "value": 96,
+        "severidad": 5
+      }
+    },
+    {
+      "atSeconds": 249,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-022",
+        "elementId": "torre-01",
+        "metric": "tension_red",
+        "value": 96,
+        "severidad": 5
+      }
+    },
+    {
+      "atSeconds": 251,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-023",
+        "elementId": "cruce-01",
+        "metric": "tension_red",
+        "value": 96,
+        "severidad": 5
+      }
+    },
+    {
+      "atSeconds": 253,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-024",
+        "elementId": "cruce-01",
+        "metric": "congestion",
+        "value": 4,
+        "severidad": 10
+      }
+    },
+    {
+      "atSeconds": 255,
+      "kind": "reporte",
+      "payload": {
+        "id": "rep-035",
+        "fuente": "prensa",
+        "texto": "Solicitamos balance del incidente",
+        "elementId": null
       }
     },
     {
       "atSeconds": 260,
       "kind": "sensor_event",
       "payload": {
-        "id": "evt-008",
+        "id": "evt-025",
         "elementId": "dc-01",
         "metric": "carga_ups",
         "value": 90,
@@ -159,10 +740,21 @@
       }
     },
     {
+      "atSeconds": 266,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-026",
+        "elementId": "torre-01",
+        "metric": "bateria_torre",
+        "value": 78,
+        "severidad": 10
+      }
+    },
+    {
       "atSeconds": 280,
       "kind": "sensor_event",
       "payload": {
-        "id": "evt-009",
+        "id": "evt-027",
         "elementId": "hosp-01",
         "metric": "bateria_generador",
         "value": 95,

@@ -20,6 +20,18 @@ export interface GuionEventoSensor {
   };
 }
 
+export interface GuionReporte {
+  atSeconds: number;
+  kind: "reporte";
+  nota?: string;
+  payload: {
+    id: string;
+    fuente: "redes" | "llamada_112" | "prensa" | "campo" | "sensor_averiado";
+    texto: string;
+    elementId: string | null;
+  };
+}
+
 export interface GuionEventoNarrativo {
   atSeconds: number;
   kind: "narrative";
@@ -30,7 +42,7 @@ export interface GuionEventoNarrativo {
   };
 }
 
-export type GuionEvento = GuionEventoSensor | GuionEventoNarrativo;
+export type GuionEvento = GuionEventoSensor | GuionEventoNarrativo | GuionReporte;
 
 export interface GuionElemento {
   id: string;
@@ -64,9 +76,19 @@ const METRICAS: readonly SensorMetric[] = [
   "bateria_generador",
   "cobertura_red",
   "tension_red",
+  "bateria_torre",
+  "combustible",
+  "congestion",
 ];
-const TIPOS_ELEMENTO: readonly ElementType[] = ["datacenter", "hospital", "subestacion"];
-const TIPOS_RECURSO: readonly ResourceType[] = ["cuadrilla", "generador"];
+const TIPOS_ELEMENTO: readonly ElementType[] = [
+  "datacenter",
+  "hospital",
+  "subestacion",
+  "torre",
+  "gasolinera",
+  "cruce",
+];
+const TIPOS_RECURSO: readonly ResourceType[] = ["brigada", "generador", "cisterna", "policia"];
 const STATUS_RECURSO: readonly ResourceStatus[] = ["disponible", "en_transito", "asignado"];
 
 function esRegistro(v: unknown): v is Record<string, unknown> {
@@ -135,7 +157,7 @@ function validarEvento(v: unknown, ruta: string): GuionEvento {
   if (!esRegistro(v)) throw new Error(`guion inválido: ${ruta} debe ser un objeto`);
   const atSeconds = numero(v, "atSeconds", ruta);
   const nota = opcionCadena(v, "nota");
-  const kind = union(v.kind, ["sensor_event", "narrative"], `${ruta}.kind`);
+  const kind = union(v.kind, ["sensor_event", "narrative", "reporte"], `${ruta}.kind`);
   const payload = v.payload;
   if (!esRegistro(payload)) throw new Error(`guion inválido: ${ruta}.payload debe ser un objeto`);
   if (kind === "sensor_event") {
@@ -149,6 +171,24 @@ function validarEvento(v: unknown, ruta: string): GuionEvento {
         metric: union(payload.metric, METRICAS, `${ruta}.payload.metric`),
         value: numero(payload, "value", `${ruta}.payload`),
         severidad: numero(payload, "severidad", `${ruta}.payload`),
+      },
+    };
+  }
+  if (kind === "reporte") {
+    const elementId = payload.elementId;
+    return {
+      atSeconds,
+      kind,
+      nota,
+      payload: {
+        id: cadena(payload, "id", `${ruta}.payload`),
+        fuente: union(
+          payload.fuente,
+          ["redes", "llamada_112", "prensa", "campo", "sensor_averiado"] as const,
+          `${ruta}.payload.fuente`,
+        ),
+        texto: cadena(payload, "texto", `${ruta}.payload`),
+        elementId: elementId === null ? null : cadena(payload, "elementId", `${ruta}.payload`),
       },
     };
   }

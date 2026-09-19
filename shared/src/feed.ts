@@ -1,7 +1,7 @@
 import type { SensorMetric } from "./world.js";
 import type { ActionStatus, ActionType } from "./agent.js";
 
-export type FeedItemKind = "alarma" | "decision" | "accion" | "sistema";
+export type FeedItemKind = "alarma" | "reporte" | "decision" | "accion" | "sistema";
 
 interface FeedBase {
   seq: number;
@@ -14,6 +14,14 @@ export interface FeedAlarma extends FeedBase {
   metric: SensorMetric;
   value: number;
   severidad: number;
+}
+
+/** Señal entrante sin procesar: el agente decide si cambia algo o es ruido */
+export interface FeedReporte extends FeedBase {
+  kind: "reporte";
+  fuente: "redes" | "llamada_112" | "prensa" | "campo" | "sensor_averiado";
+  texto: string;
+  elementId: string | null;
 }
 
 export interface FeedDecision extends FeedBase {
@@ -39,7 +47,7 @@ export interface FeedSistema extends FeedBase {
   mensaje: string;
 }
 
-export type FeedItem = FeedAlarma | FeedDecision | FeedAccion | FeedSistema;
+export type FeedItem = FeedAlarma | FeedReporte | FeedDecision | FeedAccion | FeedSistema;
 
 export interface FeedResponse {
   items: FeedItem[];

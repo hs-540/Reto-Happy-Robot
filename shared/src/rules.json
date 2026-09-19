@@ -12,17 +12,55 @@
   },
   "umbralesMetrica": {
     "$comentario": "direccion `bajo`: peor cuanto más bajo el valor. direccion `alto`: peor cuanto más alto. Cortes incluidos.",
-    "tension_red": { "direccion": "bajo", "degradado": 85, "critico": 50 },
-    "carga_ups": { "direccion": "bajo", "degradado": 50, "critico": 15 },
-    "bateria_generador": { "direccion": "bajo", "degradado": 60, "critico": 20 },
-    "temperatura": { "direccion": "alto", "degradado": 40, "critico": 45 },
-    "cobertura_red": { "direccion": "bajo", "degradado": 80, "critico": 50 }
+    "tension_red": {
+      "direccion": "bajo",
+      "degradado": 85,
+      "critico": 50
+    },
+    "carga_ups": {
+      "direccion": "bajo",
+      "degradado": 50,
+      "critico": 15
+    },
+    "bateria_generador": {
+      "direccion": "bajo",
+      "degradado": 60,
+      "critico": 20
+    },
+    "temperatura": {
+      "direccion": "alto",
+      "degradado": 40,
+      "critico": 45
+    },
+    "cobertura_red": {
+      "direccion": "bajo",
+      "degradado": 80,
+      "critico": 50
+    },
+    "bateria_torre": {
+      "direccion": "bajo",
+      "degradado": 40,
+      "critico": 20
+    },
+    "combustible": {
+      "direccion": "bajo",
+      "degradado": 40,
+      "critico": 15
+    },
+    "congestion": {
+      "direccion": "alto",
+      "degradado": 10,
+      "critico": 25
+    }
   },
   "limitesSinEnergiaMin": {
     "$comentario": "Minutos máximos sin energía de red ni respaldo fiable, por tipo de sitio. Superar el límite de un hospital activa la regla bloqueante hospital-plazo-energia.",
     "hospital": 8,
     "datacenter": 12,
-    "subestacion": 20
+    "subestacion": 20,
+    "torre": 15,
+    "gasolinera": 30,
+    "cruce": 45
   },
   "ups": {
     "$comentario": "Carga de UPS en %. Por debajo de `actuar` está prohibido esperar (hist-dc-002). Por debajo de `emergencia` es activación inmediata de respaldo.",
@@ -32,14 +70,38 @@
   },
   "recursos": {
     "$comentario": "Capacidad total del escenario (DESIGN.md). Exclusión mutua: un recurso atiende a un elemento a la vez.",
-    "capacidad": { "cuadrilla": 1, "generador": 2 }
+    "capacidad": {
+      "brigada": 1,
+      "generador": 2,
+      "cisterna": 1,
+      "policia": 1
+    }
   },
   "prioridad": {
-    "$comentario": "Orden de prioridad cuando los elementos compiten por recursos, y pesos para calcular la prioridad numérica de un elemento: prioridad = 0.5 * criticidad + pesoStatus + pesoTipo + pesoMinutoSinEnergia * min(minutosSinEnergia, 15).",
-    "ordenTipos": ["hospital", "subestacion", "datacenter"],
+    "$comentario": "Orden de prioridad cuando los elementos compiten por recursos, y pesos para calcular la prioridad numérica de un elemento: prioridad = 0.5 * criticidad + pesoStatus + pesoTipo + pesoMinutoSinEnergia * min(minutosSinEnergia, 15).. La torre pesa casi como la subestación: al caer se pierde la capacidad de coordinar. prioridad = 0.5 * criticidad + pesoStatus + pesoTipo + pesoMinutoSinEnergia * min(minutosSinEnergia, 15).",
+    "ordenTipos": [
+      "hospital",
+      "subestacion",
+      "torre",
+      "datacenter",
+      "gasolinera",
+      "cruce"
+    ],
     "pesoCriticidad": 0.5,
-    "pesoStatus": { "critico": 60, "degradado": 20, "normal": 0, "resuelto": 0 },
-    "pesoTipo": { "hospital": 30, "subestacion": 20, "datacenter": 10 },
+    "pesoStatus": {
+      "critico": 60,
+      "degradado": 20,
+      "normal": 0,
+      "resuelto": 0
+    },
+    "pesoTipo": {
+      "hospital": 30,
+      "subestacion": 20,
+      "torre": 18,
+      "datacenter": 10,
+      "gasolinera": 8,
+      "cruce": 6
+    },
     "pesoMinutoSinEnergia": 2,
     "maxMinutosContabilizados": 15
   },
@@ -59,13 +121,18 @@
     {
       "id": "ups-critica-actuar",
       "regla": "Con carga_ups por debajo del umbral de actuación está prohibido esperar: hay que asignar recurso o escalar (hist-dc-002)."
+    },
+    {
+      "id": "generador-sin-combustible",
+      "regla": "Un generador con combustible por debajo del umbral crítico no puede asignarse a un sitio nuevo: primero hay que reabastecerlo con la cisterna."
     }
   ],
   "$comentarioReglas": "El LLM no puede proponer una acción que viole reglasBloqueantes: la capa de reglas las rechaza antes de ejecutar.",
   "triggersReplan": [
     "Un evento hace que un elemento crítico cruce un umbral de severidad.",
     "Una acción en marcha falla o no cumple su ETA.",
-    "Un hospital supera su límite de minutos sin energía."
+    "Un hospital supera su límite de minutos sin energía.",
+    "Un contacto rechaza una acción o comunica un retraso: el plan contaba con un ETA que ya no se cumple."
   ],
   "$comentarioTriggers": "Disparan replanteamiento completo (abandonar plan actual), no solo ajuste incremental."
 }
