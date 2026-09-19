@@ -193,7 +193,6 @@ function App() {
         <StartOverlay
           title={topology.crisis.title}
           durationSeconds={topology.crisis.durationSeconds}
-          moments={topology.crisis.moments}
           sitesCount={state.elements.length}
           unitsCount={state.resources.length}
           pending={pending}
