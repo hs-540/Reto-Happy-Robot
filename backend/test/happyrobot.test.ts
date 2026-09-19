@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import type { CallClosure, Contact } from "@swarmup/shared";
-import { createHappyRobotClient, type ContactRequest } from "../src/happyrobot.js";
+import { buildPrompt, createHappyRobotClient, type ContactRequest } from "../src/happyrobot.js";
 
 const chief: Contact = {
   id: "crew-chief",
@@ -14,6 +14,15 @@ const HOOK_URL = "https://workflows.example/hooks/dev/abc123";
 
 function simulatedClient(onClosed: (c: CallClosure) => void) {
   return createHappyRobotClient({ onClosed });
+}
+
+function realClient(overrides: Partial<Parameters<typeof createHappyRobotClient>[0]> = {}) {
+  return createHappyRobotClient({
+    enabled: true,
+    webhookUrl: HOOK_URL,
+    onClosed: () => {},
+    ...overrides,
+  });
 }
 
 function realRequest(overrides: Partial<ContactRequest> = {}): ContactRequest {
@@ -74,6 +83,30 @@ test("when pressed, he accepts with a smaller delay", async () => {
   assert.equal(closures[1].delayMinutes, 8);
 });
 
+test("a hook alone never places a call: the switch has to be on", () => {
+  // A leftover HAPPYROBOT_WEBHOOK_URL in an .env must not be able to ring
+  // anybody. Only an explicit opt-in reaches the phone network.
+  assert.equal(realClient({ enabled: false }).mode, "simulated");
+  assert.equal(realClient({ enabled: undefined }).mode, "simulated");
+  assert.equal(realClient().mode, "real");
+});
+
+test("the switch on with no hook falls back to simulated instead of failing", () => {
+  assert.equal(realClient({ webhookUrl: undefined }).mode, "simulated");
+  assert.equal(realClient({ webhookUrl: "" }).mode, "simulated");
+});
+
+test("a disabled client never touches the network", async () => {
+  const fetchMock = mock.method(globalThis, "fetch", async () => new Response(null));
+  try {
+    realClient({ enabled: false }).contact(realRequest());
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(fetchMock.mock.callCount(), 0, "the hook must not be contacted at all");
+  } finally {
+    fetchMock.mock.restore();
+  }
+});
+
 test("the real client dispatches exactly prompt and missionId to the hook", async () => {
   const dispatches: string[] = [];
   const fetchMock = mock.method(
@@ -83,6 +116,7 @@ test("the real client dispatches exactly prompt and missionId to the hook", asyn
   );
   try {
     const client = createHappyRobotClient({
+      enabled: true,
       webhookUrl: HOOK_URL,
       onClosed: () => {},
       onDispatched: (missionId) => dispatches.push(missionId),
@@ -95,13 +129,63 @@ test("the real client dispatches exactly prompt and missionId to the hook", asyn
     const [url, init] = fetchMock.mock.calls[0].arguments;
     assert.equal(String(url), HOOK_URL, "the hook URL goes out verbatim");
     assert.equal(init?.method, "POST");
-    assert.deepEqual(JSON.parse(String(init?.body)), {
-      prompt: "hospital 4 min from its limit Leave the splice and head to the hospital",
-      missionId: "act-001",
-    });
+    const sent = JSON.parse(String(init?.body));
+    assert.equal(sent.missionId, "act-001");
+    assert.equal(sent.prompt, buildPrompt(realRequest()));
     assert.deepEqual(dispatches, ["act-001"]);
   } finally {
     fetchMock.mock.restore();
+  }
+});
+
+test("the brief carries recipient, mission, situation, message and the ask", () => {
+  const prompt = buildPrompt(realRequest());
+
+  // A bare fragment is what left a run with no transcript at all; each of these
+  // is a piece the voice agent needs to place the call and come back with something
+  assert.match(prompt, /Ángel Rivas, Electrical crew chief/, "who is on the other side");
+  assert.match(prompt, /Mission act-001\./, "the mission id closes the loop with the summary event");
+  assert.match(prompt, /hospital 4 min from its limit/, "why the call is happening");
+  assert.match(prompt, /sub-01/, "the site it is about");
+  assert.match(prompt, /"Leave the splice and head to the hospital"/, "the message, verbatim");
+  assert.match(prompt, /commitment in minutes/, "what the agent must come back with");
+});
+
+test("a brief with no situation drops the clause instead of leaving it dangling", () => {
+  const prompt = buildPrompt(realRequest({ context: { elementId: "sub-01", situation: "" } }));
+
+  assert.doesNotMatch(prompt, /Situation:/);
+  assert.match(prompt, /Affected site: sub-01\./);
+});
+
+test("a guarded hook gets its key as x-api-key, an unguarded one gets no header", async () => {
+  for (const [apiKey, expected] of [
+    ["hook-secret", "hook-secret"],
+    ["", undefined],
+    [undefined, undefined],
+  ] as const) {
+    const fetchMock = mock.method(
+      globalThis,
+      "fetch",
+      async (_url: string | URL, _init?: RequestInit) => new Response(null, { status: 200 }),
+    );
+    try {
+      const client = createHappyRobotClient({ enabled: true, webhookUrl: HOOK_URL, apiKey, onClosed: () => {} });
+
+      client.contact(realRequest());
+      await new Promise((r) => setTimeout(r, 10));
+
+      const [, init] = fetchMock.mock.calls[0].arguments;
+      const headers = init?.headers as Record<string, string> | undefined;
+      assert.equal(
+        headers?.["x-api-key"],
+        expected,
+        "an empty key must not travel: a guarded hook would reject it and an unguarded one needs none",
+      );
+      assert.equal(headers?.["Content-Type"], "application/json");
+    } finally {
+      fetchMock.mock.restore();
+    }
   }
 });
 
@@ -117,6 +201,7 @@ test("a hook rejection or a transport failure closes the call as no_answer", asy
     const fetchMock = mock.method(globalThis, "fetch", failure);
     try {
       const client = createHappyRobotClient({
+        enabled: true,
         webhookUrl: HOOK_URL,
         onClosed: (c) => closures.push(c),
         onDispatched: (missionId) => dispatches.push(missionId),

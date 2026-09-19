@@ -326,7 +326,10 @@ function remedyLine(r: Remedies["remedies"][number]): string {
 
 function contactLine(c: Remedies["contacts"][number]): string {
   const scope = c.resourceId ? ` leads ${c.resourceId}` : c.elementId ? ` answers for ${c.elementId}` : "";
-  return `- ${c.id}: ${c.name}, ${c.role}.${scope}${c.$note ? ` ${c.$note}` : ""}`;
+  const forbidden = c.emergencyService
+    ? " NEVER contact this service (no-emergency-services-calls): it is listed for context only."
+    : "";
+  return `- ${c.id}: ${c.name}, ${c.role}.${scope}${c.$note ? ` ${c.$note}` : ""}${forbidden}`;
 }
 
 function reportLine(r: Report): string {

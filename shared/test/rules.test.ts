@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  BLOCKING_RULE_IDS,
   RESOURCE_CAPACITY,
   MAX_MINUTES_WITHOUT_POWER,
   AGENT_RULES,
@@ -331,7 +332,12 @@ test("calculatePriority: critical hospital without power beats degraded datacent
 
 test("AGENT_RULES is serializable to be injected into the LLM prompt", () => {
   const json = JSON.parse(JSON.stringify(AGENT_RULES));
-  assert.equal(json.blockingRules.length, 5);
+  // Tied to the id list rather than to a literal count: a rule added to one and
+  // forgotten in the other is the bug worth catching, not the arithmetic
+  assert.deepEqual(
+    json.blockingRules.map((r: { id: string }) => r.id),
+    [...BLOCKING_RULE_IDS],
+  );
   assert.equal(json.priority.typeOrder[0], "hospital");
   assert.equal(json.maxMinutesWithoutPower.hospital, MAX_MINUTES_WITHOUT_POWER.hospital);
 });

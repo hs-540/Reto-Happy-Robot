@@ -134,7 +134,9 @@ const dispatchedMissions = new Set<string>();
  */
 const happyrobot = createCallQueue(
   createHappyRobotClient({
+    enabled: config.happyrobot.realCallsEnabled,
     webhookUrl: config.happyrobot.webhookUrl,
+    apiKey: config.happyrobot.apiKey,
     onClosed: (closure) => happyrobot.onClosed(closure),
     onDispatched: (missionId) => dispatchedMissions.add(missionId),
   }),
@@ -154,8 +156,10 @@ const happyrobot = createCallQueue(
  * closure that frees the queue slot and wakes the engine. The simulated client
  * needs none of this — it closes its own calls.
  */
+const realCalls = config.happyrobot.realCallsEnabled && Boolean(config.happyrobot.webhookUrl);
+
 const outcomePoller =
-  config.happyrobot.webhookUrl && config.eventsApi.apiKey
+  realCalls && config.eventsApi.apiKey
     ? createOutcomePoller({
         url: config.eventsApi.url,
         apiKey: config.eventsApi.apiKey,
@@ -166,7 +170,7 @@ const outcomePoller =
       })
     : null;
 
-if (config.happyrobot.webhookUrl && !outcomePoller) {
+if (realCalls && !outcomePoller) {
   console.warn(
     "[happyrobot] mission hook configured but EVENTS_API_KEY is missing: real calls will only close through the slot backstop",
   );
