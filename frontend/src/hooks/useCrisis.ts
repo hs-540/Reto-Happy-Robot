@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import type { AgentView, FeedItem, RunSummaryView, StateView, TopologyView } from '@swarmup/shared'
 import { getAgent, getFeed, getState, getSummary, getTopology } from '../api'
 
-/* The map moves fast (TIME_SCALE = 15): one-second polling keeps marker
-   motion smooth instead of teleporting between jumps. */
-const POLL_MS = 1000
+/* The map moves fast (TIME_SCALE = 15): half-second polling keeps marker
+   motion smooth instead of teleporting between jumps. Each poll also calls
+   advance() server-side, so while the UI is open this — not TICK_MS — is the
+   engine's effective cadence. */
+const POLL_MS = 500
 
 const EMPTY_TOPOLOGY: TopologyView = {
   crisis: { title: 'Connecting to the backend…', durationSeconds: 0, moments: [] },
