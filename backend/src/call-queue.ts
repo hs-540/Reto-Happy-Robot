@@ -20,7 +20,19 @@ export interface CallQueueOptions {
    * is enqueued. Injected so this module stays free of world knowledge.
    */
   isStillRelevant: (request: ContactRequest) => boolean;
+  /**
+   * The run is over. Read on every dial, not captured once: a reset starts a
+   * new run on the same queue, and the answer has to follow the run that is
+   * live now. While it is true NOTHING reaches the phone network — no waiting
+   * call, no fresh one, on either channel — because a call placed after the end
+   * rings a real person about a crisis that no longer exists and that nobody is
+   * watching the screen for.
+   */
+  isRunOver: () => boolean;
 }
+
+/** Why a call is dropped once the script has run out; the feed says it verbatim */
+const RUN_OVER = "the simulation is over and no further calls are placed";
 
 interface PendingCall {
   request: ContactRequest;
@@ -44,12 +56,20 @@ interface HeldLine {
  * contact busy the rest wait rather than going out, so shrinking the pool
  * narrows the whole system and a single contact serialises it. Only
  * `voice_call` takes a contact, `chat_message` passes straight through.
+ *
+ * It is also the end-of-run gate: past the end of the script this queue dials
+ * nothing at all, which is why every outbound path in the system goes through
+ * it.
  */
 export function createCallQueue(
   client: HappyRobotClient,
   options: CallQueueOptions,
-): HappyRobotClient & { onClosed(closure: CallClosure): void } {
-  const { feed, maxQueued, slotTimeoutMs, onClosed, isStillRelevant } = options;
+): HappyRobotClient & {
+  onClosed(closure: CallClosure): void;
+  /** The run ended: drop every call still waiting for a contact, now */
+  dropWaiting(): void;
+} {
+  const { feed, maxQueued, slotTimeoutMs, onClosed, isStillRelevant, isRunOver } = options;
   /* An empty pool still leaves one anonymous line, so the queue keeps working
      and the dispatch carries no contact — the body the hook took before the
      pool existed. Only reachable with the simulated client: a real one is never
@@ -130,8 +150,19 @@ export function createCallQueue(
     return worst;
   }
 
+  /** Drops every waiting call for the same reason, each with its feed entry */
+  function dropPending(why: string): void {
+    for (const call of pending.splice(0, pending.length)) discard(call.request, why);
+  }
+
   /** Fills freed capacity: stale calls fall out and the next live one dials, in the same pass */
   function pump(): void {
+    // A contact freed past the end of the run is not capacity to fill: whatever
+    // was waiting for it is dropped instead of dialled.
+    if (isRunOver()) {
+      dropPending(RUN_OVER);
+      return;
+    }
     while (busy.size < lines.length && pending.length > 0) {
       const next = pending.splice(mostUrgentIndex(), 1)[0];
       if (!isStillRelevant(next.request)) {
@@ -160,6 +191,13 @@ export function createCallQueue(
   return {
     mode: client.mode,
     contact(request) {
+      // The hard stop, ahead of the channel split so it covers messages too: a
+      // deliberation still in flight when the script ended lands here, and
+      // nothing it decided goes out.
+      if (isRunOver()) {
+        discard(request, RUN_OVER);
+        return;
+      }
       if (request.channel !== "voice_call") {
         client.contact(request);
         return;
@@ -197,6 +235,9 @@ export function createCallQueue(
       release(closure.actionId);
       pump();
       onClosed(closure);
+    },
+    dropWaiting() {
+      dropPending(RUN_OVER);
     },
   };
 }

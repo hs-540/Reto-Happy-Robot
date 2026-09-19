@@ -45,6 +45,7 @@ function harness(overrides: Partial<CallQueueOptions> = {}) {
     slotTimeoutMs: 120_000,
     onClosed: (closure) => closures.push(closure),
     isStillRelevant: () => true,
+    isRunOver: () => false,
     ...overrides,
   });
   return { queue, feed, dialled, closures };
@@ -267,4 +268,75 @@ test("with no pool configured the dispatch carries no contact at all", () => {
   // it took before the pool existed.
   assert.deepEqual(h.dialled.map((r) => r.actionId), ["act-001"]);
   assert.equal(h.dialled[0].line, undefined);
+});
+
+test("once the run is over nothing is dialled, on either channel", () => {
+  let over = false;
+  const h = harness({ lines: POOL, isRunOver: () => over });
+  h.queue.contact(request("act-001", 10));
+  assert.deepEqual(h.dialled.map((r) => r.actionId), ["act-001"]);
+
+  over = true;
+  // A deliberation still in flight when the script ended lands here. Free
+  // contacts, an urgent site and a message that takes no contact at all: none
+  // of it reaches the phones.
+  h.queue.contact(request("act-002", 99));
+  h.queue.contact({ ...request("act-003", 99), channel: "chat_message" });
+  assert.deepEqual(h.dialled.map((r) => r.actionId), ["act-001"]);
+  assert.deepEqual(discardedActionIds(h.feed), ["act-002", "act-003"]);
+  assert.match(systemMessages(h.feed)[0], /the simulation is over/);
+});
+
+test("a call waiting for a contact when the run ends is dropped, not dialled", () => {
+  let over = false;
+  const h = harness({ isRunOver: () => over });
+  h.queue.contact(request("act-001", 10));
+  h.queue.contact(request("act-002", 5));
+  assert.deepEqual(h.dialled.map((r) => r.actionId), ["act-001"]);
+
+  over = true;
+  // The closure of the live call frees its contact; the call that was waiting
+  // for it must not take it.
+  h.queue.onClosed(closureFor("act-001"));
+  assert.deepEqual(h.dialled.map((r) => r.actionId), ["act-001"]);
+  assert.deepEqual(discardedActionIds(h.feed), ["act-002"]);
+  assert.deepEqual(h.closures.map((c) => c.actionId), ["act-001"]);
+});
+
+test("the backstop frees a contact after the end without dialling what waited for it", () => {
+  let over = false;
+  const h = harness({ isRunOver: () => over, slotTimeoutMs: 120_000 });
+  h.queue.contact(request("act-001", 10));
+  h.queue.contact(request("act-002", 5));
+
+  over = true;
+  mock.timers.tick(120_000);
+  assert.deepEqual(h.dialled.map((r) => r.actionId), ["act-001"]);
+  assert.deepEqual(discardedActionIds(h.feed), ["act-002"]);
+  // the timed-out call still closes: the agent of the run that owns it is told
+  assert.equal(h.closures[0].outcome, "no_answer");
+});
+
+test("dropWaiting empties the queue at the end of the run, without waiting for a closure", () => {
+  let over = false;
+  const h = harness({ maxQueued: 3, isRunOver: () => over });
+  h.queue.contact(request("act-001", 10));
+  h.queue.contact(request("act-002", 5));
+  h.queue.contact(request("act-003", 4));
+
+  over = true;
+  h.queue.dropWaiting();
+  assert.deepEqual(discardedActionIds(h.feed), ["act-002", "act-003"]);
+  assert.deepEqual(h.dialled.map((r) => r.actionId), ["act-001"]);
+});
+
+test("a reset reopens the phones: the gate follows the run that is live now", () => {
+  let over = true;
+  const h = harness({ isRunOver: () => over });
+  h.queue.contact(request("act-001", 10));
+  assert.deepEqual(h.dialled.map((r) => r.actionId), []);
+
+  over = false;
+  h.queue.contact(request("act-002", 10));
+  assert.deepEqual(h.dialled.map((r) => r.actionId), ["act-002"]);
 });
