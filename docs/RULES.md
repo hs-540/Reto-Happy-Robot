@@ -44,6 +44,9 @@ Inclusive cuts. `direction = low` → the lower the value the worse; `direction 
 | `generator_battery` (%) | low | ≤ 60 | ≤ 20 |
 | `temperature` (°C) | high | ≥ 40 | ≥ 45 |
 | `network_coverage` (%) | low | ≤ 80 | ≤ 50 |
+| `tower_battery` (%) | low | ≤ 40 | ≤ 20 |
+| `fuel` (%) | low | ≤ 40 | ≤ 15 |
+| `congestion` (index) | high | ≥ 10 | ≥ 25 |
 
 These raw thresholds **raise the status even when the event's severity is low** (e.g. `temperature 41` with `severity 55` → at least `degraded`).
 
@@ -55,7 +58,10 @@ These raw thresholds **raise the status even when the event's severity is low** 
 | --- | --- |
 | **hospital** | **8** |
 | datacenter | 12 |
+| tower | 15 |
 | substation | 20 |
+| fuel_station | 30 |
+| junction | 45 |
 
 ### UPS threshold (when a rule is blocking for the LLM)
 
@@ -67,7 +73,8 @@ These raw thresholds **raise the status even when the event's severity is low** 
 
 ## 4. Resource constraints
 
-Total shared capacity of the scenario: **1 crew + 2 generators**.
+Total shared capacity of the scenario (`resources.capacity` in `rules.json`):
+**1 crew + 2 generators + 1 tanker + 1 police unit**.
 
 - **Mutual exclusion**: a resource serves **one element at a time**. A resource in `assigned` or `in_transit` cannot be reassigned (blocking rule `no-double-assignment`).
 - **On release** a resource goes to `available` and can be reassigned on the next tick; releasing is an **incremental adjustment**, it does not trigger re-planning.
@@ -75,14 +82,16 @@ Total shared capacity of the scenario: **1 crew + 2 generators**.
 
 ## 5. Priority order (who wins and why)
 
-**Type order**: `hospital` > `substation` > `datacenter`. Reason: risk to life > origin of the cascade (fixing it restores everyone) > service loss. It matches the contract's `criticality` (95 / 70 / 60 in the script).
+**Type order**: `hospital` > `substation` > `tower` > `datacenter` > `fuel_station` > `junction`. Reason: risk to life > origin of the cascade (fixing it restores everyone) > the ability to coordinate at all > service loss > what refuels the resources > what slows them down. It matches the script's `criticality` (95 / 70 / 75 / 60 / 40 / 35).
+
+The tower weighs almost as much as the substation on purpose: if its batteries run out, no call or message reaches anyone and the agent loses its only lever over people. The junction weighs least and still matters, because an unregulated junction doubles every journey (`enables_transit` in `data/topology.json`).
 
 ### Numeric priority formula
 
 ```
 priority = 0.5 · criticality
          + statusWeight        (critical 60 · degraded 20 · normal/resolved 0)
-         + typeWeight          (hospital 30 · substation 20 · datacenter 10)
+         + typeWeight          (hospital 30 · substation 20 · tower 18 · datacenter 10 · fuel_station 8 · junction 6)
          + 2 · min(minutesWithoutPower, 15)
 ```
 
@@ -98,6 +107,7 @@ The LLM **cannot** propose an action that violates them; the rules layer rejects
 | `hospital-power-priority` | While a hospital is `critical` and without power backup, generators can only be assigned to it. |
 | `hospital-power-deadline` | If a hospital exceeds its limit of minutes without power, only acting on it or on the origin substation (if `critical`) is allowed. |
 | `critical-ups-act` | With `ups_load` below the act threshold (15) waiting is forbidden: a resource must be assigned or the issue escalated. |
+| `generator-without-fuel` | A generator cannot be deployed to a site whose `fuel` is at or below the critical threshold (15): it must be refuelled by the tanker first, or the journey is wasted. |
 
 Application notes:
 
@@ -111,5 +121,6 @@ They trigger a **full re-plan** (abandon the current plan), not just incremental
 1. An event makes a critical element **cross a severity threshold**.
 2. An action in progress **fails or misses its ETA**.
 3. A hospital **exceeds its limit of minutes without power**.
+4. A contact **refuses an action or reports a delay** on a call: the plan relied on an ETA that no longer holds. It arrives through `POST /api/call/outcome` → `agent.closeCall()`.
 
 The remaining ticks (5–10 s) are only incremental adjustments: reordering queues by `calculatePriority`, updating states, reassigning released resources.
