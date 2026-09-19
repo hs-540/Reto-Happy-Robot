@@ -15,6 +15,7 @@ import type {
 } from "@swarmup/shared";
 import { validarAccion } from "@swarmup/shared";
 import type { RegistroAcciones } from "./control.js";
+import type { ClienteHappyRobot } from "./happyrobot.js";
 import type { ClienteLlm } from "./llm.js";
 import type { EventoMundo, Mundo } from "./mundo.js";
 import type { Feed } from "./feed.js";
@@ -65,6 +66,8 @@ export interface OpcionesAgente {
   llm: ClienteLlm;
   /** Registro de acciones reales: las sella como ejecutadas y las publica (#43, sin gate humano) */
   registroAcciones: RegistroAcciones;
+  /** canal hacia el mundo real: llamadas y mensajes */
+  happyrobot: ClienteHappyRobot;
   historico: HistoricoIncidente[];
   topologia: Topologia;
   remedios: Remedios;
@@ -79,7 +82,7 @@ function esperar(ms: number): Promise<never> {
 }
 
 export function crearAgente(opciones: OpcionesAgente): Agente {
-  const { mundo, feed, llm, registroAcciones, historico, topologia, remedios, segundos } =
+  const { mundo, feed, llm, registroAcciones, happyrobot, historico, topologia, remedios, segundos } =
     opciones;
 
   let plan: AgentPlan | null = null;
@@ -88,6 +91,12 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
   let acciones: Action[] = [];
   /** status del tick anterior, para detectar cruces de umbral */
   let statusPrevio = new Map<string, ElementStatus>();
+  /**
+   * Avisos ya enviados, por destinatario y texto. Con teléfonos reales, repetir
+   * el mismo mensaje a la misma persona es llamarla dos veces para decirle lo
+   * mismo: molesta y resta credibilidad. Si el mensaje cambia, sale de nuevo.
+   */
+  const avisosEnviados = new Set<string>();
   /** señales en bruto acumuladas desde la última deliberación */
   let reportesPendientes: Reporte[] = [];
   /** motivos extra inyectados desde fuera (resultados de llamadas) */
@@ -151,6 +160,11 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
 
   /* ─── Fallback determinista: el agente degrada, nunca se congela ─────── */
 
+  /** Contacto que responde de un sitio, para el aviso automático del fallback */
+  function responsableDe(elementId: string): string | null {
+    return remedios.contactos.find((c) => c.elementId === elementId)?.id ?? null;
+  }
+
   function decidirPorReglas(estado: StateView, motivos: string[]): SalidaAgente {
     const contexto = mundo.contexto(estado.elementos);
     const ranking = mundo.prioridades(estado.elementos);
@@ -164,6 +178,7 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
         evaluacion: { descartados: [], accionables: [] },
         objetivo: "Sin incidencias activas: vigilancia",
         pasos: [],
+        comunicaciones: [],
         decisiones: [],
       };
     }
@@ -208,6 +223,18 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
       evaluacion: { descartados: [], accionables: motivos },
       objetivo: `Modo degradado (sin LLM): atender ${objetivo.elementId} por prioridad de reglas`,
       pasos: [{ descripcion: accion.mensaje, elementId: objetivo.elementId }],
+      // aun sin LLM se avisa al responsable: quedarse callado no es una opción
+      comunicaciones: responsableDe(objetivo.elementId)
+        ? [
+            {
+              destinatario: responsableDe(objetivo.elementId) as string,
+              canal: "mensaje_chat" as const,
+              elementId: objetivo.elementId,
+              mensaje: `Incidencia activa en ${objetivo.elementId}. ${accion.mensaje}.`,
+              motivo: "Aviso automático en modo degradado",
+            },
+          ]
+        : [],
       decisiones: [
         {
           elementId: objetivo.elementId,
@@ -286,6 +313,36 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
   function recolectarRechazos(salida: SalidaAgente, estado: StateView): string[] {
     const contexto = mundo.contexto(estado.elementos);
     const motivos: string[] = [];
+    // Las comunicaciones son campo propio: se ejecutan siempre, aunque el
+    // modelo no haya metido ninguna acción `contactar` dentro de una decisión.
+    for (const c of salida.comunicaciones) {
+      const huella = `${c.destinatario}|${c.mensaje.trim()}`;
+      if (avisosEnviados.has(huella)) continue;
+      const contacto = remedios.contactos.find((x) => x.id === c.destinatario);
+      if (!contacto) {
+        feed.publicar({
+          kind: "sistema",
+          mensaje: `Destinatario desconocido "${c.destinatario}": el aviso no sale`,
+        });
+        continue;
+      }
+      avisosEnviados.add(huella);
+      const accion = registroAcciones.proponer({
+        type: c.canal,
+        targetElementId: anclarASitio(c.elementId, estado),
+        destinatario: contacto.id,
+        mensaje: c.mensaje,
+      });
+      acciones = [accion, ...acciones].slice(0, MAX_DECISIONES);
+      happyrobot.contactar({
+        actionId: accion.id,
+        contacto,
+        canal: c.canal,
+        mensaje: c.mensaje,
+        contexto: { elementId: accion.targetElementId, situacion: c.motivo },
+      });
+    }
+
     for (const d of salida.decisiones) {
       for (const a of d.acciones) {
         const veredicto = validarAccion(
@@ -345,6 +402,36 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
       replanDe: plan === null ? null : (decisiones[0]?.id ?? null),
     };
 
+    // Las comunicaciones son campo propio: se ejecutan siempre, aunque el
+    // modelo no haya metido ninguna acción `contactar` dentro de una decisión.
+    for (const c of salida.comunicaciones) {
+      const huella = `${c.destinatario}|${c.mensaje.trim()}`;
+      if (avisosEnviados.has(huella)) continue;
+      const contacto = remedios.contactos.find((x) => x.id === c.destinatario);
+      if (!contacto) {
+        feed.publicar({
+          kind: "sistema",
+          mensaje: `Destinatario desconocido "${c.destinatario}": el aviso no sale`,
+        });
+        continue;
+      }
+      avisosEnviados.add(huella);
+      const accion = registroAcciones.proponer({
+        type: c.canal,
+        targetElementId: anclarASitio(c.elementId, estado),
+        destinatario: contacto.id,
+        mensaje: c.mensaje,
+      });
+      acciones = [accion, ...acciones].slice(0, MAX_DECISIONES);
+      happyrobot.contactar({
+        actionId: accion.id,
+        contacto,
+        canal: c.canal,
+        mensaje: c.mensaje,
+        contexto: { elementId: accion.targetElementId, situacion: c.motivo },
+      });
+    }
+
     for (const d of salida.decisiones) {
       const decision: Decision = {
         id: nuevoId("dec"),
@@ -377,6 +464,23 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
           });
           acciones = [accion, ...acciones].slice(0, MAX_DECISIONES);
           decision.acciones.push(accion);
+
+          // Aquí el sistema sale del portátil: suena un teléfono de verdad.
+          const contacto = remedios.contactos.find((c) => c.id === a.destinatario);
+          if (contacto) {
+            happyrobot.contactar({
+              actionId: accion.id,
+              contacto,
+              canal: a.canal,
+              mensaje: a.mensaje,
+              contexto: { elementId: accion.targetElementId, situacion: d.razonamiento },
+            });
+          } else {
+            feed.publicar({
+              kind: "sistema",
+              mensaje: `Destinatario desconocido "${a.destinatario}": el mensaje queda registrado sin enviar`,
+            });
+          }
         }
       }
 
@@ -474,6 +578,7 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
       decisiones = [];
       acciones = [];
       statusPrevio = new Map();
+      avisosEnviados.clear();
       reportesPendientes = [];
       motivosExternos = [];
       contador = 0;

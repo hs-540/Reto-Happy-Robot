@@ -15,6 +15,7 @@ import { config, redactSecrets } from "./config.js";
 import { crearRegistroAcciones, esquemaControl } from "./control.js";
 import { crearFeed, parsearSince } from "./feed.js";
 import { aTopologia, cargarGuion } from "./guion.js";
+import { crearClienteHappyRobot } from "./happyrobot.js";
 import { crearClienteLlm } from "./llm.js";
 import { crearMundo } from "./mundo.js";
 import { arrancarChroma } from "./rag/chroma.js";
@@ -70,11 +71,22 @@ const historico: HistoricoIncidente[] = ["hospital", "datacenter", "subestacion"
   cargarHistorico(new URL(`data/history/${tipo}/incidentes.json`, raiz).pathname),
 );
 
+/**
+ * El canal hacia el mundo real. Se crea antes que el agente y recibe el cierre
+ * por callback: una llamada tarda un minuto en resolverse y el motor no espera.
+ */
+const happyrobot = crearClienteHappyRobot({
+  apiKey: config.happyrobot.apiKey,
+  baseUrl: config.happyrobot.baseUrl,
+  alCerrar: (cierre) => agente.cerrarLlamada(cierre),
+});
+
 const agente = crearAgente({
   mundo,
   feed,
   llm: crearClienteLlm(config.llm.gateways),
   registroAcciones,
+  happyrobot,
   historico,
   topologia: grafoTopologia,
   remedios,

@@ -51,6 +51,8 @@ export const ContactoSchema = z.object({
   recursoId: z.string().min(1).optional(),
   /** sitio del que responde, si responde de alguno */
   elementId: z.string().min(1).optional(),
+  /** número al que llama HappyRobot; sin él, el contacto solo recibe mensajes */
+  telefono: z.string().min(1).optional(),
   $nota: z.string().optional(),
 });
 

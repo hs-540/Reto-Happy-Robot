@@ -30,6 +30,24 @@ export const AccionPropuestaSchema = z.object({
   mensaje: z.string(),
 });
 
+/**
+ * Las comunicaciones son un campo propio y obligatorio, no una acción opcional
+ * dentro de una decisión. Pedidas en prosa se caían siempre: el modelo se
+ * centraba en repartir recursos y el aviso se quedaba escrito en un paso del
+ * plan, sin salir de su cabeza. Como campo requerido, lo rellena.
+ */
+export const ComunicacionSchema = z.object({
+  /** id de la lista de CONTACTOS: jefe-brigada, responsable-hospital… */
+  destinatario: z.string(),
+  canal: z.enum(["llamada_voz", "mensaje_chat"]),
+  /** sitio del que trata el aviso */
+  elementId: z.string(),
+  /** el texto que se le dice, ya redactado para ESTA persona */
+  mensaje: z.string(),
+  /** por qué esta persona necesita saberlo ahora */
+  motivo: z.string(),
+});
+
 export const SalidaAgenteSchema = z.object({
   evaluacion: z.object({
     /** señales entrantes que no cambian nada, y por qué */
@@ -41,6 +59,8 @@ export const SalidaAgenteSchema = z.object({
   pasos: z.array(
     z.object({ descripcion: z.string(), elementId: z.string().nullable() }),
   ),
+  /** a quién avisas en esta deliberación; vacío solo si de verdad no hay nadie */
+  comunicaciones: z.array(ComunicacionSchema),
   decisiones: z.array(
     z.object({
       /** id de un SITIO de la lista. Nunca un recurso ni un contacto */
@@ -57,6 +77,7 @@ export const SalidaAgenteSchema = z.object({
 });
 
 export type AccionPropuesta = z.infer<typeof AccionPropuestaSchema>;
+export type Comunicacion = z.infer<typeof ComunicacionSchema>;
 export type SalidaAgente = z.infer<typeof SalidaAgenteSchema>;
 
 /* ─── Construcción del prompt ─────────────────────────────────────────── */
@@ -110,7 +131,10 @@ TU TRABAJO EN CADA DELIBERACIÓN
    "razonamiento" son DOS FRASES como mucho, por debajo de 240 caracteres: el dato que
    manda y la conclusión. Nada de recapitular el estado ni repetir lo que ya dijiste en
    otra decisión. Quien te lee está gestionando una emergencia y tiene cuatro minutos.
-4. COMUNICA. Coordinar es hablar con gente, no solo mover camiones. Si un sitio está
+4. COMUNICA — campo "comunicaciones", obligatorio. Coordinar es hablar con gente, no solo
+   mover camiones. Si hay UN SOLO sitio critico o degradado, ese campo NO puede ir vacío:
+   alguien tiene que enterarse. Piensa quién sufre la situación o quién ejecuta lo que has
+   decidido, y escríbele. Cuesta cero recursos y es la mitad de tu trabajo. Si un sitio está
    critico o degradado, o si una acción depende de alguien, EMITE una acción "contactar"
    con su canal, su destinatario de la lista de CONTACTOS y el mensaje ya redactado.
    - Un paso del plan NO es una comunicación. Escribir "avisar al hospital" o "solicitar

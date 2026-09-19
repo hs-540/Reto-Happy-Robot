@@ -57,46 +57,53 @@
       "nombre": "Ángel Rivas",
       "rol": "Jefe de brigada eléctrica",
       "recursoId": "brigada-1",
-      "$nota": "Puede negarse con razón si se le pide abandonar una reparación a medias. Si se niega, indica cuántos minutos se retrasaría la nueva tarea."
+      "$nota": "Puede negarse con razón si se le pide abandonar una reparación a medias. Si se niega, indica cuántos minutos se retrasaría la nueva tarea.",
+      "telefono": "+34600000001"
     },
     {
       "id": "patrulla-trafico",
       "nombre": "Patrulla 14",
       "rol": "Policía municipal de tráfico",
-      "recursoId": "policia-1"
+      "recursoId": "policia-1",
+      "telefono": "+34600000002"
     },
     {
       "id": "conductor-cisterna",
       "nombre": "Marta Sáez",
       "rol": "Conductora de cisterna de gasóleo",
-      "recursoId": "cisterna-1"
+      "recursoId": "cisterna-1",
+      "telefono": "+34600000003"
     },
     {
       "id": "responsable-hospital",
       "nombre": "Dra. Elena Duarte",
       "rol": "Responsable de guardia del hospital",
       "elementId": "hosp-01",
-      "$nota": "Necesita instrucciones operativas y plazos concretos, no detalles de red."
+      "$nota": "Necesita instrucciones operativas y plazos concretos, no detalles de red.",
+      "telefono": "+34600000004"
     },
     {
       "id": "operador-datacenter",
       "nombre": "Iván Pombo",
       "rol": "Operador de turno del CPD",
       "elementId": "dc-01",
-      "$nota": "Técnico: entiende de carga, racks y refrigeración. Mensajes secos."
+      "$nota": "Técnico: entiende de carga, racks y refrigeración. Mensajes secos.",
+      "telefono": "+34600000005"
     },
     {
       "id": "ciudadano-respirador",
       "nombre": "Lucía Marín",
       "rol": "Ciudadana con familiar en respirador domiciliario",
       "elementId": "hosp-01",
-      "$nota": "No es personal técnico. Lenguaje llano, instrucciones simples y un plazo concreto."
+      "$nota": "No es personal técnico. Lenguaje llano, instrucciones simples y un plazo concreto.",
+      "telefono": "+34600000006"
     },
     {
       "id": "coordinador-112",
       "nombre": "Sala 112 Madrid",
       "rol": "Coordinación de emergencias",
-      "$nota": "Destinatario de escalados cuando los recursos disponibles no alcanzan."
+      "$nota": "Destinatario de escalados cuando los recursos disponibles no alcanzan.",
+      "telefono": "+34600000007"
     }
   ]
 }
