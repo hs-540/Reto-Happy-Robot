@@ -137,6 +137,9 @@ export const UMBRAL_UPS_ACTUAR = REGLAS_PARA_AGENTE.ups.actuar;
 export const UMBRAL_UPS_EMERGENCIA = REGLAS_PARA_AGENTE.ups.emergencia;
 export const UMBRAL_BATERIA_CRITICA = REGLAS_PARA_AGENTE.ups.bateriaCritica;
 
+/** Litros por debajo de los cuales un generador no puede desplegarse sin repostar */
+export const UMBRAL_COMBUSTIBLE_CRITICO = REGLAS_PARA_AGENTE.umbralesMetrica.combustible.critico;
+
 export const UMBRALES_METRICA: Record<SensorMetric, UmbralesMetrica> =
   REGLAS_PARA_AGENTE.umbralesMetrica;
 
@@ -307,6 +310,17 @@ export function validarAccion(
           permitido: false,
           regla: "hospital-prioridad-energia",
           razon: `${hospitalAlQueSirve.id} está critico sin respaldo de energía: los generadores solo pueden ir a él`,
+        };
+      }
+    }
+    // generador-sin-combustible: desplegar un generador seco es gastar el viaje
+    if (recurso.type === "generador") {
+      const combustible = objetivo?.metricas.combustible;
+      if (combustible !== undefined && combustible <= UMBRAL_COMBUSTIBLE_CRITICO) {
+        return {
+          permitido: false,
+          regla: "generador-sin-combustible",
+          razon: `${objetivo?.id} reporta combustible ${combustible} (umbral ${UMBRAL_COMBUSTIBLE_CRITICO}): reabastece con la cisterna antes de desplegar un generador`,
         };
       }
     }

@@ -1,7 +1,13 @@
 import type { SensorMetric } from "./world.js";
-import type { ActionStatus, ActionType } from "./agent.js";
+import type { ActionStatus, ActionType, ResultadoLlamada } from "./agent.js";
 
-export type FeedItemKind = "alarma" | "reporte" | "decision" | "accion" | "sistema";
+export type FeedItemKind =
+  | "alarma"
+  | "reporte"
+  | "decision"
+  | "accion"
+  | "resultado"
+  | "sistema";
 
 interface FeedBase {
   seq: number;
@@ -42,12 +48,28 @@ export interface FeedAccion extends FeedBase {
   mensaje: string;
 }
 
+/** Resultado de una llamada real: lo que contestó la persona al otro lado */
+export interface FeedResultado extends FeedBase {
+  kind: "resultado";
+  elementId: string | null;
+  actionId: string;
+  resultado: ResultadoLlamada;
+  retrasoMinutos: number | null;
+  resumen: string;
+}
+
 export interface FeedSistema extends FeedBase {
   kind: "sistema";
   mensaje: string;
 }
 
-export type FeedItem = FeedAlarma | FeedReporte | FeedDecision | FeedAccion | FeedSistema;
+export type FeedItem =
+  | FeedAlarma
+  | FeedReporte
+  | FeedDecision
+  | FeedAccion
+  | FeedResultado
+  | FeedSistema;
 
 export interface FeedResponse {
   items: FeedItem[];

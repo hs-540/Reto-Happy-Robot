@@ -3,5 +3,6 @@ export * from "./agent.js";
 export * from "./feed.js";
 export * from "./rules.js";
 export * from "./guion.js";
+export * from "./grafos.js";
 export * from "./historico.js";
 export * from "./loaders.js";

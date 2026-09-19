@@ -16,6 +16,13 @@ const ETIQUETA_FUENTE: Record<string, string> = {
   sensor_averiado: 'Sensor con lectura dudosa',
 }
 
+const ETIQUETA_RESULTADO: Record<string, string> = {
+  aceptado: 'Acepta',
+  aceptado_con_retraso: 'Acepta con retraso',
+  rechazado: 'Se niega',
+  no_contesta: 'No contesta',
+}
+
 const ETIQUETA_ACCION: Record<string, string> = {
   llamada_voz: 'Llamada de voz',
   mensaje_chat: 'Mensaje',
@@ -50,6 +57,14 @@ function descripcionFeed(
         titulo: `${ETIQUETA_FUENTE[item.fuente] ?? item.fuente}`,
         detalle: item.texto,
       }
+    case 'resultado': {
+      const retraso =
+        item.retrasoMinutos === null ? '' : ` · +${item.retrasoMinutos} min de retraso`
+      return {
+        titulo: `Respuesta · ${ETIQUETA_RESULTADO[item.resultado] ?? item.resultado}${retraso}`,
+        detalle: item.resumen,
+      }
+    }
     case 'sistema':
       return { titulo: 'Sistema', detalle: item.mensaje }
   }

@@ -1,4 +1,5 @@
 import express from "express";
+import { z } from "zod";
 import type {
   AgentView,
   ControlResponse,
@@ -8,7 +9,7 @@ import type {
   StateView,
   TopologyView,
 } from "@swarmup/shared";
-import { cargarHistorico } from "@swarmup/shared";
+import { cargarHistorico, cargarRemedios, cargarTopologia } from "@swarmup/shared";
 import { crearAgente } from "./agente.js";
 import { config, redactSecrets } from "./config.js";
 import { crearRegistroAcciones, esquemaControl } from "./control.js";
@@ -54,7 +55,9 @@ function alResolver(cierre: CierreIncidente): void {
   });
 }
 
-const sim = crearSimulacion(guion, Date.now(), feed, mundo, alResolver);
+const sim = crearSimulacion(guion, Date.now(), feed, mundo, alResolver, (reporte) =>
+  agente.encolarReporte(reporte),
+);
 const registroAcciones = crearRegistroAcciones(feed);
 const topologia: TopologyView = aTopologia(guion);
 
@@ -63,12 +66,18 @@ const historico: HistoricoIncidente[] = ["hospital", "datacenter", "subestacion"
   cargarHistorico(new URL(`data/history/${tipo}/incidentes.json`, raiz).pathname),
 );
 
+/** Hechos físicos del escenario: qué depende de qué y qué arregla qué */
+const grafoTopologia = cargarTopologia(new URL("data/topologia.json", raiz).pathname);
+const remedios = cargarRemedios(new URL("data/remedios.json", raiz).pathname);
+
 const agente = crearAgente({
   mundo,
   feed,
   llm: crearClienteLlm(config.llm.gateways),
   registroAcciones,
   historico,
+  topologia: grafoTopologia,
+  remedios,
   segundos: () => sim.segundos(),
 });
 
@@ -149,6 +158,31 @@ app.get("/api/health", (_req, res) => {
     iniciado: sim.iniciado,
   };
   res.json(health);
+});
+
+/**
+ * Camino de vuelta de una llamada real. HappyRobot lo invoca al colgar con lo
+ * que contestó la persona; si se negó o pidió más tiempo, `retrasoMinutos`
+ * invalida el ETA del plan y el agente replanifica en el siguiente tick.
+ */
+const esquemaCierreLlamada = z.object({
+  actionId: z.string().min(1),
+  resultado: z.enum(["aceptado", "aceptado_con_retraso", "rechazado", "no_contesta"]),
+  retrasoMinutos: z.number().int().min(0).nullable().default(null),
+  compromiso: z.string().min(1).nullable().default(null),
+  resumen: z.string().min(1),
+});
+
+app.post("/api/llamada/resultado", (req, res) => {
+  avanzar();
+  const parsed = esquemaCierreLlamada.safeParse(req.body);
+  if (!parsed.success) {
+    const detalles = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    res.status(400).json(respuestaError(`cuerpo inválido: ${detalles}`));
+    return;
+  }
+  agente.cerrarLlamada(parsed.data);
+  res.json({ ok: true });
 });
 
 app.post("/api/control", (req, res) => {

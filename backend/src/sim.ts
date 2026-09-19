@@ -11,6 +11,7 @@ import {
   TENSION_ESTABLE_RESUELTO,
   derivarStatus,
 } from "@swarmup/shared";
+import type { Reporte } from "@swarmup/shared";
 import type { Guion, GuionEvento } from "./guion.js";
 import type { Feed } from "./feed.js";
 import type { Mundo } from "./mundo.js";
@@ -69,6 +70,8 @@ export function crearSimulacion(
   feed: Feed,
   mundo: Mundo,
   alResolver?: (cierre: CierreIncidente) => void,
+  /** entrega cada señal en bruto al motor de decisión para que la cribe */
+  alReporte?: (reporte: Reporte) => void,
 ): Simulacion {
   const timeline = [...guion.timeline].sort((a, b) => a.atSeconds - b.atSeconds);
   let siguiente = 0;
@@ -116,6 +119,7 @@ export function crearSimulacion(
         texto: ev.payload.texto,
         elementId: ev.payload.elementId,
       });
+      alReporte?.(ev.payload);
       return;
     }
     if (ev.kind === "narrative") {

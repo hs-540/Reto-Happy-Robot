@@ -6,8 +6,12 @@ import type {
   Decision,
   ElementStatus,
   ElementView,
+  CierreLlamada,
   HistoricoIncidente,
+  Remedios,
+  Reporte,
   StateView,
+  Topologia,
 } from "@swarmup/shared";
 import { validarAccion } from "@swarmup/shared";
 import type { RegistroAcciones } from "./control.js";
@@ -41,6 +45,13 @@ export interface Agente {
   vista(): AgentView;
   /** Estado de atención derivado, que el contrato exige calcular en backend */
   atencion(elementId: string): ElementView["atencion"];
+  /** Señal entrante en bruto; se acumula hasta la siguiente deliberación */
+  encolarReporte(reporte: Reporte): void;
+  /**
+   * Resultado de una llamada real. Un rechazo o un retraso invalidan el ETA con
+   * el que se hizo el plan, así que fuerzan replanificación en el próximo tick.
+   */
+  cerrarLlamada(cierre: CierreLlamada): void;
   reiniciar(): void;
 }
 
@@ -51,6 +62,8 @@ export interface OpcionesAgente {
   /** Registro de acciones reales: las sella como ejecutadas y las publica (#43, sin gate humano) */
   registroAcciones: RegistroAcciones;
   historico: HistoricoIncidente[];
+  topologia: Topologia;
+  remedios: Remedios;
   /** Segundo simulado actual */
   segundos: () => number;
 }
@@ -62,7 +75,8 @@ function esperar(ms: number): Promise<never> {
 }
 
 export function crearAgente(opciones: OpcionesAgente): Agente {
-  const { mundo, feed, llm, registroAcciones, historico, segundos } = opciones;
+  const { mundo, feed, llm, registroAcciones, historico, topologia, remedios, segundos } =
+    opciones;
 
   let plan: AgentPlan | null = null;
   let decisiones: Decision[] = [];
@@ -70,6 +84,10 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
   let acciones: Action[] = [];
   /** status del tick anterior, para detectar cruces de umbral */
   let statusPrevio = new Map<string, ElementStatus>();
+  /** señales en bruto acumuladas desde la última deliberación */
+  let reportesPendientes: Reporte[] = [];
+  /** motivos extra inyectados desde fuera (resultados de llamadas) */
+  let motivosExternos: string[] = [];
   /** una deliberación en vuelo dura más que un tick: no se solapan */
   let deliberando = false;
   let contador = 0;
@@ -101,6 +119,10 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
         motivos.push(`${e.id} pasa de ${antes} a ${e.status}`);
       }
     }
+
+    // un rechazo o un retraso comunicado por teléfono invalida el ETA del plan
+    motivos.push(...motivosExternos);
+    motivosExternos = [];
 
     // arranque: hay crisis y todavía no hay plan
     if (plan === null && estado.elementos.some((e) => e.status === "critico" || e.status === "degradado")) {
@@ -183,8 +205,14 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
       prioridades: mundo.prioridades(estado.elementos),
       planActual: plan,
       historico: historico.filter((h) => tiposImplicados.has(h.tipo)),
+      topologia,
+      remedios,
+      reportes: reportesPendientes,
       motivos,
     };
+
+    // consumidos: la próxima deliberación solo verá lo que llegue a partir de ahora
+    reportesPendientes = [];
 
     let rechazos: string[] = [];
     let ultima: SalidaAgente | null = null;
@@ -368,11 +396,35 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
     },
 
 
+    encolarReporte(reporte): void {
+      reportesPendientes.push(reporte);
+    },
+
+    cerrarLlamada(cierre): void {
+      const accion = acciones.find((a) => a.id === cierre.actionId);
+      feed.publicar({
+        kind: "resultado",
+        elementId: accion?.targetElementId ?? null,
+        actionId: cierre.actionId,
+        resultado: cierre.resultado,
+        retrasoMinutos: cierre.retrasoMinutos,
+        resumen: cierre.resumen,
+      });
+      if (cierre.resultado === "aceptado") return;
+      const retraso =
+        cierre.retrasoMinutos === null ? "sin plazo concreto" : `${cierre.retrasoMinutos} min de retraso`;
+      motivosExternos.push(
+        `La llamada ${cierre.actionId} terminó en "${cierre.resultado}" (${retraso}): ${cierre.resumen}. El plan contaba con un plazo que ya no se cumple.`,
+      );
+    },
+
     reiniciar(): void {
       plan = null;
       decisiones = [];
       acciones = [];
       statusPrevio = new Map();
+      reportesPendientes = [];
+      motivosExternos = [];
       contador = 0;
     },
   };

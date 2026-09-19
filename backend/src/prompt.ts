@@ -1,6 +1,14 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { z } from "zod";
-import type { AgentPlan, ElementView, HistoricoIncidente, ResourceView } from "@swarmup/shared";
+import type {
+  AgentPlan,
+  ElementView,
+  HistoricoIncidente,
+  Remedios,
+  Reporte,
+  ResourceView,
+  Topologia,
+} from "@swarmup/shared";
 import { REGLAS_PARA_AGENTE } from "@swarmup/shared";
 
 /* ─── Salida estructurada del LLM ───────────────────────────────────────
@@ -56,8 +64,12 @@ Gestionas sitios críticos (hospital, subestación, datacenter) con recursos LIM
 Decides tú: nadie te va a pedir permiso ni te va a corregir entre decisiones.
 
 TU TRABAJO EN CADA DELIBERACIÓN
-1. Separa la señal del ruido. Llegan muchas alarmas y solo unas pocas cambian algo. Di
-   explícitamente cuáles descartas y por qué: esa criba forma parte de tu trabajo.
+1. Separa la señal del ruido. Recibes SEÑALES SIN PROCESAR de redes sociales, llamadas al
+   112, prensa y equipos en campo. La mayoría no cambia nada: son quejas, duplicados, avisos
+   ya obsoletos o sensores averiados con lecturas físicamente imposibles. Descártalos sin
+   contemplaciones y di por qué. Pero LEE TODAS: de vez en cuando, entre cincuenta mensajes
+   irrelevantes, hay uno que describe un riesgo vital que ningún sensor va a reportarte.
+   Encontrarlo es la parte de tu trabajo que nadie más puede hacer.
 2. Prioriza con los medios QUE QUEDAN, no con los que harían falta.
 3. Decide acciones concretas. "Monitorizar la situación" no es una acción.
 4. Comunica de forma selectiva: un responsable de hospital, un jefe de cuadrilla y un
@@ -77,6 +89,11 @@ GESTIÓN DEL INVENTARIO — LA CRISIS NO HA TERMINADO
   caer fuera el hospital. Si la respuesta es "nada", no lo comprometas.
 
 CÓMO RAZONAS
+- Tienes un mapa de DEPENDENCIAS y un catálogo de REMEDIOS. No son sugerencias: son cómo
+  está cableada la realidad. Un remedio que no aparece ahí no existe, y si un remedio
+  declara un requisito, sin cumplirlo no sirve de nada gastarlo.
+- Usa las dependencias para calcular cobertura: arreglar un nodo del que cuelgan cuatro
+  sitios vale más que atender uno solo, aunque ese uno puntúe más alto.
 - Los recursos tienen coste temporal: desplazarlos tarda, y mientras van no están en otro sitio.
 - Piensa en acoplamientos, no solo en rankings. Reparar la subestación de origen puede
   restaurar a varios sitios a la vez; moverla a mitad de trabajo puede perderlo todo.
@@ -107,6 +124,25 @@ function lineaRecurso(r: ResourceView): string {
   return `- ${r.id} (${r.type}) ${r.status}${destino}`;
 }
 
+function lineaTopologia(a: Topologia["aristas"][number]): string {
+  const destino = a.a === "*" ? "todo el escenario" : a.a;
+  return `- ${a.de} --${a.tipo}--> ${destino}${a.nota ? `\n    ${a.nota}` : ""}`;
+}
+
+function lineaRemedio(r: Remedios["remedios"][number]): string {
+  const req = r.requiere ? ` REQUIERE: ${r.requiere}.` : "";
+  return `- ${r.recurso} resuelve "${r.resuelve}" en ${r.aplicableA.join("/")} — ${r.minutos} min.${req}\n    ${r.efecto}`;
+}
+
+function lineaContacto(c: Remedios["contactos"][number]): string {
+  const ambito = c.recursoId ? ` dirige ${c.recursoId}` : c.elementId ? ` responde de ${c.elementId}` : "";
+  return `- ${c.id}: ${c.nombre}, ${c.rol}.${ambito}${c.$nota ? ` ${c.$nota}` : ""}`;
+}
+
+function lineaReporte(r: Reporte): string {
+  return `- [${r.fuente}]${r.elementId ? ` (${r.elementId})` : ""} ${r.texto}`;
+}
+
 function lineaHistorico(h: HistoricoIncidente): string {
   return `- [${h.id}] ${h.titulo}\n    ${h.resumen}\n    Aprendizaje: ${h.resultado}`;
 }
@@ -120,6 +156,12 @@ export interface ContextoAgente {
   planActual: AgentPlan | null;
   /** incidentes históricos de los tipos de elemento implicados */
   historico: HistoricoIncidente[];
+  /** hechos físicos: qué depende de qué */
+  topologia: Topologia;
+  /** hechos físicos: qué recurso arregla qué, y a quién se puede llamar */
+  remedios: Remedios;
+  /** señales en bruto llegadas desde la última deliberación, la mayoría ruido */
+  reportes: Reporte[];
   /** por qué se ha disparado esta deliberación */
   motivos: string[];
 }
@@ -143,7 +185,24 @@ export function construirMensajes(
     "",
     "RECURSOS DISPONIBLES — esto es todo lo que tienes:",
     ...ctx.recursos.map(lineaRecurso),
+    "",
+    "DEPENDENCIAS (cómo está cableado el escenario):",
+    ...ctx.topologia.aristas.map(lineaTopologia),
+    "",
+    "REMEDIOS (qué arregla qué; nada fuera de esta lista existe):",
+    ...ctx.remedios.remedios.map(lineaRemedio),
+    "",
+    "CONTACTOS (a quién puedes llamar o escribir, con el rol que tiene):",
+    ...ctx.remedios.contactos.map(lineaContacto),
   ];
+
+  if (ctx.reportes.length > 0) {
+    partes.push(
+      "",
+      `SEÑALES SIN PROCESAR (${ctx.reportes.length} desde tu última deliberación) — críbalas:`,
+      ...ctx.reportes.map(lineaReporte),
+    );
+  }
 
   if (ctx.historico.length > 0) {
     partes.push("", "INCIDENTES PASADOS DE ESTOS TIPOS DE SITIO:", ...ctx.historico.map(lineaHistorico));

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { GuionSchema, type Guion } from "./guion.js";
 import { HistoricoIncidenteSchema, type HistoricoIncidente } from "./historico.js";
+import { RemediosSchema, TopologiaSchema, type Remedios, type Topologia } from "./grafos.js";
 
 /* ─── Parseo puro: unknown → tipo validado, con errores accionables ─── */
 
@@ -38,6 +39,14 @@ export function parseHistorico(input: unknown): HistoricoIncidente[] {
   return parsear(z.array(HistoricoIncidenteSchema), input);
 }
 
+export function parseTopologia(input: unknown): Topologia {
+  return parsear(TopologiaSchema, input);
+}
+
+export function parseRemedios(input: unknown): Remedios {
+  return parsear(RemediosSchema, input);
+}
+
 /* ─── Carga desde fichero: lectura + JSON.parse + validación ─── */
 
 function mensajeDe(error: unknown): string {
@@ -70,4 +79,12 @@ export function cargarGuion(ruta: string): Guion {
 
 export function cargarHistorico(ruta: string): HistoricoIncidente[] {
   return cargarJson(ruta, parseHistorico);
+}
+
+export function cargarTopologia(ruta: string): Topologia {
+  return cargarJson(ruta, parseTopologia);
+}
+
+export function cargarRemedios(ruta: string): Remedios {
+  return cargarJson(ruta, parseRemedios);
 }

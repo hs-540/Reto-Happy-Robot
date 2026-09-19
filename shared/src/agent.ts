@@ -13,6 +13,28 @@ export interface Action {
   timestamp: string;
 }
 
+/**
+ * Lo que devuelve una llamada real. Si el contacto se niega o no puede ahora,
+ * `retrasoMinutos` dice cuánto se aplaza: eso invalida el ETA con el que se hizo
+ * el plan y es, por sí solo, un trigger de replanificación.
+ */
+export type ResultadoLlamada =
+  | "aceptado"
+  | "aceptado_con_retraso"
+  | "rechazado"
+  | "no_contesta";
+
+export interface CierreLlamada {
+  actionId: string;
+  resultado: ResultadoLlamada;
+  /** minutos de retraso que comunica el contacto; null si no aplica */
+  retrasoMinutos: number | null;
+  /** a qué se compromete, en sus palabras */
+  compromiso: string | null;
+  /** resumen de la conversación para el feed */
+  resumen: string;
+}
+
 export interface Decision {
   id: string;
   timestamp: string;
