@@ -22,5 +22,77 @@
     "summary": "Congestion around the A-42 service station grew as the blackout dragged on, until tankers could no longer reach the forecourt. The station had stock and working pumps, yet no vehicle could get to them for 18 minutes.",
     "outcome": "A police unit was sent to keep the approach clear and transit recovered within 8 minutes. Lesson: when congestion rises around a refuel station, send police to hold the approach before sending more vehicles into the jam.",
     "date": "2026-06-20"
+  },
+  {
+    "id": "hist-fst-004",
+    "type": "fuel_station",
+    "title": "Tanker reached the station but the pumps were dead — February 2026",
+    "summary": "A tanker was dispatched to a station that had fuel in the ground, but the station's pumps were electric and the blackout had killed them. The station could not dispense anything.",
+    "outcome": "The tanker was rerouted to a station 7 minutes away. Lesson: confirm a station's pumps are operational, not just its fuel level; fuel that cannot be pumped is not fuel.",
+    "date": "2026-02-05"
+  },
+  {
+    "id": "hist-fst-005",
+    "type": "fuel_station",
+    "title": "Tanker sent to the wrong station id — April 2026",
+    "summary": "The dispatch used a station name shared by two sites and the tanker arrived at the wrong forecourt while the intended station's fuel level kept dropping.",
+    "outcome": "The tanker was redirected 13 minutes late. Lesson: confirm the station id before dispatch; a tanker at the wrong station does not raise the fuel level anywhere.",
+    "date": "2026-04-30"
+  },
+  {
+    "id": "hist-fst-006",
+    "type": "fuel_station",
+    "title": "Station stock estimate was based on an old reading — June 2026",
+    "summary": "The dispatch trusted a fuel reading from the morning, but the station had been pumping all day and its tank was nearly empty by the time the tanker arrived.",
+    "outcome": "The tanker found the station dry. Lesson: re-read a station's fuel immediately before dispatch; a stale stock reading is as good as no reading.",
+    "date": "2026-06-08"
+  },
+  {
+    "id": "hist-fst-007",
+    "type": "fuel_station",
+    "title": "Cascading demand drained every station in the district — August 2026",
+    "summary": "As the blackout continued, every generator in the district refueled at the two nearest stations and both ran dry, leaving no pump for the remaining crews.",
+    "outcome": "A third station outside the district was opened 9 minutes away. Lesson: track the district's fuel level as a whole and open an alternate station before the nearest ones run dry; many generators share one fuel supply.",
+    "date": "2026-08-27"
+  },
+  {
+    "id": "hist-fst-008",
+    "type": "fuel_station",
+    "title": "Congestion blocked the tanker before it reached the station — October 2026",
+    "summary": "The approach to the station was already jammed when the tanker was dispatched, and the tanker could not reach the forecourt for 20 minutes while stations elsewhere waited.",
+    "outcome": "A police unit cleared the approach and the tanker completed the run. Lesson: when congestion around a station is already high, clear the approach or route the tanker around it before dispatching.",
+    "date": "2026-10-14"
+  },
+  {
+    "id": "hist-fst-009",
+    "type": "fuel_station",
+    "title": "Faulty fuel sensor reported a full station that was empty — December 2026",
+    "summary": "A faulty fuel sensor reported the station as full while the tank was actually dry, so no tanker was dispatched until a driver reported empty pumps.",
+    "outcome": "Generators waited 17 minutes for fuel. Lesson: cross-check a healthy fuel reading against refuel requests; one faulty sensor can hide a dry station.",
+    "date": "2026-12-09"
+  },
+  {
+    "id": "hist-fst-010",
+    "type": "fuel_station",
+    "title": "Preventive tanker dispatch on a fuel trend — January 2026",
+    "summary": "A station's fuel level declined steadily for 25 minutes without reaching the critical threshold, and a tanker was dispatched on the trend alone.",
+    "outcome": "The station never ran dry and the generators never queued. Lesson: act on a declining fuel trend, not only on the critical threshold; a station refilled early keeps every generator moving.",
+    "date": "2026-01-13"
+  },
+  {
+    "id": "hist-fst-011",
+    "type": "fuel_station",
+    "title": "Tanker convoy overloaded the only open station — March 2026",
+    "summary": "Several tankers were routed to the same open station at once, and the forecourt became so crowded that none of them could leave with a full load.",
+    "outcome": "The queue cleared only after the dispatchers staggered the arrivals. Lesson: stagger tanker arrivals at a single station; a full forecourt pumps no faster than an empty one.",
+    "date": "2026-03-25"
+  },
+  {
+    "id": "hist-fst-012",
+    "type": "fuel_station",
+    "title": "Refuel station chosen by distance instead of stock — May 2026",
+    "summary": "The nearest station to the generators was chosen despite a low fuel level, while a station with full tanks sat further away. The nearest station ran dry before the round finished.",
+    "outcome": "The generators had to wait for a second run. Lesson: choose a refuel station by stock and pump status, not by distance alone; the closest station is not the most useful one.",
+    "date": "2026-05-12"
   }
 ]

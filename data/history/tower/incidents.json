@@ -22,5 +22,77 @@
     "summary": "The tower battery showed a steady decline for 25 minutes without ever crossing the critical threshold. A generator was dispatched on the trend alone and was already recharging the battery when it would otherwise have run out.",
     "outcome": "The tower never dropped off the network and every dependent crew kept coordinating. Lesson: act on the battery degradation trend, not only on the threshold already reached — a tower offline costs the ability to coordinate everything else.",
     "date": "2026-05-16"
+  },
+  {
+    "id": "hist-tow-004",
+    "type": "tower",
+    "title": "Battery estimate ignored the added network_coverage load — February 2026",
+    "summary": "The tower's tower_battery was estimated to hold 3 hours, but the blackout forced more traffic through the tower and network_coverage demand grew. The battery fell faster than the estimate.",
+    "outcome": "The tower dropped off the network 12 minutes early. Lesson: recalculate tower_battery with the crisis network_coverage demand included; a tower battery is not a fixed clock.",
+    "date": "2026-02-25"
+  },
+  {
+    "id": "hist-tow-005",
+    "type": "tower",
+    "title": "Generator reached the tower but the mast access was locked — April 2026",
+    "summary": "A generator was dispatched to a tower with a falling tower_battery, but the mast compound was locked and the crew lacked the keys. The generator stood outside while tower_battery kept falling.",
+    "outcome": "The caretaker arrived after 19 minutes. Lesson: confirm mast and compound access before dispatching to a tower; a generator outside the fence does not charge the tower_battery.",
+    "date": "2026-04-24"
+  },
+  {
+    "id": "hist-tow-006",
+    "type": "tower",
+    "title": "Generator sent to the wrong tower in the same district — June 2026",
+    "summary": "Two towers share a district name and the generator was sent to the healthy one while the other's tower_battery approached critical.",
+    "outcome": "The generator was rerouted 14 minutes late. Lesson: identify the tower by site id, not by district, when dispatching; the tower whose tower_battery is falling is the one that matters.",
+    "date": "2026-06-17"
+  },
+  {
+    "id": "hist-tow-007",
+    "type": "tower",
+    "title": "Tower battery failed and coordination was lost — August 2026",
+    "summary": "A tower's tower_battery ran out during the blackout and every crew lost voice and data, so the response to the rest of the crisis slowed for the whole district.",
+    "outcome": "The tower was restored 11 minutes later but coordination had already degraded. Lesson: treat tower_battery as a district-wide dependency; a tower offline slows every other response, so dispatch a generator before it falls below 30%.",
+    "date": "2026-08-02"
+  },
+  {
+    "id": "hist-tow-008",
+    "type": "tower",
+    "title": "Faulty network_coverage reading hid the tower degradation — October 2026",
+    "summary": "A faulty network_coverage sensor reported a healthy value while the tower_battery was actually at 15%, so the tower was not escalated in time.",
+    "outcome": "The tower failed 8 minutes later. Lesson: cross-check a healthy network_coverage reading against tower_battery; a faulty sensor can hide a tower that is about to drop.",
+    "date": "2026-10-10"
+  },
+  {
+    "id": "hist-tow-009",
+    "type": "tower",
+    "title": "Generator without fuel could not charge the tower — December 2026",
+    "summary": "A generator reached the tower on time but had almost no fuel and no working station nearby, so the tower_battery kept falling while the generator sat idle.",
+    "outcome": "A tanker arrived 15 minutes later. Lesson: confirm fuel and a working refuel station before trusting a generator to hold a tower_battery; the tower cannot wait for a second delivery.",
+    "date": "2026-12-21"
+  },
+  {
+    "id": "hist-tow-010",
+    "type": "tower",
+    "title": "Crew diverted from the tower to a hospital — January 2026",
+    "summary": "A crew en route to a tower with a falling tower_battery was diverted to a hospital emergency, and the tower dropped off the network while they were away.",
+    "outcome": "Coordination across the district degraded for the rest of the crisis. Lesson: diverting the crew from a tower risks every channel in the district; only divert when no other crew can reach the hospital.",
+    "date": "2026-01-31"
+  },
+  {
+    "id": "hist-tow-011",
+    "type": "tower",
+    "title": "Tower battery degraded over weeks before the blackout — March 2026",
+    "summary": "The tower had been reporting lower and lower peak tower_battery values for weeks, but the degradation was not scheduled for replacement until after the blackout hit.",
+    "outcome": "The battery held half its rated time and the tower failed early. Lesson: schedule replacement for a tower_battery that keeps losing peak capacity; a blackout exposes the reserve the tower no longer has.",
+    "date": "2026-03-20"
+  },
+  {
+    "id": "hist-tow-012",
+    "type": "tower",
+    "title": "Preventive tower dispatch on a network_coverage trend — May 2026",
+    "summary": "network_coverage at the tower declined steadily for 20 minutes while the tower_battery stayed above 40%. A generator was dispatched on the trend alone and was charging the battery before it became critical.",
+    "outcome": "The tower never dropped off the network. Lesson: act on a network_coverage decline with a falling tower_battery trend, not only on the critical threshold; keeping the tower up protects every other response.",
+    "date": "2026-05-29"
   }
 ]

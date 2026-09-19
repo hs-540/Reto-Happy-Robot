@@ -22,5 +22,77 @@
     "summary": "Both elements requested the only available generator simultaneously. It was assigned to the hospital due to human criticality, and the datacenter held on with its remaining UPS until the crew arrived.",
     "outcome": "The datacenter lost partial service for 6 minutes, with no data loss. Lesson: in a direct conflict over the same resource, the hospital's human criticality outweighs the datacenter's service continuity, unless the UPS is already below 10%.",
     "date": "2026-06-15"
+  },
+  {
+    "id": "hist-dc-004",
+    "type": "datacenter",
+    "title": "Crew blocked at the datacenter gate — January 2026",
+    "summary": "A generator was dispatched to a colocation datacenter whose ups_load was falling, but the site is a restricted facility and the crew arrived without access credentials. The generator waited outside the perimeter while ups_load kept dropping and the temperature climbed.",
+    "outcome": "Access was granted 18 minutes later by the facility manager and the UPS held at 11%. Lesson: confirm facility access and badge authorization before dispatching to a datacenter; a generator stuck outside the perimeter does not restore ups_load.",
+    "date": "2026-01-15"
+  },
+  {
+    "id": "hist-dc-005",
+    "type": "datacenter",
+    "title": "Generator sent to the wrong datacenter campus — March 2026",
+    "summary": "The dispatch named the datacenter by an old street address and the generator was routed to a decommissioned campus 4 km away while the live site's ups_load dropped and its temperature rose.",
+    "outcome": "The generator reached the correct site 14 minutes late. Lesson: verify the exact datacenter site id, not the operator name or a legacy address, before dispatch; the nearest campus is not necessarily the one with the failing ups_load.",
+    "date": "2026-03-18"
+  },
+  {
+    "id": "hist-dc-006",
+    "type": "datacenter",
+    "title": "UPS autonomy underestimated while compute load climbed — May 2026",
+    "summary": "The UPS was estimated to hold 30 minutes, but the blackout pushed compute and cooling load up and the estimate ignored the extra draw. The ups_load fell faster than predicted.",
+    "outcome": "The UPS failed 9 minutes before the estimate and the racks rebooted. Lesson: recalculate ups_load autonomy with the crisis compute load included, and dispatch a generator before ups_load falls below 30%.",
+    "date": "2026-05-27"
+  },
+  {
+    "id": "hist-dc-007",
+    "type": "datacenter",
+    "title": "Cooling chain failure traced to the supplying substation — July 2026",
+    "summary": "The chiller plant and the pumps failed at the same time, and the first response treated them as independent local failures. Their common origin was a substation that supplied the whole cooling chain, so grid_voltage at the datacenter was the real reading to watch.",
+    "outcome": "The repair wasted 20 minutes on local checks. Lesson: when cooling and power fail together at a datacenter, check the supplying substation before treating them as separate incidents; temperature rises because the chain lost its origin, not because of a local fault.",
+    "date": "2026-07-09"
+  },
+  {
+    "id": "hist-dc-008",
+    "type": "datacenter",
+    "title": "Crew diverted from the datacenter to a hospital — August 2026",
+    "summary": "A crew en route to a datacenter with a falling ups_load was diverted to a hospital emergency. The datacenter then overheated as its temperature climbed with no crew on site.",
+    "outcome": "The datacenter lost service for 12 minutes. Lesson: diverting the only crew from a datacenter whose ups_load is already critical only pays if the new destination is a direct threat to life.",
+    "date": "2026-08-21"
+  },
+  {
+    "id": "hist-dc-009",
+    "type": "datacenter",
+    "title": "Generator arrived without fuel for the datacenter — September 2026",
+    "summary": "A generator was assigned and arrived on time, but its tank was nearly empty and the refueling station itself was dark. The datacenter ran on UPS while the generator sat useless.",
+    "outcome": "A tanker reached the generator 16 minutes later. Lesson: a generator without fuel is not a response; confirm fuel and a working refuel station before counting on it to hold ups_load.",
+    "date": "2026-09-04"
+  },
+  {
+    "id": "hist-dc-010",
+    "type": "datacenter",
+    "title": "Faulty temperature sensor delayed the overheating response — February 2026",
+    "summary": "A single temperature sensor read 20°C while the adjacent sensors climbed past 44°C. The faulty reading hid the real trend and the crew was dispatched late, with ups_load already low.",
+    "outcome": "The datacenter reached 51°C before the crew acted. Lesson: when one temperature sensor disagrees with its neighbours, trust the trend of the others; a single faulty reading must not delay the dispatch.",
+    "date": "2026-02-26"
+  },
+  {
+    "id": "hist-dc-011",
+    "type": "datacenter",
+    "title": "Preventive dispatch on the temperature trend avoided an outage — April 2026",
+    "summary": "The datacenter temperature rose steadily for 15 minutes without crossing the critical threshold, and ups_load stayed above 40%. A generator was sent on the trend alone.",
+    "outcome": "The generator was already cooling the hall when the chiller finally failed. Lesson: act on a sustained temperature trend, not only on the critical threshold; early dispatch costs less than a thermal shutdown.",
+    "date": "2026-04-13"
+  },
+  {
+    "id": "hist-dc-012",
+    "type": "datacenter",
+    "title": "Two concurrent datacenter incidents split the response — June 2026",
+    "summary": "Two datacenters in different districts lost cooling within minutes of each other. The single available crew bounced between them and neither received a continuous repair while both ups_load values fell.",
+    "outcome": "Both sites degraded and one lost service. Lesson: with concurrent datacenter incidents, commit the crew to the site with the higher severity and the faster-falling ups_load, and stabilize the other with a generator instead of splitting the crew.",
+    "date": "2026-06-02"
   }
 ]

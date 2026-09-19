@@ -22,5 +22,77 @@
     "summary": "As the blackout began, congestion at the junction started climbing minutes before any convoy was dispatched. A police unit was sent on the trend alone and the junction was already being directed when the first generator came through.",
     "outcome": "No convoy lost time at the junction for the rest of the crisis. Lesson: send police on the congestion trend, not once crews are already blocked — a junction held in advance is cheaper than one unblocked in a hurry.",
     "date": "2026-07-04"
+  },
+  {
+    "id": "hist-jct-004",
+    "type": "junction",
+    "title": "Junction signals failed with no police at all — February 2026",
+    "summary": "The junction's signals failed with the blackout and no police unit was assigned, so every crew crossing it lost time and three generators arrived late along the corridor.",
+    "outcome": "A police unit was assigned 18 minutes later. Lesson: a signal failure at a junction needs police before convoys arrive; the junction regulates traffic, not the other way around.",
+    "date": "2026-02-11"
+  },
+  {
+    "id": "hist-jct-005",
+    "type": "junction",
+    "title": "Police sent to the wrong junction — April 2026",
+    "summary": "Two junctions share a similar name and the police unit was sent to the quieter one while the busy junction stayed unregulated and its congestion climbed.",
+    "outcome": "The unit was redirected 12 minutes late. Lesson: confirm the junction id and its current congestion before assigning police; a unit at the wrong junction regulates nothing that matters.",
+    "date": "2026-04-02"
+  },
+  {
+    "id": "hist-jct-006",
+    "type": "junction",
+    "title": "Cascading congestion from a single unregulated junction — June 2026",
+    "summary": "One unregulated junction slowed a single convoy, which then blocked the next one, and congestion spread across the district's routes within minutes.",
+    "outcome": "Every crew's ETA slipped and a hospital generator arrived late. Lesson: treat the first convoy delay at a junction as the start of a cascade; regulate the junction before the queue reaches the next route.",
+    "date": "2026-06-29"
+  },
+  {
+    "id": "hist-jct-007",
+    "type": "junction",
+    "title": "High congestion at the junction was ignored as noise — August 2026",
+    "summary": "The junction's congestion climbed steadily but stayed below the alarm threshold, so no police were sent until convoys were already blocked.",
+    "outcome": "Three resources lost 15 minutes each. Lesson: watch the congestion trend at a key junction, not only the alarm threshold; a junction at 80% of the threshold is already costing time.",
+    "date": "2026-08-19"
+  },
+  {
+    "id": "hist-jct-008",
+    "type": "junction",
+    "title": "Police diverted from the junction to a hospital — October 2026",
+    "summary": "The police unit holding the main junction was pulled to a hospital emergency and the corridor congested within minutes, delaying every crew that used it.",
+    "outcome": "The unit returned 30 minutes later and the corridor recovered. Lesson: lifting regulation from a junction costs every route through it; divert the unit only when the new destination outweighs the corridor delay.",
+    "date": "2026-10-22"
+  },
+  {
+    "id": "hist-jct-009",
+    "type": "junction",
+    "title": "Stalled vehicles blocked the lanes near the junction — December 2026",
+    "summary": "Several vehicles stalled in the blackout and blocked the lanes approaching the junction, so even with directions the convoys could not pass.",
+    "outcome": "A tow crew cleared the lanes after 16 minutes. Lesson: when congestion is caused by stalled vehicles, send clearing resources, not only police; directing traffic around a blocked lane does not open it.",
+    "date": "2026-12-17"
+  },
+  {
+    "id": "hist-jct-010",
+    "type": "junction",
+    "title": "Faulty congestion reading hid a blocked junction — January 2026",
+    "summary": "A faulty congestion sensor reported light traffic while the junction was actually gridlocked, so no police were dispatched until crews reported being stuck.",
+    "outcome": "The units arrived 14 minutes late. Lesson: cross-check a low congestion reading against crew reports; a faulty sensor can hide a junction that has already seized up.",
+    "date": "2026-01-06"
+  },
+  {
+    "id": "hist-jct-011",
+    "type": "junction",
+    "title": "Preventive regulation on a congestion trend — March 2026",
+    "summary": "The junction's congestion began rising minutes before any convoy was dispatched, and a police unit was sent on the trend alone.",
+    "outcome": "The junction was already being directed when the first convoy arrived. Lesson: regulate on a congestion trend, not once crews are blocked; a junction held early costs less than one unblocked in a hurry.",
+    "date": "2026-03-15"
+  },
+  {
+    "id": "hist-jct-012",
+    "type": "junction",
+    "title": "Two junctions failed and only one police unit existed — May 2026",
+    "summary": "Two junctions lost their signals at once and only one police unit was available. It was assigned to the junction with more routes crossing it.",
+    "outcome": "The other junction delayed local traffic but the main corridor stayed open. Lesson: with one police unit and two failed junctions, regulate the one carrying more routes and hold the other with signed diversions.",
+    "date": "2026-05-31"
   }
 ]
