@@ -4,12 +4,15 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import type { z } from "zod";
 
 /**
- * Presupuesto por intento de gateway. Medido en vivo: una deliberación con
- * salida estructurada tarda 4-6s, así que 5s mataba la mayoría de llamadas
- * justo antes de que respondieran. El tick del motor no espera a la
- * deliberación (corre en paralelo), de modo que esto no frena la simulación.
+ * Presupuesto por intento de gateway. Medido en vivo contra Helmcode con el
+ * prompt real del agente (catálogo de reglas + mundo + histórico):
+ * `deepseek-v4-flash` tarda entre 8s y 19s, porque razona antes de responder,
+ * y la latencia sube según engorda el prompt durante la ejecución. Con 10s
+ * (valor calibrado para `gpt-4.1-mini`) solo sobrevivía 1 de cada 4 llamadas.
+ * El tick del motor no espera a la deliberación, así que esto no frena la
+ * simulación: solo evita matar respuestas que venían de camino.
  */
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 35_000;
 
 export interface GatewayLlm {
   id: string;
