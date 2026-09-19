@@ -65,10 +65,8 @@
  ],
  "resources": [
   "crew-1",
-  "crew-2",
   "generator-1",
   "generator-2",
-  "generator-3",
   "generator-4",
   "police-1",
   "police-2",
@@ -95,7 +93,6 @@
  ],
  "contactIds": [
   "crew-chief",
-  "crew-chief-2",
   "datacenter-operator",
   "emergency-coordinator",
   "hospital-lead",
