@@ -134,7 +134,7 @@ export function AgentPanel({
   const [planOpen, setPlanOpen] = useState(true)
   const plan = agent.currentPlan
   const stream = [...feed].sort((a, b) => b.seq - a.seq)
-  const decisions = [...agent.decisions].reverse()
+  const decisions = agent.decisions
   const actions = [...agent.actions].reverse()
 
   return (

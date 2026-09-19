@@ -27,56 +27,46 @@ export interface HappyRobotClient {
 }
 
 export interface HappyRobotOptions {
-  apiKey: string;
-  baseUrl: string;
+  /** Full URL of the mission hook; its presence selects the real client */
+  webhookUrl?: string;
   onClosed: (closure: CallClosure) => void;
+  /** A mission the hook accepted (2xx); the outcome poller only closes these */
+  onDispatched?: (missionId: string) => void;
 }
 
 const TIMEOUT_MS = 90_000;
 
-/** Without a real credential nobody can be called; simulated mode covers it */
-export function credentialUsable(apiKey: string): boolean {
-  return apiKey.trim().length > 0 && apiKey.trim().toUpperCase() !== "PENDIENTE";
-}
-
 /* ─── Real client ────────────────────────────────────────────────────────
- * Documented endpoint: POST {baseUrl}/api/v1/dial/outbound with the API key
- * from Settings > Profile. The rest of their documentation sits behind a login,
- * so the exact body and response shape must be confirmed against their
- * reference before anyone relies on it: if it changes, ONLY this function does.
+ * The hook is a secret URL: POST { prompt, missionId } and the mission's voice
+ * agent places the call — no credential header, no phone number (the mission
+ * knows who it calls). `missionId` is our `actionId`, the id of the action the
+ * orchestrator decided, so a call is traceable end to end: dispatch, summary
+ * event in the events-api and closure all carry it. If the hook's contract
+ * changes, ONLY this function does; the outcome comes back through the poller
+ * in `outcome-poll.ts`.
  */
-function createRealClient(options: HappyRobotOptions): HappyRobotClient {
-  const { apiKey, baseUrl, onClosed } = options;
+function createRealClient(webhookUrl: string, options: HappyRobotOptions): HappyRobotClient {
+  const { onClosed, onDispatched } = options;
 
   return {
     mode: "real",
     contact(request) {
-      const body = {
-        phone: request.contact.phone ?? undefined,
-        // dynamic context the voice agent receives so it can improvise
-        context: {
-          role: request.contact.role,
-          name: request.contact.name,
-          message: request.message,
-          site: request.context.elementId,
-          situation: request.context.situation,
-        },
-      };
+      // The prompt is what the voice agent asks the person it calls: the
+      // message written for this recipient, framed by the incident situation.
+      const prompt = [request.context.situation, request.message].filter(Boolean).join(" ");
 
-      void fetch(`${baseUrl}/api/v1/dial/outbound`, {
+      void fetch(webhookUrl, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, missionId: request.actionId }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
         .then((res) => {
           if (!res.ok) throw new Error(`HappyRobot answered ${res.status}`);
-          // The final outcome arrives by webhook at /api/call/outcome once the
-          // voice agent hangs up. This only confirms the call went out.
-          console.log(`[happyrobot] call dispatched to ${request.contact.id}`);
+          // This only confirms the mission went out. The outcome arrives as a
+          // call-summary event in the events-api, picked up by the poller.
+          onDispatched?.(request.actionId);
+          console.log(`[happyrobot] mission dispatched for ${request.contact.id}`);
         })
         .catch((err: unknown) => {
           const cause = err instanceof Error ? err.message : String(err);
@@ -169,14 +159,14 @@ function createSimulatedClient(onClosed: HappyRobotOptions["onClosed"]): HappyRo
 }
 
 /**
- * Picks a client based on whether a usable credential exists. Starting with no
- * calls at all is worse than starting with simulated ones: the latter keeps the
- * whole chain standing and turns the integration into an env change.
+ * Picks a client based on whether the mission hook is configured. Starting with
+ * no calls at all is worse than starting with simulated ones: the latter keeps
+ * the whole chain standing and turns the integration into an env change.
  */
 export function createHappyRobotClient(options: HappyRobotOptions): HappyRobotClient {
-  if (credentialUsable(options.apiKey)) return createRealClient(options);
+  if (options.webhookUrl) return createRealClient(options.webhookUrl, options);
   console.warn(
-    "[happyrobot] no usable credential: communications are simulated and the demo stays up",
+    "[happyrobot] no mission hook configured: communications are simulated and the demo stays up",
   );
   return createSimulatedClient(options.onClosed);
 }
