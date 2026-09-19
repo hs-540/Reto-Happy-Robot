@@ -11,7 +11,9 @@
 > 1 crew + 2 generators → a 10-unit fleet of crews, generators, tankers and
 > police; 4-5 min of script → 1800 s; one curated timeline → a crisis drawn per
 > run; simulated calls → a real mission hook behind an off-by-default switch;
-> pause/reset as the only human lever → an operator chat that gives orders.
+> pause/reset as the only human lever → an operator chat that gives orders; a
+> 15-site catalog over 30 min → a 100-site, 90-unit catalog, ~50 sites per run
+> and a 2 h window.
 
 ## Challenge context
 
@@ -85,6 +87,20 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > validation, and the tests' fixture. Moments are revealed through the feed only
 > once they fire. Full design in
 > [`SCENARIO-GENERATION.md`](SCENARIO-GENERATION.md).
+
+> **Superseded — the world scaled to a city, not a district.** Fifteen sites and
+> ten units were small enough that a coordinator could hold the whole map in its
+> head. The catalog is now **100 places** (20 substations, 18 hospitals, 15
+> datacenters, 20 towers, 14 fuel stations, 13 junctions) and **90 resources**
+> (30 crews, 30 generators, 15 tankers, 15 police), and the window runs
+> **7200 s (2 h)**. A run plays **~50 of those sites** (`MIN_SUBSET_SIZE` 46,
+> `MAX_SUBSET_SIZE` 54): what the seed varies is which half of the map plays,
+> which substation rings fall inside it and how the arcs land across the window.
+> The fleet stays tight against that world — the 1.1-1.4 band survives the
+> scale-up, so a ~50-site crisis fields ~12-23 units and demand stays above
+> capacity. Playing the whole map at once was tried first and cost the run its
+> scarcity: with 75-90 units deployed the ratio fell below 1 and triage stopped
+> being forced.
 
 ## Decision engine
 

@@ -11,7 +11,12 @@ import {
   BAND_MIN,
   drawScenario,
   generateScenario,
+  MAX_FLEET_SIZE,
+  MAX_SUBSET_SIZE,
+  MIN_FLEET_SIZE,
   MIN_INCIDENT_SPACING_SECONDS,
+  MIN_SUBSET_SIZE,
+  NEEDLE_WINDOW,
   validateScenario,
   type Scenario,
 } from "../src/scenario.js";
@@ -70,7 +75,10 @@ function assertSubsetInvariants(scenario: Scenario): void {
   const resourceIds = new Set(script.resources.map((r) => r.id));
   const countOfType = (type: string) => script.elements.filter((e) => e.type === type).length;
 
-  assert.ok(script.elements.length >= 8 && script.elements.length <= 15, "subset of 8-15 sites");
+  assert.ok(
+    script.elements.length >= MIN_SUBSET_SIZE && script.elements.length <= MAX_SUBSET_SIZE,
+    `subset of ${MIN_SUBSET_SIZE}-${MAX_SUBSET_SIZE} sites, got ${script.elements.length}`,
+  );
   assert.ok(countOfType("substation") >= 2, "at least 2 substations");
   assert.ok(countOfType("hospital") >= 2, "at least 2 hospitals");
   assert.ok(countOfType("fuel_station") >= 1, "at least one fuel_station");
@@ -116,7 +124,7 @@ function assertTimelineWellFormed(scenario: Scenario): void {
 }
 
 /**
- * The fleet shrinks with the drawn crisis: 4-10 units, never without one unit
+ * The fleet shrinks with the drawn crisis, inside its bounds, never without one unit
  * of every class, ids unique so contacts and topology keep pointing at units
  * that exist — and never as large as the world: at most one unit fewer than
  * the drawn sites, so prioritizing is always part of the job.
@@ -125,7 +133,10 @@ function assertFleetShape(scenario: Scenario): void {
   const byType = (type: string) => scenario.script.resources.filter((r) => r.type === type).length;
   const size = scenario.script.resources.length;
   const sites = scenario.script.elements.length;
-  assert.ok(size >= 4 && size <= 10, `fleet of 4-10 units, got ${size}`);
+  assert.ok(
+    size >= MIN_FLEET_SIZE && size <= MAX_FLEET_SIZE,
+    `fleet of ${MIN_FLEET_SIZE}-${MAX_FLEET_SIZE} units, got ${size}`,
+  );
   assert.ok(
     size <= sites - 1,
     `fleet of ${size} must stay below the ${sites} drawn sites: full coverage is never an option`,
@@ -194,7 +205,10 @@ test("the needle lands mid-crisis on a hospital whose substation is down", () =>
     );
     assert.equal(needleEvents.length, 1, `seed ${seed}: exactly one needle report`);
     const needleAt = (needleEvents[0] as { atSeconds: number }).atSeconds;
-    assert.ok(needleAt >= 420 && needleAt <= 1080, `seed ${seed}: needle at ${needleAt}`);
+    assert.ok(
+      needleAt >= NEEDLE_WINDOW[0] && needleAt <= NEEDLE_WINDOW[1],
+      `seed ${seed}: needle at ${needleAt}`,
+    );
     const contact = draft.contacts.find((c) => c.id === "ventilator-citizen");
     assert.equal(contact?.elementId, draft.meta.needleHospitalId, `seed ${seed}: contact reassigned`);
     const hospital = draft.script.elements.find((e) => e.id === draft.meta.needleHospitalId);

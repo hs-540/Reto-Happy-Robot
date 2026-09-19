@@ -96,6 +96,492 @@
       "to": "tanker-2",
       "type": "refuels",
       "note": "The second tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "sub-03",
+      "to": "hosp-04",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-13",
+      "to": "hosp-05",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-09",
+      "to": "hosp-06",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-04",
+      "to": "hosp-07",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-11",
+      "to": "hosp-08",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-19",
+      "to": "hosp-09",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-03",
+      "to": "hosp-10",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-03",
+      "to": "hosp-11",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-12",
+      "to": "hosp-12",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-11",
+      "to": "hosp-13",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-11",
+      "to": "hosp-14",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-14",
+      "to": "hosp-15",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-10",
+      "to": "hosp-16",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-14",
+      "to": "hosp-17",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-05",
+      "to": "hosp-18",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-01",
+      "to": "dc-03",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-06",
+      "to": "dc-04",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-13",
+      "to": "dc-05",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-08",
+      "to": "dc-06",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-18",
+      "to": "dc-07",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-16",
+      "to": "dc-08",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-18",
+      "to": "dc-09",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-12",
+      "to": "dc-10",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-17",
+      "to": "dc-11",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-09",
+      "to": "dc-12",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-04",
+      "to": "dc-13",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-10",
+      "to": "dc-14",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-02",
+      "to": "dc-15",
+      "type": "supplies",
+      "note": "The datacenter hangs off this substation."
+    },
+    {
+      "from": "sub-20",
+      "to": "tower-04",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-12",
+      "to": "tower-05",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-15",
+      "to": "tower-06",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-17",
+      "to": "tower-07",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-09",
+      "to": "tower-08",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-11",
+      "to": "tower-09",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-20",
+      "to": "tower-10",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-02",
+      "to": "tower-11",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-01",
+      "to": "tower-12",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-14",
+      "to": "tower-13",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-16",
+      "to": "tower-14",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-16",
+      "to": "tower-15",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-20",
+      "to": "tower-16",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-03",
+      "to": "tower-17",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-16",
+      "to": "tower-18",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-13",
+      "to": "tower-19",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-17",
+      "to": "tower-20",
+      "type": "supplies",
+      "note": "The tower hangs off this substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-09",
+      "to": "fuel-03",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-11",
+      "to": "fuel-04",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-05",
+      "to": "fuel-05",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-01",
+      "to": "fuel-06",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-02",
+      "to": "fuel-07",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-03",
+      "to": "fuel-08",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-02",
+      "to": "fuel-09",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-14",
+      "to": "fuel-10",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-08",
+      "to": "fuel-11",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-13",
+      "to": "fuel-12",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-02",
+      "to": "fuel-13",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-15",
+      "to": "fuel-14",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-04",
+      "to": "junction-03",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-16",
+      "to": "junction-04",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-20",
+      "to": "junction-05",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-15",
+      "to": "junction-06",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-01",
+      "to": "junction-07",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-09",
+      "to": "junction-08",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-11",
+      "to": "junction-09",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-01",
+      "to": "junction-10",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-09",
+      "to": "junction-11",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-14",
+      "to": "junction-12",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "sub-01",
+      "to": "junction-13",
+      "type": "supplies",
+      "note": "The traffic lights hang off this substation: with no grid, the junction is unregulated."
+    },
+    {
+      "from": "fuel-14",
+      "to": "tanker-3",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-08",
+      "to": "tanker-4",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-03",
+      "to": "tanker-5",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-06",
+      "to": "tanker-6",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-12",
+      "to": "tanker-7",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-08",
+      "to": "tanker-8",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-01",
+      "to": "tanker-9",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-12",
+      "to": "tanker-10",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-04",
+      "to": "tanker-11",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-06",
+      "to": "tanker-12",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-04",
+      "to": "tanker-13",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-02",
+      "to": "tanker-14",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    },
+    {
+      "from": "fuel-01",
+      "to": "tanker-15",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
     }
   ]
 }

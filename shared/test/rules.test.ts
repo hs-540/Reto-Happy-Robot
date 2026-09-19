@@ -49,10 +49,10 @@ function ruleOf(r: ReturnType<typeof validateAction>) {
 }
 
 test("catalog capacities and limits", () => {
-  assert.equal(RESOURCE_CAPACITY.crew, 2);
-  assert.equal(RESOURCE_CAPACITY.generator, 4);
-  assert.equal(RESOURCE_CAPACITY.tanker, 2);
-  assert.equal(RESOURCE_CAPACITY.police, 2);
+  assert.equal(RESOURCE_CAPACITY.crew, 30);
+  assert.equal(RESOURCE_CAPACITY.generator, 30);
+  assert.equal(RESOURCE_CAPACITY.tanker, 15);
+  assert.equal(RESOURCE_CAPACITY.police, 15);
   assert.equal(MAX_MINUTES_WITHOUT_POWER.hospital, 8);
   assert.equal(MAX_MINUTES_WITHOUT_POWER.datacenter, 12);
   assert.equal(MAX_MINUTES_WITHOUT_POWER.substation, 20);
