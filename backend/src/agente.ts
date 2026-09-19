@@ -99,11 +99,17 @@ export function crearAgente(opciones: OpcionesAgente): Agente {
 
   /* ─── Percepción: ¿ha cambiado algo que merezca pensar? ─────────────── */
 
-  /** Motivos que exigen abandonar el plan, no solo ajustarlo (RULES.md §7) */
-  const PREFIJOS_REPLAN = ["no cumple su ETA", "ha superado su límite", "La llamada", "pasa de"];
+  /**
+   * Replanificar es ABANDONAR un plan que ya existía porque los hechos lo han
+   * superado. Un cambio de status es el pan de cada tick y no basta: si todo se
+   * marca como replan, la etiqueta deja de distinguir nada y se pierde el
+   * momento que de verdad importa — la brigada incumpliendo su ETA.
+   */
+  const MOTIVOS_REPLAN = ["no cumple su ETA", "ha superado su límite", "La llamada"];
 
   function esReplan(motivos: string[]): boolean {
-    return motivos.some((m) => PREFIJOS_REPLAN.some((p) => m.includes(p)));
+    if (plan === null) return false; // no hay plan que abandonar
+    return motivos.some((m) => MOTIVOS_REPLAN.some((p) => m.includes(p)));
   }
 
   function motivosDeliberacion(estado: StateView, eventos: EventoMundo[]): string[] {
