@@ -14,6 +14,7 @@ const EMPTY_STATE: StateView = {
   tick: 0,
   paused: false,
   started: false,
+  finished: false,
   simulationClock: new Date(0).toISOString(),
   lastSeq: 0,
   elements: [],

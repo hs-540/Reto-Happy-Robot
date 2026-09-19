@@ -414,6 +414,12 @@
   background: color-mix(in srgb, var(--degraded) 9%, transparent);
 }
 
+.statuspill--complete {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
 .statuspill--offline {
   color: var(--critical);
   border-color: color-mix(in srgb, var(--critical) 40%, transparent);

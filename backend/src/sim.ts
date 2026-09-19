@@ -69,6 +69,8 @@ export interface Simulation {
   tick(): number;
   /** Current simulated second; consumed by `world.advance` */
   seconds(): number;
+  /** Every script event applied and the clock past the script's duration */
+  readonly finished: boolean;
   readonly paused: boolean;
   readonly started: boolean;
 }
@@ -198,6 +200,10 @@ export function createSimulation(
     }
   }
 
+  function isFinished(): boolean {
+    return started && next >= timeline.length && seconds >= script.durationSeconds;
+  }
+
   return {
     advance(nowMs: number): void {
       if (!started) {
@@ -211,6 +217,9 @@ export function createSimulation(
         applyEvent(timeline[next]);
         next++;
       }
+      // the script has an end: past its duration the clock freezes and the run
+      // is over — the world stops, the summary publishes, the UI shows COMPLETE
+      if (seconds >= script.durationSeconds) seconds = script.durationSeconds;
       reportResolved();
     },
     start(nowMs: number): void {
@@ -274,6 +283,7 @@ export function createSimulation(
         tick: Math.floor(seconds / TICK_SECONDS),
         paused,
         started,
+        finished: isFinished(),
         simulationClock: isoClock(seconds),
         lastSeq: feed.lastSeq(),
         elements: views,
@@ -286,6 +296,9 @@ export function createSimulation(
     },
     seconds(): number {
       return seconds;
+    },
+    get finished(): boolean {
+      return isFinished();
     },
     get paused(): boolean {
       return paused;

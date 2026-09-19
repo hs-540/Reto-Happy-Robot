@@ -126,6 +126,7 @@ function App() {
           live={live}
           started={state.started}
           paused={state.paused}
+          finished={state.finished}
           currentSecond={state.tick * TICK_SECONDS}
           durationSeconds={topology.crisis.durationSeconds}
           moments={topology.crisis.moments}

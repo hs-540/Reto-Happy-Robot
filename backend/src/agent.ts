@@ -21,6 +21,7 @@ import { ATTEMPT_TIMEOUT_MS, type LlmClient } from "./llm.js";
 import { TIME_SCALE } from "./sim.js";
 import type { WorldEvent, World } from "./world.js";
 import type { Feed } from "./feed.js";
+import type { RunStats } from "./stats.js";
 import type { HistoryRag } from "./rag/history.js";
 import { staticHistory, tryRetrieveHistory } from "./rag/retrieval.js";
 import {
@@ -139,6 +140,8 @@ export interface AgentOptions {
   remedies: Remedies;
   /** Current simulated second */
   seconds: () => number;
+  /** Per-run counters for the end-of-simulation summary (optional, tests skip it) */
+  stats?: RunStats;
 }
 
 /**
@@ -212,6 +215,7 @@ export function createAgent(options: AgentOptions): Agent {
     topology,
     remedies,
     seconds,
+    stats,
   } = options;
 
   let plan: AgentPlan | null = null;
@@ -729,6 +733,7 @@ export function createAgent(options: AgentOptions): Agent {
       if (reasons.length === 0 || deliberating || state.paused) return;
 
       deliberating = true;
+      const reactionStart = performance.now();
       try {
         let output: AgentOutput;
         try {
@@ -746,6 +751,7 @@ export function createAgent(options: AgentOptions): Agent {
           output = decideByRules(state, reasons);
         }
         execute(output, state, isReplan(reasons));
+        stats?.recordReaction(performance.now() - reactionStart);
       } finally {
         deliberating = false;
       }
