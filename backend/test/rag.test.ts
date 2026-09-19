@@ -4,10 +4,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadHistory } from "@swarmup/shared";
+import { ChromaClient } from "chromadb";
+import { loadHistory, type ElementView } from "@swarmup/shared";
 import type { LlmClient } from "../src/llm.js";
 import { startChroma, type LocalChroma } from "../src/rag/chroma.js";
 import { createHistoryRag } from "../src/rag/history.js";
+import { retrieveHistory } from "../src/rag/retrieval.js";
 import type { IncidentClosure } from "../src/sim.js";
 
 const dataPath = mkdtempSync(path.join(tmpdir(), "rag-test-"));
@@ -21,9 +23,6 @@ function incidentsOf(type: string) {
 
 /** Real embeddings come from the gateway (config); a deterministic one is enough here */
 const testLlm: LlmClient = {
-  chat: async () => {
-    throw new Error("not used in tests");
-  },
   structured: async () => {
     throw new Error("not used in tests");
   },
@@ -98,5 +97,46 @@ test("loop closure records the resolved incident and does not duplicate re-closu
   assert.ok(
     res.some(({ incident }) => incident.id.startsWith("closure-sub-01-")),
     "the vectorized closure must be retrievable",
+  );
+});
+
+const substationView: ElementView = {
+  id: "sub-01",
+  type: "substation",
+  name: "Getafe-Sur Substation",
+  lat: 40.3057,
+  lng: -3.7327,
+  status: "critical",
+  severity: 82,
+  sensors: { grid_voltage: 6 },
+  attention: { state: "unattended", resourceId: null, activeDecisionId: null },
+  updatedAt: "2026-09-19T10:05:00.000Z",
+};
+
+test("what one run closed, the next run retrieves through the agent's path", async () => {
+  // A brand-new client and a brand-new rag over the same collections: what
+  // survives a run is what is on disk, and that is what "learning between runs"
+  // has to mean. Collection naming and embedding path have to line up between
+  // the write of `recordClosure` and this read, or the loop is never closed.
+  const laterRun = createHistoryRag({
+    client: new ChromaClient({ host: "localhost", port: PORT }),
+    llm: testLlm,
+  });
+
+  const entries = await retrieveHistory({
+    rag: laterRun,
+    reasons: ["sub-01 goes from degraded to critical"],
+    sites: [substationView],
+    limit: 4,
+  });
+
+  assert.ok(entries.length <= 4);
+  assert.ok(
+    entries.some(({ incident }) => incident.id.startsWith("closure-sub-01-")),
+    "the closure of the previous run must come back as a past incident",
+  );
+  assert.ok(
+    entries.every(({ retrievedFor }) => retrievedFor.includes("sub-01")),
+    "every entry states why it surfaced, so the model can cite it",
   );
 });

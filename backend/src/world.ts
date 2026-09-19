@@ -4,6 +4,7 @@ import type {
   ElementView,
   ValidatableElement,
   ValidatableResource,
+  RepairEstimate,
   ResourceView,
 } from "@swarmup/shared";
 import {
@@ -82,7 +83,13 @@ export type WorldEvent =
       metric: SensorMetric;
       value: number;
       severity: number;
-    };
+    }
+  /**
+   * The site no longer needs the resource, which goes back to `available`.
+   * Capacity the agent did not have a moment ago: without this the whole fleet
+   * ends a run pinned to sites that were fixed ten minutes earlier.
+   */
+  | { type: "released"; resourceId: string; elementId: string; reason: string };
 
 export type AssignmentResult =
   | { ok: true; etaSeconds: number }
@@ -133,6 +140,12 @@ export interface World {
   /** Back to the initial script state (called by `simulation.reset`) */
   reset(): void;
   resources(): ResourceView[];
+  /**
+   * Countdown to `elementId` being fixed, in crisis seconds. Reads the same
+   * route and remedy state `advance` acts on, so the number and the event that
+   * eventually fires cannot drift apart. `null` when nothing is on its way.
+   */
+  repairEstimate(elementId: string, seconds: number): RepairEstimate | null;
   /** Accumulated seconds without grid power or reliable backup, by elementId */
   secondsWithoutPower(elementId: string): number;
   /** Context consumed by `validateAction` from shared/rules */
@@ -253,12 +266,71 @@ export function createWorld(
     );
   }
 
+  /**
+   * What the resource committed to `elementId` still needs to finish its remedy.
+   * A resource sent somewhere its remedy does not apply gets no countdown: it is
+   * not fixing anything, and a counter ticking down to nothing would be a lie.
+   */
+  function directRepair(elementId: string, seconds: number): RepairEstimate | null {
+    const elementType = typeOf.get(elementId);
+    if (!elementType) return null;
+
+    for (const r of resources.values()) {
+      if (r.assignedElementId !== elementId) continue;
+      if (r.status !== "in_transit" && r.status !== "assigned") continue;
+      const remedy = remedyFor(r.type, elementType);
+      if (!remedy) continue;
+
+      const base = { resourceId: r.id, viaElementId: elementId };
+      if (r.remedyApplied) {
+        return { ...base, travelSeconds: 0, workSeconds: 0, totalSeconds: 0 };
+      }
+
+      const travel =
+        r.status === "in_transit" && r.departedAt !== null
+          ? Math.max(r.etaSeconds - (seconds - r.departedAt), 0)
+          : 0;
+      const work =
+        r.status === "assigned" && r.arrivedAt !== null
+          ? Math.max(remedy.minutes * 60 - (seconds - r.arrivedAt), 0)
+          : remedy.minutes * 60;
+
+      return {
+        ...base,
+        travelSeconds: Math.round(travel),
+        workSeconds: Math.round(work),
+        totalSeconds: Math.round(travel + work),
+      };
+    }
+    return null;
+  }
+
   /** With the junction unregulated, every journey takes twice as long */
   function trafficPenalised(): boolean {
     const directed = [...resources.values()].some(
       (r) => r.type === "police" && r.status === "assigned",
     );
     return directed ? false : highCongestion;
+  }
+
+  /**
+   * Frees the resource in place: it keeps the coordinates it has reached, so a
+   * resource that stands down mid-route does it where it is rather than
+   * teleporting back to base.
+   */
+  function standDown(r: ResourceState): void {
+    r.status = "available";
+    r.assignedElementId = null;
+    r.origin = null;
+    r.destination = null;
+    r.route = [];
+    r.cumulativeKm = [0];
+    r.routeKm = 0;
+    r.departedAt = null;
+    r.etaSeconds = 0;
+    r.delayReported = false;
+    r.arrivedAt = null;
+    r.remedyApplied = false;
   }
 
   /**
@@ -382,6 +454,53 @@ export function createWorld(
         }
       }
 
+      // A resource whose site no longer needs it goes back to the pool. Runs
+      // after the remedy loop on purpose: the remedy has to take hold on this
+      // same tick before the release is even considered, or a one-shot job is
+      // judged unfinished for a whole extra tick.
+      for (const r of resources.values()) {
+        if (r.status === "available") continue;
+        const targetId = r.assignedElementId;
+        if (!targetId) continue;
+        const elementType = typeOf.get(targetId);
+        if (!elementType) continue;
+        const remedy = remedyFor(r.type, elementType);
+        if (!remedy) continue;
+
+        if (!remedy.sustains) {
+          // One-shot: it does the job and leaves. Still in transit it has not
+          // even started, so only `remedyApplied` frees it.
+          if (r.status !== "assigned" || !r.remedyApplied) continue;
+          standDown(r);
+          events.push({
+            type: "released",
+            resourceId: r.id,
+            elementId: targetId,
+            reason: `its work at ${targetId} is finished`,
+          });
+          continue;
+        }
+
+        // Sustaining: the resource IS the missing service while it sits there,
+        // so letting it go early puts the site straight back where it started.
+        // Only the site no longer needing it frees it — and a resource still en
+        // route stands down where it is instead of finishing a pointless trip.
+        const element = elements.find((e) => e.id === targetId);
+        if (!element) continue;
+        const voltage = element.sensors.grid_voltage;
+        // Missing data is not evidence of a fix: without a voltage reading we
+        // keep the resource in place rather than gamble the site's supply.
+        const gridBack = voltage !== undefined && voltage >= VOLTAGE_WITH_GRID;
+        if (!gridBack && element.status !== "resolved") continue;
+        standDown(r);
+        events.push({
+          type: "released",
+          resourceId: r.id,
+          elementId: targetId,
+          reason: gridBack ? `${targetId} has grid power again` : `${targetId} is resolved`,
+        });
+      }
+
       // With the grid back, a site's own metrics stop being frozen at their
       // worst reading and converge toward healthy. Without this the demo ends
       // with three sites in red even though the agent solved everything.
@@ -456,18 +575,7 @@ export function createWorld(
     release(resourceId: string): void {
       const r = resources.get(resourceId);
       if (!r) return;
-      r.status = "available";
-      r.assignedElementId = null;
-      r.origin = null;
-      r.destination = null;
-      r.route = [];
-      r.cumulativeKm = [0];
-      r.routeKm = 0;
-      r.departedAt = null;
-      r.etaSeconds = 0;
-      r.delayReported = false;
-      r.arrivedAt = null;
-      r.remedyApplied = false;
+      standDown(r);
     },
 
     delay(resourceId: string, extraSeconds: number): void {
@@ -497,6 +605,26 @@ export function createWorld(
         lng: r.lng,
         ...(r.status === "in_transit" && r.route.length >= 2 ? { route: r.route } : {}),
       }));
+    },
+
+    repairEstimate(elementId: string, seconds: number): RepairEstimate | null {
+      const own = directRepair(elementId, seconds);
+      if (own) return own;
+
+      // Nothing committed here, but repairing an upstream node hands the grid
+      // back to everything below it — `advance` emits a `remedy_applied` for
+      // every dependent. That repair IS this site's countdown, and saying so is
+      // what makes the coverage argument visible: one crew, five sites.
+      let inherited: RepairEstimate | null = null;
+      for (const e of script.elements) {
+        if (e.id === elementId) continue;
+        if (!dependentsOf(topology, e.id).includes(elementId)) continue;
+        const upstream = directRepair(e.id, seconds);
+        if (upstream && (!inherited || upstream.totalSeconds < inherited.totalSeconds)) {
+          inherited = upstream;
+        }
+      }
+      return inherited;
     },
 
     secondsWithoutPower(elementId: string): number {

@@ -4,22 +4,33 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import type { z } from "zod";
 
 /**
- * Budget per gateway attempt. Measured live against Helmcode with the agent's
- * real prompt (rules catalog + world + history): `deepseek-v4-flash` takes
- * between 8s and 19s because it reasons before answering, and latency grows as
- * the prompt swells during the run. With 10s (calibrated for `gpt-4.1-mini`)
- * only 1 in 4 calls survived. The engine tick does not wait for the
- * deliberation, so this does not slow the simulation: it only avoids killing
- * responses that were already on their way.
+ * Budget per gateway attempt, and the wall clock the agent's own deliberation
+ * budget is built from (see `DELIBERATION_BUDGET_MS` in `agent.ts`).
+ *
+ * Re-measured against Helmcode with the agent's real prompt (3.3k input
+ * tokens), 23 uncached calls: 15.4 / 20.4 / 20.7 / 23.0 / 23.8 / 24.8 / 26.5 /
+ * 30.6 / 34.3 / 35.7 / 35.8 / 36.4 / 36.5 / 38.5 / 40.8 / 43.7 / 52.3 / 59.1 /
+ * 62.4 / 65.3 / 68.7 / 101.4 / 112.5 seconds. The "8-19s" this constant was
+ * calibrated on no longer holds: that window only reproduces on a prompt the
+ * provider has already cached (repeat calls came back in 0.7-0.9s).
+ *
+ * At 45s this timeout was itself the main source of fallbacks — it cut off 7 of
+ * 23 calls that were still answering. 60s covers 18 of 23 and still lands
+ * inside the staleness ceiling `agent.ts` derives from the hospital deadline.
+ * Past 60s the answer describes a world that has already moved on, so the extra
+ * wait buys a stale decision rather than a better one.
  */
-const TIMEOUT_MS = 45_000;
+export const ATTEMPT_TIMEOUT_MS = 60_000;
 
 /**
- * Hard ceiling on the answer. Measured: the real agent prompt left unbounded
- * produced 11.8k output tokens — a reasoning model given six sites, two graphs
- * and 35 reports thinks in proportion, and that alone was 60s before structured
- * decoding pushed it past two minutes. The input (4.3k tokens) was never the
- * problem. This caps how long it can ramble, which is what caps the latency.
+ * Requested ceiling on the answer. It is sent, but on this gateway it is NOT
+ * what caps latency — measured with `max_tokens: 3000`, the same call came back
+ * with 4.4k-14.4k completion tokens (2.9k-12.7k of them reasoning tokens) and
+ * `finish_reason: "stop"` every time. `max_completion_tokens` and
+ * `reasoning_effort: "low"` were measured too and are ignored just the same.
+ * Nothing we can put in the request makes this model think less; the only real
+ * lever left is the size of the prompt. Kept because it costs nothing and
+ * would bind on a provider that does honour it.
  */
 const MAX_OUTPUT_TOKENS = 3_000;
 
@@ -43,7 +54,6 @@ export interface StructuredLlmResponse<T> extends LlmResponse {
 }
 
 export interface LlmClient {
-  chat(messages: ChatCompletionMessageParam[]): Promise<LlmResponse>;
   structured<T>(
     messages: ChatCompletionMessageParam[],
     schema: z.ZodType<T>,
@@ -80,7 +90,12 @@ interface GatewayAttempt {
 export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
   const attempts: GatewayAttempt[] = gateways.map((gw) => ({
     gw,
-    client: new OpenAI({ baseURL: gw.url, apiKey: gw.apiKey, timeout: TIMEOUT_MS, maxRetries: 0 }),
+    client: new OpenAI({
+      baseURL: gw.url,
+      apiKey: gw.apiKey,
+      timeout: ATTEMPT_TIMEOUT_MS,
+      maxRetries: 0,
+    }),
   }));
 
   async function withFailover<T>(
@@ -110,15 +125,6 @@ export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
   }
 
   return {
-    chat: async (messages) => {
-      const { result, gw, latencyMs } = await withFailover(({ client, gw }: GatewayAttempt) =>
-        client.chat.completions.create({ model: gw.model, messages }),
-      );
-      const text = result.choices?.[0]?.message?.content ?? "";
-      if (!text) throw new Error(`gateway ${gw.id} returned an empty response`);
-      return { text, gateway: gw.id, model: gw.model, latencyMs };
-    },
-
     structured: async (messages, schema, name) => {
       const { result, gw, latencyMs } = await withFailover(({ client, gw }: GatewayAttempt) =>
         client.chat.completions.parse({

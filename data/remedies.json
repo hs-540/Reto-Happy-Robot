@@ -7,6 +7,7 @@
       "appliesTo": ["substation"],
       "minutes": 18,
       "effect": "Restores grid power to EVERYTHING hanging off the repaired node. The highest coverage per resource spent.",
+      "sustains": false,
       "requires": null,
       "$note": "A generator is no substitute: a substation is not powered, it is repaired. It is slow, but it is the only action that returns the grid to every dependent at once."
     },
@@ -16,6 +17,7 @@
       "appliesTo": ["hospital", "datacenter", "tower"],
       "minutes": 5,
       "effect": "Local supply for as long as the fuel lasts. Does not fix the cause, buys time.",
+      "sustains": true,
       "requires": "fuel",
       "$note": "Occupies the resource while connected: it cannot be split between two sites."
     },
@@ -25,6 +27,7 @@
       "appliesTo": ["hospital", "datacenter", "tower", "fuel_station"],
       "minutes": 10,
       "effect": "Refills the site's tank or the connected generator: +8 h of autonomy.",
+      "sustains": false,
       "requires": "operational_fuel_station",
       "$note": "With no load and no station to refill at, the tanker stops being useful."
     },
@@ -34,6 +37,7 @@
       "appliesTo": ["junction"],
       "minutes": 8,
       "effect": "Directs the junction by hand and returns travel times to normal for every resource.",
+      "sustains": true,
       "requires": null,
       "$note": "Saves nobody on its own. It is what lets every other resource arrive in time."
     }

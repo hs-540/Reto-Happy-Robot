@@ -1,7 +1,32 @@
-import type { ElementView } from '@swarmup/shared'
+import type { ElementView, RepairEstimate } from '@swarmup/shared'
 import { Icon } from './icons'
 import { ELEMENT_ICON } from './iconPaths'
-import { severityTier } from '../lib/format'
+import { formatCountdown, severityTier } from '../lib/format'
+
+/**
+ * How long until the site stops being a problem. "On site" only says somebody
+ * is there; this says when they are done — and when the fix is inherited, that
+ * one repair upstream is what closes this site too.
+ */
+function RepairCountdown({ repair, elementId }: { repair: RepairEstimate; elementId: string }) {
+  const inherited = repair.viaElementId !== elementId
+  if (repair.totalSeconds === 0) {
+    return <span className="site__eta site__eta--done">fixed</span>
+  }
+  return (
+    <span
+      className={`site__eta ${inherited ? 'site__eta--inherited' : ''}`}
+      title={
+        inherited
+          ? `Fixed by the repair of ${repair.viaElementId} (${repair.resourceId})`
+          : `${formatCountdown(repair.travelSeconds)} travelling + ${formatCountdown(repair.workSeconds)} working`
+      }
+    >
+      fixed in {formatCountdown(repair.totalSeconds)}
+      {inherited && ` · via ${repair.viaElementId}`}
+    </span>
+  )
+}
 
 const TYPE_LABEL: Record<string, string> = {
   hospital: 'Hospital',
@@ -137,6 +162,7 @@ export function SitesPanel({
                 {el.attention?.resourceId && (
                   <span className="site__resource">→ {el.attention.resourceId}</span>
                 )}
+                {el.repair && <RepairCountdown repair={el.repair} elementId={el.id} />}
               </div>
             </button>
           )

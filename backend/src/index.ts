@@ -43,17 +43,39 @@ const roads = (() => {
 
 const world = createWorld(script, remedies, topologyGraph, roads);
 
+/** History shipped with the repo, per site type: the seed of the incident memory */
+const history: HistoricalIncident[] = ["hospital", "datacenter", "substation"].flatMap((type) =>
+  loadHistory(new URL(`data/history/${type}/incidents.json`, repoRoot).pathname),
+);
+
 /** Local Chroma (RAG): if it does not start, the demo goes on without loop closure */
 const ragReady: Promise<HistoryRag | null> = startChroma({
   path: config.chroma.path,
   port: config.chroma.port,
 })
-  .then((chroma) =>
-    createHistoryRag({ client: chroma.client, llm: createLlmClient(config.llm.gateways) }),
-  )
+  .then(async (chroma) => {
+    const rag = createHistoryRag({
+      client: chroma.client,
+      llm: createLlmClient(config.llm.gateways),
+    });
+    /* Seeded on boot, not by a manual script: a fresh machine where nobody ran
+       `npm run rag:preload` would retrieve nothing and nobody would notice —
+       the demo would look fine and quietly cite no precedent. `preload` upserts
+       by id, so booting again neither duplicates the seed nor touches the
+       closures earlier runs wrote (their ids are their own). */
+    try {
+      const total = await rag.preload(history);
+      console.log(`[rag] incident memory ready: ${total} incidents across the collections`);
+    } catch (err: unknown) {
+      console.error(
+        `[rag] seeding failed, retrieval will use whatever is already on disk: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
+      );
+    }
+    return rag;
+  })
   .catch((err: unknown) => {
     console.error(
-      `[rag] Chroma unavailable, resolved incidents will not be recorded: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
+      `[rag] Chroma unavailable, the agent runs on the static history: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
     );
     return null;
   });
@@ -78,11 +100,6 @@ const sim = createSimulation(script, Date.now(), feed, world, onResolved, (repor
 const actionRegistry = createActionRegistry(feed);
 const topology: TopologyView = toTopology(script);
 
-/** History pre-loaded per site type: agent context from the first tick */
-const history: HistoricalIncident[] = ["hospital", "datacenter", "substation"].flatMap((type) =>
-  loadHistory(new URL(`data/history/${type}/incidents.json`, repoRoot).pathname),
-);
-
 /**
  * The channel to the real world. Created before the agent and receiving the
  * closure by callback: a call takes a minute to resolve and the engine does not
@@ -101,6 +118,7 @@ const agent = createAgent({
   actionRegistry,
   happyrobot,
   history,
+  rag: ragReady,
   topology: topologyGraph,
   remedies,
   seconds: () => sim.seconds(),
@@ -139,6 +157,14 @@ function advance(): void {
         kind: "system",
         message: `${ev.resourceId} takes effect on ${ev.elementId}: ${ev.effect}`,
       });
+    } else if (ev.type === "released") {
+      // no reading to inject: the site did not change, the fleet did. Checked
+      // before the final `else`, which assumes whatever is left is a sensor
+      // reading and would hand `sim.inject` an event with no metric.
+      feed.publish({
+        kind: "system",
+        message: `${ev.resourceId} stands down from ${ev.elementId}: ${ev.reason}`,
+      });
     } else {
       // recovery: silent, it does not clutter the feed but the world improves
       sim.inject({
@@ -158,7 +184,11 @@ function fullState(): StateView {
   const state = sim.state();
   return {
     ...state,
-    elements: state.elements.map((e) => ({ ...e, attention: agent.attention(e.id) })),
+    elements: state.elements.map((e) => ({
+      ...e,
+      attention: agent.attention(e.id, e.status),
+      repair: e.status === "resolved" ? null : world.repairEstimate(e.id, sim.seconds()),
+    })),
   };
 }
 

@@ -1,13 +1,17 @@
 # Checklist — Happy Robot Challenge (HackSpain 2026)
 
 > Objectives extracted from `Happy Robot Challenge Guide.md` (submission requirements and evaluation criteria).
+>
+> Every item names the file it can be checked against. A box is only ticked when
+> the code does the thing; where something is half built, the box stays empty and
+> the note says exactly which half.
 
 ## Mandatory submission requirements
 
 - [x] **Agentic system** — decides and acts on its own (not a passive chatbot) *(hybrid rules+LLM engine, no human gate: `agent.ts` observes → deliberates → executes)*
 - [x] **Dynamic scenario** — continuous changes during execution *(tick + event script + live injections with re-planning)*
 - [x] **Multi-step response** — chain of actions with a cohesive objective *(plan with chained steps, `replanOf` links every re-plan)*
-- [ ] **Real interaction** — integration with external systems (calls, APIs, tickets) *(⚠️ pending: `contact` is stamped as executed but does not call the HappyRobot API)*
+- [x] **Real interaction** — integration with external systems (calls, APIs, tickets) *(HappyRobot client built and wired end to end: `happyrobot.ts` posts to `/api/v1/dial/outbound`, `agent.execute()` fires it for every communication, and the hang-up comes back through `POST /api/call/outcome` → `agent.closeCall()` → replan. **Caveat: no credential yet**, so `createHappyRobotClient()` falls back to the simulated client and the same chain runs with scripted answers; setting `HAPPYROBOT_API_KEY` switches it to real calls with no code change)*
 - [x] **User interface** — panel with state, system actions and intervention *(map + feed + agent panel + injection panel + pause)*
 
 ## 🧠 Decision
@@ -19,15 +23,15 @@
 ## ⚡ Action
 
 - [x] Coordinates **simultaneously** people, information and resources *(assigns resources and contacts within the same deliberation, several decisions per plan)*
-- [x] **Really executes** (not just proposes actions) *(`assign_resource` moves resources and changes the world; `contact` is recorded, without real execution)*
+- [x] **Really executes** (not just proposes actions) *(`assign_resource` moves resources and changes the world; `contact` is recorded as `executed` with no human gate and dispatched through the HappyRobot client — real when a credential is set, simulated otherwise)*
 
 ## 👁 Supervision
 
 - [x] **Operational transparency** + possible human intervention *(append-only feed with reasoning, manual injection, pause/reset)*
 - [x] **Original** scenario and management *(cascading blackout in the Community of Madrid)*
-- [x] **Iterative learning** from previous runs *(RAG with Chroma: the agent cites applicable historical incidents by id; history pre-loaded, not generated from its own runs)*
+- [ ] **Iterative learning** from previous runs *(⚠️ half built: Chroma is started, `data/history/` is vectorized per element type by `npm run rag:preload` and every resolved incident is written back by `recordClosure()`. But **retrieval is not wired**: `HistoryRag.search()` is never called, so the agent's history comes from the static JSON filtered by element type (`agent.ts`, 3 per turn) and Chroma is only ever written to. The agent does cite what it used by id (`historyCitation`); the selection is not a vector search)*
 
 ## 🎁 Bonus / Presentation
 
-- [x] **Learning** — analysis of previous runs for continuous improvement (bonus) *(RAG over `data/history` per element type, cited in the reasoning)*
-- [ ] **Polished demo** — "the demo counts as much as the system" *(pending a full rehearsal; the HappyRobot integration affects the "real call" effect)*
+- [ ] **Learning** — analysis of previous runs for continuous improvement (bonus) *(same gap as above: the write side of the loop is closed, the read side goes through static JSON instead of Chroma)*
+- [ ] **Polished demo** — "the demo counts as much as the system" *(pending a full rehearsal; without a HappyRobot credential the "real call" moment lands as a simulated one)*

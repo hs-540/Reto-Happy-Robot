@@ -74,7 +74,6 @@ export const AgentOutputSchema = z.object({
 });
 
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
-export type Communication = z.infer<typeof CommunicationSchema>;
 export type AgentOutput = z.infer<typeof AgentOutputSchema>;
 
 /* ─── Prompt building ─────────────────────────────────────────────────── */
@@ -172,6 +171,11 @@ HOW YOU REASON
   falls next.
 - A rule rejection is NOT permanent: it describes the state RIGHT NOW. As soon as the condition
   that caused it changes, re-evaluate. Do not carry an old veto forward as if it still applied.
+- A covered site carries FIXED IN: how long until it actually stops being a problem. Check it
+  against the site's own clock. Covered is not fixed: if the hospital lasts 8 minutes without
+  power and the generator says FIXED IN 11m, that site is NOT solved and you still have to act.
+  When the line says "inherited", the fix comes from repairing an upstream node — one action
+  closing several sites at once, which is usually the best use of a resource you have.
 - Resources have a time cost: moving them takes time, and while they travel they cannot be
   somewhere else.
 - Think in couplings, not only in rankings. Repairing the origin substation may restore several
@@ -189,15 +193,38 @@ catalog of thresholds, weights and blocking rules is below in JSON.
 RULES CATALOG
 ${summariseRules()}`;
 
+/** `754` → `12m34s`: the agent reasons in minutes against deadlines in minutes */
+function countdown(seconds: number): string {
+  return `${Math.floor(seconds / 60)}m${String(Math.floor(seconds % 60)).padStart(2, "0")}s`;
+}
+
+/**
+ * "Covered" is not the same as "fixed". A generator five minutes away and a
+ * generator already running both used to read as covered, while the hospital's
+ * limit is eight minutes: the deadline is only arithmetic if the agent is told
+ * how long the fix still takes.
+ */
+function repairLine(e: ElementView): string {
+  if (!e.repair) return "";
+  const r = e.repair;
+  const via = r.viaElementId === e.id ? "" : ` (inherited from the repair of ${r.viaElementId})`;
+  if (r.totalSeconds === 0) return `\n    FIXED: ${r.resourceId} has finished${via}`;
+  const breakdown =
+    r.travelSeconds > 0
+      ? `${countdown(r.travelSeconds)} travelling + ${countdown(r.workSeconds)} working`
+      : `${countdown(r.workSeconds)} of work left`;
+  return `\n    FIXED IN ${countdown(r.totalSeconds)} by ${r.resourceId}${via} — ${breakdown}`;
+}
+
 function elementLine(e: ElementView, secondsWithoutPower: number, priority: number): string {
   const sensors = Object.entries(e.sensors)
     .map(([k, v]) => `${k}=${v}`)
     .join(" ");
   const power =
-    secondsWithoutPower > 0 ? ` WITHOUT POWER for ${Math.floor(secondsWithoutPower / 60)}m${Math.floor(secondsWithoutPower % 60)}s` : "";
+    secondsWithoutPower > 0 ? ` WITHOUT POWER for ${countdown(secondsWithoutPower)}` : "";
   const resource = e.attention.resourceId ? ` (${e.attention.resourceId})` : "";
   const attention = `${ATTENTION[e.attention.state] ?? e.attention.state}${resource}`;
-  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severity=${e.severity} priority=${priority}${power}\n    ${attention}\n    sensors: ${sensors || "no readings"}`;
+  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severity=${e.severity} priority=${priority}${power}\n    ${attention}${repairLine(e)}\n    sensors: ${sensors || "no readings"}`;
 }
 
 function resourceLine(r: ResourceView): string {
@@ -232,8 +259,25 @@ function reportLine(r: Report): string {
   return `- [${r.source}]${r.elementId ? ` (${r.elementId})` : ""} ${r.text}`;
 }
 
-function historyLine(h: HistoricalIncident): string {
-  return `- [${h.id}] ${h.title}\n    ${h.summary}\n    Lesson: ${h.outcome}`;
+/**
+ * A past incident handed to the model together with WHY it surfaced now.
+ * Without that "why" the model cannot tell a semantic match from a plain type
+ * filter, and `historyCitation` comes back empty or cites whatever was first.
+ */
+export interface HistoryEntry {
+  incident: HistoricalIncident;
+  /** what surfaced it: the live situation it resembles, or the type filter */
+  retrievedFor: string;
+}
+
+function historyLine(h: HistoryEntry): string {
+  const { incident } = h;
+  return [
+    `- [${incident.id}] ${incident.title} (${incident.date})`,
+    `    Retrieved because: ${h.retrievedFor}`,
+    `    What happened: ${incident.summary}`,
+    `    Conclusion: ${incident.outcome}`,
+  ].join("\n");
 }
 
 export interface AgentContext {
@@ -249,8 +293,8 @@ export interface AgentContext {
   remedies: Remedies;
   /** raw signals since the last deliberation, mostly noise */
   reports: Report[];
-  /** historical incidents of the involved element types */
-  history: HistoricalIncident[];
+  /** past incidents retrieved for this situation, each with why it surfaced */
+  history: HistoryEntry[];
   /** why this deliberation was triggered */
   reasons: string[];
 }
@@ -294,7 +338,13 @@ export function buildMessages(
   }
 
   if (ctx.history.length > 0) {
-    parts.push("", "PAST INCIDENTS OF THESE SITE TYPES:", ...ctx.history.map(historyLine));
+    parts.push(
+      "",
+      "PAST INCIDENTS OF THESE SITE TYPES — retrieved from the incident memory by",
+      "similarity to what you are looking at now, closures of earlier runs included:",
+      ...ctx.history.map(historyLine),
+      'If one of these conclusions changes a decision, cite its id in "historyCitation".',
+    );
   }
 
   if (ctx.currentPlan) {

@@ -41,6 +41,30 @@ export type AttentionState =
   | "resource_assigned"
   | "resolved";
 
+/**
+ * How long until a site stops being a problem. `attention` says somebody is on
+ * it; this says when they are done — the difference between "a generator is
+ * coming" and "the hospital has power in four minutes", with a limit of eight.
+ *
+ * Every number is in CRISIS seconds, like the rest of the state: the simulation
+ * runs faster than the wall clock and the countdown belongs to the scenario.
+ */
+export interface RepairEstimate {
+  /** the resource doing the work */
+  resourceId: string;
+  /**
+   * The site actually being worked on. Usually the element itself; when the fix
+   * is inherited it is the upstream node whose repair restores this one's grid.
+   */
+  viaElementId: string;
+  /** until the resource reaches the site it is working on; 0 once it is there */
+  travelSeconds: number;
+  /** work left after arriving, from the remedy's declared duration */
+  workSeconds: number;
+  /** what the counter shows: travel + work */
+  totalSeconds: number;
+}
+
 export interface ElementView {
   id: string;
   type: ElementType;
@@ -56,6 +80,8 @@ export interface ElementView {
     resourceId: string | null;
     activeDecisionId: string | null;
   };
+  /** countdown to being fixed; `null` when nothing is on its way */
+  repair: RepairEstimate | null;
   updatedAt: string;
 }
 
