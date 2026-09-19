@@ -85,69 +85,81 @@ export function AgentPanel({
 
       <section className="agent__section">
         <h2 className="agent__heading">Decisiones</h2>
-        <ul className="cards">
-          {agent.decisiones.map((d) => (
-            <li
-              key={d.id}
-              className={`card ${d.elementId === selectedElementId ? 'is-selected' : ''}`}
-              onClick={() => onSelectElement(d.elementId)}
-            >
-              <div className="card__top">
-                <span className="badge badge--prioridad">P{d.prioridad}</span>
-                <span className="card__elemento">
-                  {nombresElemento[d.elementId] ?? d.elementId}
-                </span>
-                {d.provocaReplan && <span className="badge badge--replan">REPLAN</span>}
-              </div>
-              <p className="card__razonamiento">{d.razonamiento}</p>
-            </li>
-          ))}
-        </ul>
+        {agent.decisiones.length === 0 ? (
+          <p className="muted">Sin decisiones todavía.</p>
+        ) : (
+          <ul className="cards">
+            {agent.decisiones.map((d) => (
+              <li
+                key={d.id}
+                className={`card ${d.elementId === selectedElementId ? 'is-selected' : ''}`}
+                onClick={() => onSelectElement(d.elementId)}
+              >
+                <div className="card__top">
+                  <span className="badge badge--prioridad">P{d.prioridad}</span>
+                  <span className="card__elemento">
+                    {nombresElemento[d.elementId] ?? d.elementId}
+                  </span>
+                  {d.provocaReplan && <span className="badge badge--replan">REPLAN</span>}
+                </div>
+                <p className="card__razonamiento">{d.razonamiento}</p>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="agent__section">
         <h2 className="agent__heading">Acciones</h2>
-        <ul className="cards">
-          {agent.acciones.map((a) => (
-            <li key={a.id} className="card">
-              <div className="card__top">
-                <span className="card__elemento">
-                  {ETIQUETA_ACCION[a.type] ?? a.type}
-                </span>
-                <EtiquetaEstadoAccion estado={a.status} />
-              </div>
-              <p className="card__razonamiento">{a.mensaje}</p>
-              {a.destinatario && (
-                <span className="card__destino">→ {a.destinatario}</span>
-              )}
-            </li>
-          ))}
-        </ul>
+        {agent.acciones.length === 0 ? (
+          <p className="muted">Sin acciones todavía.</p>
+        ) : (
+          <ul className="cards">
+            {agent.acciones.map((a) => (
+              <li key={a.id} className="card">
+                <div className="card__top">
+                  <span className="card__elemento">
+                    {ETIQUETA_ACCION[a.type] ?? a.type}
+                  </span>
+                  <EtiquetaEstadoAccion estado={a.status} />
+                </div>
+                <p className="card__razonamiento">{a.mensaje}</p>
+                {a.destinatario && (
+                  <span className="card__destino">→ {a.destinatario}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="agent__section">
         <h2 className="agent__heading">Actividad</h2>
-        <ul className="feed">
-          {items.map((item) => {
-            const { titulo, detalle } = descripcionFeed(item, nombresElemento)
-            const elementId = 'elementId' in item ? item.elementId : null
-            return (
-              <li
-                key={item.seq}
-                className={`feed__item feed__item--${item.kind} ${
-                  elementId && elementId === selectedElementId ? 'is-selected' : ''
-                }`}
-                onClick={() => elementId && onSelectElement(elementId)}
-              >
-                <span className="feed__seq">{item.seq}</span>
-                <div>
-                  <span className="feed__titulo">{titulo}</span>
-                  <p className="feed__detalle">{detalle}</p>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        {items.length === 0 ? (
+          <p className="muted">Sin actividad todavía.</p>
+        ) : (
+          <ul className="feed">
+            {items.map((item) => {
+              const { titulo, detalle } = descripcionFeed(item, nombresElemento)
+              const elementId = 'elementId' in item ? item.elementId : null
+              return (
+                <li
+                  key={item.seq}
+                  className={`feed__item feed__item--${item.kind} ${
+                    elementId && elementId === selectedElementId ? 'is-selected' : ''
+                  }`}
+                  onClick={() => elementId && onSelectElement(elementId)}
+                >
+                  <span className="feed__seq">{item.seq}</span>
+                  <div>
+                    <span className="feed__titulo">{titulo}</span>
+                    <p className="feed__detalle">{detalle}</p>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </section>
     </aside>
   )

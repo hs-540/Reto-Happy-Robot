@@ -12,6 +12,14 @@ function App() {
   const { topology, state, agent, feed, refrescar } = useCrisis()
   const [selectedElementId, setSelectedElementId] = useState<string | null>('hosp-01')
 
+  if (!topology || !state) {
+    return (
+      <div className="conectando">
+        <p className="muted">Conectando con el backend…</p>
+      </div>
+    )
+  }
+
   const nombresElemento = Object.fromEntries(
     topology.elementos.map((e) => [e.id, e.name]),
   )

@@ -12,6 +12,12 @@
   background: var(--bg);
 }
 
+.conectando {
+  height: 100svh;
+  display: grid;
+  place-items: center;
+}
+
 /* ---------- Header ---------- */
 
 .header {
