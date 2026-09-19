@@ -42,6 +42,12 @@ const NEEDLE_WINDOW: readonly [number, number] = [420, 1080];
 
 /** Movement speed of the fleet, simulated km/min (world.ts drives with this) */
 const SPEED_KM_MIN = 0.5;
+/**
+ * With a junction jammed and nobody directing it, the world doubles every
+ * journey (world.ts TRAFFIC_PENALTY). Every accepted draw has a downed
+ * junction, so the budget plans for the world the draw itself creates.
+ */
+const TRAFFIC_PENALTY = 2;
 /** Even from the next street over, getting deployed takes a minute */
 const MIN_TRAVEL_MINUTES = 1;
 
@@ -98,7 +104,7 @@ function travelMinutes(siteId: string, fixResource: string): number {
   if (!site) return MIN_TRAVEL_MINUTES;
   const bases = CATALOG.resources.filter((r) => r.type === fixResource);
   const nearest = Math.min(...bases.map((r) => distanceKm(r, site)));
-  return Math.max(nearest / SPEED_KM_MIN, MIN_TRAVEL_MINUTES);
+  return Math.max((nearest / SPEED_KM_MIN) * TRAFFIC_PENALTY, MIN_TRAVEL_MINUTES);
 }
 
 /** Every dependent of a downed substation is in the subset with it */
@@ -249,8 +255,10 @@ export function drawScenario(seed: number): ScenarioDraft {
   };
 
   const contacts: Contact[] = REMEDIES.contacts.flatMap((c) => {
-    if (c.elementId !== undefined && !active.has(c.elementId)) return [];
+    // the needle moves to this seed's crisis hospital before filtering: its
+    // original site may not even exist in this world
     if (c.id === "ventilator-citizen") return [{ ...c, elementId: needleHospitalId }];
+    if (c.elementId !== undefined && !active.has(c.elementId)) return [];
     return [{ ...c }];
   });
 
