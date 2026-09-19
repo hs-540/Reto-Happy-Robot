@@ -1,0 +1,53 @@
+{
+  "$comment": "Physical facts about the scenario: what depends on what. It describes the world, NEVER decisions or priorities. Judgement is the agent's job; this only tells it how reality is wired.",
+  "edges": [
+    {
+      "from": "sub-01",
+      "to": "hosp-01",
+      "type": "supplies",
+      "note": "The hospital hangs off this substation. Restoring it gives the hospital its grid back."
+    },
+    {
+      "from": "sub-01",
+      "to": "dc-01",
+      "type": "supplies",
+      "note": "The datacenter hangs off the same substation."
+    },
+    {
+      "from": "sub-01",
+      "to": "tower-01",
+      "type": "supplies",
+      "note": "The tower hangs off the same substation; meanwhile it runs on its own batteries."
+    },
+    {
+      "from": "sub-01",
+      "to": "fuel-01",
+      "type": "supplies",
+      "note": "The pumps are electric: with no grid, the station cannot dispense."
+    },
+    {
+      "from": "sub-01",
+      "to": "junction-01",
+      "type": "supplies",
+      "note": "The traffic lights hang off the same substation."
+    },
+    {
+      "from": "tower-01",
+      "to": "*",
+      "type": "enables_comms",
+      "note": "While the tower is up, calls and messages can be made. If its batteries run out, the coordinator loses every channel for reaching anyone."
+    },
+    {
+      "from": "junction-01",
+      "to": "*",
+      "type": "enables_transit",
+      "note": "Traffic lights out and nobody directing: any journey through the area takes up to twice as long. Regulating the junction returns travel times to normal."
+    },
+    {
+      "from": "fuel-01",
+      "to": "tanker-1",
+      "type": "refuels",
+      "note": "The tanker refills here. With the station down, once it runs dry it can no longer refuel generators."
+    }
+  ]
+}

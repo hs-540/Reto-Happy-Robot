@@ -32,7 +32,11 @@ export interface TopologyView {
 
 export type AttentionState =
   | "unattended"
+  /** a live decision covers the site, but no resource is committed yet */
   | "analyzing"
+  /** resource committed and on its way: the site IS covered, no need for another */
+  | "resource_en_route"
+  /** resource deployed and working on site */
   | "resource_assigned"
   | "resolved";
 

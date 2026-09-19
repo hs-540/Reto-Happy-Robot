@@ -1,7 +1,13 @@
 import type { SensorMetric } from "./world.js";
-import type { ActionStatus, ActionType } from "./agent.js";
+import type { ActionStatus, ActionType, CallOutcome } from "./agent.js";
 
-export type FeedItemKind = "alarm" | "decision" | "action" | "system";
+export type FeedItemKind =
+  | "alarm"
+  | "report"
+  | "decision"
+  | "action"
+  | "outcome"
+  | "system";
 
 interface FeedBase {
   seq: number;
@@ -14,6 +20,14 @@ export interface FeedAlarm extends FeedBase {
   metric: SensorMetric;
   value: number;
   severity: number;
+}
+
+/** Raw incoming signal: the agent decides whether it changes anything or is noise */
+export interface FeedReport extends FeedBase {
+  kind: "report";
+  source: "social" | "emergency_call" | "press" | "field" | "faulty_sensor";
+  text: string;
+  elementId: string | null;
 }
 
 export interface FeedDecision extends FeedBase {
@@ -34,12 +48,28 @@ export interface FeedAction extends FeedBase {
   message: string;
 }
 
+/** Result of a real call: what the person on the other end answered */
+export interface FeedOutcome extends FeedBase {
+  kind: "outcome";
+  elementId: string | null;
+  actionId: string;
+  outcome: CallOutcome;
+  delayMinutes: number | null;
+  summary: string;
+}
+
 export interface FeedSystem extends FeedBase {
   kind: "system";
   message: string;
 }
 
-export type FeedItem = FeedAlarm | FeedDecision | FeedAction | FeedSystem;
+export type FeedItem =
+  | FeedAlarm
+  | FeedReport
+  | FeedDecision
+  | FeedAction
+  | FeedOutcome
+  | FeedSystem;
 
 export interface FeedResponse {
   items: FeedItem[];

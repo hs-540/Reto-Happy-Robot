@@ -1,6 +1,6 @@
 {
-  "title": "Regional blackout — Getafe, Community of Madrid",
-  "durationSeconds": 300,
+  "title": "Cascading blackout — Getafe, Community of Madrid",
+  "durationSeconds": 1800,
   "elements": [
     {
       "id": "sub-01",
@@ -12,6 +12,15 @@
       "criticality": 70
     },
     {
+      "id": "hosp-01",
+      "type": "hospital",
+      "name": "Getafe-Sur Regional Hospital",
+      "lat": 40.31,
+      "lng": -3.71,
+      "status": "normal",
+      "criticality": 95
+    },
+    {
       "id": "dc-01",
       "type": "datacenter",
       "name": "Getafe Metropolitan Datacenter",
@@ -21,13 +30,31 @@
       "criticality": 60
     },
     {
-      "id": "hosp-01",
-      "type": "hospital",
-      "name": "Getafe-Sur Regional Hospital",
-      "lat": 40.31,
-      "lng": -3.71,
+      "id": "tower-01",
+      "type": "tower",
+      "name": "Getafe Norte Telecoms Tower",
+      "lat": 40.3125,
+      "lng": -3.7285,
       "status": "normal",
-      "criticality": 95
+      "criticality": 75
+    },
+    {
+      "id": "fuel-01",
+      "type": "fuel_station",
+      "name": "A-42 Service Station",
+      "lat": 40.2998,
+      "lng": -3.7352,
+      "status": "normal",
+      "criticality": 40
+    },
+    {
+      "id": "junction-01",
+      "type": "junction",
+      "name": "Av. Juan Carlos I Junction",
+      "lat": 40.3082,
+      "lng": -3.7156,
+      "status": "normal",
+      "criticality": 35
     }
   ],
   "resources": [
@@ -54,13 +81,29 @@
       "assignedElementId": null,
       "lat": 40.302,
       "lng": -3.722
+    },
+    {
+      "id": "tanker-1",
+      "type": "tanker",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.2985,
+      "lng": -3.7312
+    },
+    {
+      "id": "police-1",
+      "type": "police",
+      "status": "available",
+      "assignedElementId": null,
+      "lat": 40.3062,
+      "lng": -3.7191
     }
   ],
   "timeline": [
     {
       "atSeconds": 0,
       "kind": "sensor_event",
-      "note": "Moment 1 — initial blackout at the origin substation.",
+      "note": "Moment 1 — blackout at the Getafe-Sur substation: every site it supplies goes down.",
       "payload": {
         "id": "evt-001",
         "elementId": "sub-01",
@@ -70,10 +113,196 @@
       }
     },
     {
-      "atSeconds": 15,
+      "atSeconds": 12,
+      "kind": "report",
+      "payload": {
+        "id": "rep-001",
+        "source": "social",
+        "text": "Power is out across all of Getafe Norte",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 18,
       "kind": "sensor_event",
       "payload": {
         "id": "evt-002",
+        "elementId": "hosp-01",
+        "metric": "grid_voltage",
+        "value": 8,
+        "severity": 80
+      }
+    },
+    {
+      "atSeconds": 24,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-003",
+        "elementId": "dc-01",
+        "metric": "grid_voltage",
+        "value": 8,
+        "severity": 80
+      }
+    },
+    {
+      "atSeconds": 24,
+      "kind": "report",
+      "payload": {
+        "id": "rep-002",
+        "source": "social",
+        "text": "Anyone else without power in Getafe? #blackout",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 30,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-004",
+        "elementId": "tower-01",
+        "metric": "grid_voltage",
+        "value": 8,
+        "severity": 75
+      }
+    },
+    {
+      "atSeconds": 36,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-005",
+        "elementId": "fuel-01",
+        "metric": "grid_voltage",
+        "value": 8,
+        "severity": 60
+      }
+    },
+    {
+      "atSeconds": 36,
+      "kind": "report",
+      "payload": {
+        "id": "rep-003",
+        "source": "social",
+        "text": "Five minutes without power, this is a disgrace",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 42,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-006",
+        "elementId": "junction-01",
+        "metric": "grid_voltage",
+        "value": 0,
+        "severity": 55
+      }
+    },
+    {
+      "atSeconds": 48,
+      "kind": "report",
+      "payload": {
+        "id": "rep-004",
+        "source": "social",
+        "text": "@iberdrola what is going on in Getafe??",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 54,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-007",
+        "elementId": "junction-01",
+        "metric": "congestion",
+        "value": 14,
+        "severity": 45
+      }
+    },
+    {
+      "atSeconds": 60,
+      "kind": "report",
+      "payload": {
+        "id": "rep-009",
+        "source": "emergency_call",
+        "text": "Resident asks when power returns to their street",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 66,
+      "kind": "report",
+      "payload": {
+        "id": "rep-005",
+        "source": "social",
+        "text": "my fridge has been off a while, everything is going to spoil",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 78,
+      "kind": "report",
+      "payload": {
+        "id": "rep-006",
+        "source": "social",
+        "text": "No power in Getafe again, just like April 2025",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 84,
+      "kind": "report",
+      "payload": {
+        "id": "rep-010",
+        "source": "press",
+        "text": "Local outlet requests a statement on the scope of the outage",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 96,
+      "kind": "report",
+      "payload": {
+        "id": "rep-007",
+        "source": "social",
+        "text": "No wifi, no TV, does anyone know anything",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 102,
+      "kind": "report",
+      "payload": {
+        "id": "rep-011",
+        "source": "field",
+        "text": "Patrol 14 reports: traffic lights out on Av. Juan Carlos I, slow-moving traffic",
+        "elementId": "junction-01"
+      }
+    },
+    {
+      "atSeconds": 114,
+      "kind": "report",
+      "payload": {
+        "id": "rep-008",
+        "source": "social",
+        "text": "#blackout Getafe is trending already",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 126,
+      "kind": "report",
+      "payload": {
+        "id": "rep-012",
+        "source": "emergency_call",
+        "text": "Person trapped in a lift on calle Madrid 12 — fire service already alerted through another channel",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 144,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-008",
         "elementId": "dc-01",
         "metric": "ups_load",
         "value": 35,
@@ -81,11 +310,51 @@
       }
     },
     {
-      "atSeconds": 40,
-      "kind": "sensor_event",
-      "note": "Moment 2 — the datacenter starts overheating, UPS on limited battery.",
+      "atSeconds": 156,
+      "kind": "report",
       "payload": {
-        "id": "evt-003",
+        "id": "rep-013",
+        "source": "social",
+        "text": "Odd humming in the industrial estate, probably the datacenter generator",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 186,
+      "kind": "report",
+      "payload": {
+        "id": "rep-014",
+        "source": "social",
+        "text": "My router has had no signal for 20 minutes",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 210,
+      "kind": "report",
+      "payload": {
+        "id": "rep-015",
+        "source": "faulty_sensor",
+        "text": "Datacenter sensor T-14 reports 87 °C — inconsistent with the adjacent sensors",
+        "elementId": "dc-01"
+      }
+    },
+    {
+      "atSeconds": 228,
+      "kind": "report",
+      "payload": {
+        "id": "rep-016",
+        "source": "press",
+        "text": "Interview request for the 3pm news bulletin",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 240,
+      "kind": "sensor_event",
+      "note": "Moment 2 — the datacenter starts overheating on a limited UPS.",
+      "payload": {
+        "id": "evt-009",
         "elementId": "dc-01",
         "metric": "temperature",
         "value": 41,
@@ -93,22 +362,115 @@
       }
     },
     {
-      "atSeconds": 60,
-      "kind": "sensor_event",
+      "atSeconds": 258,
+      "kind": "report",
       "payload": {
-        "id": "evt-004",
-        "elementId": "dc-01",
-        "metric": "ups_load",
-        "value": 12,
-        "severity": 75
+        "id": "rep-017",
+        "source": "social",
+        "text": "Power is out in Getafe!! (posted 40 minutes ago)",
+        "elementId": null
       }
     },
     {
-      "atSeconds": 90,
+      "atSeconds": 276,
       "kind": "sensor_event",
-      "note": "Moment 3 — the hospital loses its backup generator: resource conflict, live voice call.",
       "payload": {
-        "id": "evt-005",
+        "id": "evt-010",
+        "elementId": "dc-01",
+        "metric": "ups_load",
+        "value": 22,
+        "severity": 60
+      }
+    },
+    {
+      "atSeconds": 294,
+      "kind": "report",
+      "payload": {
+        "id": "rep-018",
+        "source": "field",
+        "text": "Datacenter technician confirms a hot aisle in row B",
+        "elementId": "dc-01"
+      }
+    },
+    {
+      "atSeconds": 360,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-011",
+        "elementId": "tower-01",
+        "metric": "tower_battery",
+        "value": 52,
+        "severity": 35
+      }
+    },
+    {
+      "atSeconds": 378,
+      "kind": "report",
+      "payload": {
+        "id": "rep-019",
+        "source": "field",
+        "text": "Intermittent mobile coverage in the north; some calls are not getting through",
+        "elementId": "tower-01"
+      }
+    },
+    {
+      "atSeconds": 420,
+      "kind": "report",
+      "payload": {
+        "id": "rep-020",
+        "source": "social",
+        "text": "My phone is dead, no calls and no data",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 450,
+      "kind": "sensor_event",
+      "note": "Moment 3 — the tower batteries are draining: if it falls, the ability to coordinate is lost.",
+      "payload": {
+        "id": "evt-012",
+        "elementId": "tower-01",
+        "metric": "tower_battery",
+        "value": 34,
+        "severity": 65
+      }
+    },
+    {
+      "atSeconds": 468,
+      "kind": "report",
+      "payload": {
+        "id": "rep-021",
+        "source": "emergency_call",
+        "text": "Caller reports her father is on a home ventilator with one hour of battery left",
+        "elementId": "hosp-01"
+      }
+    },
+    {
+      "atSeconds": 480,
+      "kind": "report",
+      "payload": {
+        "id": "rep-022",
+        "source": "social",
+        "text": "anyone know if the supermarket is open?",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 498,
+      "kind": "report",
+      "payload": {
+        "id": "rep-023",
+        "source": "social",
+        "text": "Three hours without power already",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 540,
+      "kind": "sensor_event",
+      "note": "Moment 4 — the hospital loses its backup generator: a direct conflict over resources.",
+      "payload": {
+        "id": "evt-013",
         "elementId": "hosp-01",
         "metric": "generator_battery",
         "value": 18,
@@ -116,19 +478,142 @@
       }
     },
     {
-      "atSeconds": 150,
+      "atSeconds": 552,
+      "kind": "report",
+      "payload": {
+        "id": "rep-024",
+        "source": "field",
+        "text": "Hospital confirms the main generator set will not start",
+        "elementId": "hosp-01"
+      }
+    },
+    {
+      "atSeconds": 570,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-014",
+        "elementId": "hosp-01",
+        "metric": "fuel",
+        "value": 22,
+        "severity": 70
+      }
+    },
+    {
+      "atSeconds": 582,
+      "kind": "report",
+      "payload": {
+        "id": "rep-025",
+        "source": "social",
+        "text": "People are leaving the hospital, what is going on?",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 606,
+      "kind": "report",
+      "payload": {
+        "id": "rep-026",
+        "source": "press",
+        "text": "Can you confirm an incident at the Regional Hospital?",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 630,
+      "kind": "report",
+      "payload": {
+        "id": "rep-027",
+        "source": "emergency_call",
+        "text": "Resident reports the branch cash machine is down",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 660,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-015",
+        "elementId": "fuel-01",
+        "metric": "fuel",
+        "value": 30,
+        "severity": 50
+      }
+    },
+    {
+      "atSeconds": 672,
+      "kind": "report",
+      "payload": {
+        "id": "rep-028",
+        "source": "field",
+        "text": "A-42 service station: pumps have no power, unable to dispense",
+        "elementId": "fuel-01"
+      }
+    },
+    {
+      "atSeconds": 900,
       "kind": "narrative",
-      "note": "Moment 4 — the dispatched crew misses its ETA / the datacenter worsens: triggers a full re-plan.",
+      "note": "Moment 5 — the crew misses its ETA: the plan relied on it and must be rebuilt.",
       "payload": {
         "resourceId": "crew-1",
         "event": "eta_missed"
       }
     },
     {
-      "atSeconds": 170,
+      "atSeconds": 912,
+      "kind": "report",
+      "payload": {
+        "id": "rep-029",
+        "source": "social",
+        "text": "Massive jam on Juan Carlos I",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 930,
       "kind": "sensor_event",
       "payload": {
-        "id": "evt-006",
+        "id": "evt-016",
+        "elementId": "junction-01",
+        "metric": "congestion",
+        "value": 28,
+        "severity": 65
+      }
+    },
+    {
+      "atSeconds": 948,
+      "kind": "report",
+      "payload": {
+        "id": "rep-030",
+        "source": "field",
+        "text": "Traffic at a standstill on the hospital approach",
+        "elementId": "junction-01"
+      }
+    },
+    {
+      "atSeconds": 978,
+      "kind": "report",
+      "payload": {
+        "id": "rep-031",
+        "source": "social",
+        "text": "been stuck in the car for 25 minutes",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 1008,
+      "kind": "report",
+      "payload": {
+        "id": "rep-032",
+        "source": "faulty_sensor",
+        "text": "Voltage sensor SUB-3 reports 400% — outside any physical range",
+        "elementId": "sub-01"
+      }
+    },
+    {
+      "atSeconds": 1020,
+      "kind": "sensor_event",
+      "payload": {
+        "id": "evt-017",
         "elementId": "dc-01",
         "metric": "temperature",
         "value": 48,
@@ -136,37 +621,44 @@
       }
     },
     {
-      "atSeconds": 240,
+      "atSeconds": 1050,
       "kind": "sensor_event",
-      "note": "Moment 5 — the substation is repaired, power comes back, the incident is closed.",
       "payload": {
-        "id": "evt-007",
-        "elementId": "sub-01",
-        "metric": "grid_voltage",
-        "value": 98,
-        "severity": 5
+        "id": "evt-018",
+        "elementId": "tower-01",
+        "metric": "tower_battery",
+        "value": 21,
+        "severity": 80
       }
     },
     {
-      "atSeconds": 260,
-      "kind": "sensor_event",
+      "atSeconds": 1080,
+      "kind": "report",
       "payload": {
-        "id": "evt-008",
-        "elementId": "dc-01",
-        "metric": "ups_load",
-        "value": 90,
-        "severity": 5
+        "id": "rep-033",
+        "source": "press",
+        "text": "Is there an estimate for restoration?",
+        "elementId": null
       }
     },
     {
-      "atSeconds": 280,
-      "kind": "sensor_event",
+      "atSeconds": 1458,
+      "kind": "report",
       "payload": {
-        "id": "evt-009",
-        "elementId": "hosp-01",
-        "metric": "generator_battery",
-        "value": 95,
-        "severity": 5
+        "id": "rep-034",
+        "source": "social",
+        "text": "THE POWER IS BACK 🎉",
+        "elementId": null
+      }
+    },
+    {
+      "atSeconds": 1530,
+      "kind": "report",
+      "payload": {
+        "id": "rep-035",
+        "source": "press",
+        "text": "We would like a summary of the incident",
+        "elementId": null
       }
     }
   ]

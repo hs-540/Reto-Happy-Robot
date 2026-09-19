@@ -1,6 +1,14 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { z } from "zod";
-import type { AgentPlan, ElementView, HistoricalIncident, ResourceView } from "@swarmup/shared";
+import type {
+  AgentPlan,
+  ElementView,
+  HistoricalIncident,
+  Remedies,
+  Report,
+  ResourceView,
+  Topology,
+} from "@swarmup/shared";
 import { AGENT_RULES } from "@swarmup/shared";
 
 /* ─── LLM structured output ─────────────────────────────────────────────
@@ -21,6 +29,24 @@ export const ProposedActionSchema = z.object({
   message: z.string(),
 });
 
+/**
+ * Communications are a field of their own and required, not an optional action
+ * inside a decision. Asked for in prose they fell through every time: the model
+ * focused on moving resources and the warning stayed written in a plan step,
+ * never leaving its head. As a required field, it gets filled.
+ */
+export const CommunicationSchema = z.object({
+  /** id from the CONTACTS list: crew-chief, hospital-lead… */
+  recipient: z.string(),
+  channel: z.enum(["voice_call", "chat_message"]),
+  /** site the warning is about */
+  elementId: z.string(),
+  /** the text said to them, already written for THIS person */
+  message: z.string(),
+  /** why this person needs to know now */
+  reason: z.string(),
+});
+
 export const AgentOutputSchema = z.object({
   evaluation: z.object({
     /** incoming signals that change nothing, and why */
@@ -32,6 +58,8 @@ export const AgentOutputSchema = z.object({
   steps: z.array(
     z.object({ description: z.string(), elementId: z.string().nullable() }),
   ),
+  /** who you warn in this deliberation; empty only if truly nobody */
+  communications: z.array(CommunicationSchema),
   decisions: z.array(
     z.object({
       elementId: z.string(),
@@ -46,9 +74,43 @@ export const AgentOutputSchema = z.object({
 });
 
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
+export type Communication = z.infer<typeof CommunicationSchema>;
 export type AgentOutput = z.infer<typeof AgentOutputSchema>;
 
 /* ─── Prompt building ─────────────────────────────────────────────────── */
+
+/**
+ * The catalog as compact prose. Dumping `JSON.stringify(AGENT_RULES)` carried
+ * its internal comments and nesting on EVERY call, and it was the block that
+ * bloated the prompt most — and with it the latency.
+ */
+function summariseRules(): string {
+  const r = AGENT_RULES;
+  const metrics = Object.entries(r.metricThresholds)
+    .filter(([k]) => !k.startsWith("$"))
+    .map(
+      ([m, t]) =>
+        `${m} ${t.direction === "low" ? "worse when lower" : "worse when higher"}: degraded ${t.degraded}, critical ${t.critical}`,
+    )
+    .join("; ");
+  const limits = Object.entries(r.maxMinutesWithoutPower)
+    .filter(([k]) => !k.startsWith("$"))
+    .map(([t, m]) => `${t} ${m}min`)
+    .join(", ");
+  const weights = Object.entries(r.priority.typeWeight)
+    .map(([t, w]) => `${t} ${w}`)
+    .join(", ");
+  const blocking = r.blockingRules.map((b) => `  [${b.id}] ${b.rule}`).join("\n");
+  return [
+    `Severity: >=${r.severity.criticalThreshold} critical, >=${r.severity.degradedThreshold} degraded.`,
+    `Metric thresholds — ${metrics}.`,
+    `Maximum time without power by type — ${limits}.`,
+    `UPS: below ${r.ups.act}% waiting is forbidden; ${r.ups.emergency}% is an emergency.`,
+    `Priority = 0.5*criticality + weight(status) + weight(type) + 2*min(minutesWithoutPower,15). Type weights: ${weights}.`,
+    "BLOCKING RULES (proposing anything that violates them is rejected):",
+    blocking,
+  ].join("\n");
+}
 
 const SYSTEM_PROMPT = `You are the autonomous coordinator of a regional blackout crisis in the Community of Madrid.
 
@@ -56,12 +118,34 @@ You manage critical sites (hospital, substation, datacenter) with LIMITED, share
 You decide alone: nobody will ask your permission or correct you between decisions.
 
 YOUR JOB IN EVERY DELIBERATION
-1. Separate signal from noise. Many alarms arrive and only a few change anything. State
-   explicitly which ones you discard and why: that triage is part of your job.
+1. Separate signal from noise. You receive RAW SIGNALS from social media, emergency calls,
+   press and field teams. Most change nothing: complaints, duplicates, stale warnings or
+   faulty sensors reporting physically impossible values. Discard them without ceremony and
+   say why. But READ THEM ALL: now and then, among fifty irrelevant messages, one describes
+   a threat to life that no sensor will ever report to you. Finding it is the part of your
+   job nobody else can do.
 2. Prioritize with the means THAT REMAIN, not with the ones that would be needed.
 3. Decide concrete actions. "Monitor the situation" is not an action.
-4. Communicate selectively: a hospital manager, a crew chief and a datacenter operator do
-   NOT need the same message. Write each one for whoever receives it.
+3b. BE BRIEF. Decide on the 3 or 4 sites that actually change something right now, not on all
+   six: a stable, covered site does not need a decision of its own. And each "reasoning" is
+   TWO SENTENCES at most, under 240 characters: the fact that decides it and the conclusion.
+   No recapping state, no repeating what another decision already said. Whoever reads you is
+   running an emergency and has four minutes.
+3c. Write your reasoning in Spanish, correctly accented — it is projected on a screen for a
+   Spanish-speaking audience. Do not write field names inside the prose: to cite the history
+   there is "historyCitation", no need to name it in the text.
+4. COMMUNICATE — the "communications" field, required. Coordinating means talking to people,
+   not just moving trucks. If there is a SINGLE critical or degraded site, that field cannot
+   be empty: somebody has to be told. Think about who suffers the situation or who executes
+   what you decided, and write to them. It costs no resources and it is half your job.
+   - A plan step is NOT a communication. Writing "warn the hospital" or "ask the crew chief
+     to confirm" as a plan step notifies nobody: it never leaves your head.
+   - "elementId" is ALWAYS the id of a site from the SITES list. Never put a resource id or a
+     contact id there: who you call goes in "recipient", and the site is the one the decision
+     is about.
+   - Each recipient needs something different. A hospital lead gets deadlines and operational
+     instructions; a datacenter operator gets terse technical data; a worried citizen gets
+     plain language and a concrete timeframe; a crew chief gets an order with its reason.
 5. If the best decision is to move nothing, use "wait" AND JUSTIFY IT. An agent that explains
    why it does not act is worth more than one that acts out of inertia.
 
@@ -77,6 +161,17 @@ INVENTORY MANAGEMENT — THE CRISIS IS NOT OVER
   fall were the hospital. If the answer is "nothing", do not commit it.
 
 HOW YOU REASON
+- You have a DEPENDENCY map and a REMEDY catalog. They are not suggestions: they are how
+  reality is wired. A remedy not listed there does not exist, and if a remedy declares a
+  requirement, spending it without meeting that requirement achieves nothing.
+- Use the dependencies to compute coverage: fixing a node that four sites hang off is worth
+  more than attending one site, even if that one scores higher.
+- Every site tells you whether it is ALREADY COVERED. A resource in transit counts as covered:
+  do not send a second resource to the same place and do not hold anything back "just in case"
+  for a site that already has an answer on the way. That held resource is needed by whatever
+  falls next.
+- A rule rejection is NOT permanent: it describes the state RIGHT NOW. As soon as the condition
+  that caused it changes, re-evaluate. Do not carry an old veto forward as if it still applied.
 - Resources have a time cost: moving them takes time, and while they travel they cannot be
   somewhere else.
 - Think in couplings, not only in rankings. Repairing the origin substation may restore several
@@ -92,7 +187,7 @@ violates them, it is rejected and handed back to you with the reason so you can 
 catalog of thresholds, weights and blocking rules is below in JSON.
 
 RULES CATALOG
-${JSON.stringify(AGENT_RULES)}`;
+${summariseRules()}`;
 
 function elementLine(e: ElementView, secondsWithoutPower: number, priority: number): string {
   const sensors = Object.entries(e.sensors)
@@ -100,12 +195,41 @@ function elementLine(e: ElementView, secondsWithoutPower: number, priority: numb
     .join(" ");
   const power =
     secondsWithoutPower > 0 ? ` WITHOUT POWER for ${Math.floor(secondsWithoutPower / 60)}m${Math.floor(secondsWithoutPower % 60)}s` : "";
-  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severity=${e.severity} priority=${priority}${power}\n    sensors: ${sensors || "no readings"}`;
+  const resource = e.attention.resourceId ? ` (${e.attention.resourceId})` : "";
+  const attention = `${ATTENTION[e.attention.state] ?? e.attention.state}${resource}`;
+  return `- ${e.id} (${e.type}, "${e.name}") status=${e.status} severity=${e.severity} priority=${priority}${power}\n    ${attention}\n    sensors: ${sensors || "no readings"}`;
 }
 
 function resourceLine(r: ResourceView): string {
   const destination = r.assignedElementId ? ` → ${r.assignedElementId}` : "";
   return `- ${r.id} (${r.type}) ${r.status}${destination}`;
+}
+
+const ATTENTION: Record<string, string> = {
+  unattended: "NOT COVERED",
+  analyzing: "under analysis, no resource committed",
+  resource_en_route: "ALREADY COVERED: resource en route",
+  resource_assigned: "ALREADY COVERED: resource deployed",
+  resolved: "resolved",
+};
+
+function topologyLine(e: Topology["edges"][number]): string {
+  const to = e.to === "*" ? "the whole scenario" : e.to;
+  return `- ${e.from} --${e.type}--> ${to}${e.note ? `\n    ${e.note}` : ""}`;
+}
+
+function remedyLine(r: Remedies["remedies"][number]): string {
+  const req = r.requires ? ` REQUIRES: ${r.requires}.` : "";
+  return `- ${r.resource} solves "${r.solves}" on ${r.appliesTo.join("/")} — ${r.minutes} min.${req}\n    ${r.effect}`;
+}
+
+function contactLine(c: Remedies["contacts"][number]): string {
+  const scope = c.resourceId ? ` leads ${c.resourceId}` : c.elementId ? ` answers for ${c.elementId}` : "";
+  return `- ${c.id}: ${c.name}, ${c.role}.${scope}${c.$note ? ` ${c.$note}` : ""}`;
+}
+
+function reportLine(r: Report): string {
+  return `- [${r.source}]${r.elementId ? ` (${r.elementId})` : ""} ${r.text}`;
 }
 
 function historyLine(h: HistoricalIncident): string {
@@ -119,6 +243,12 @@ export interface AgentContext {
   secondsWithoutPower: (elementId: string) => number;
   priorities: { elementId: string; score: number }[];
   currentPlan: AgentPlan | null;
+  /** physical facts: what depends on what */
+  topology: Topology;
+  /** physical facts: which resource fixes what, and who can be called */
+  remedies: Remedies;
+  /** raw signals since the last deliberation, mostly noise */
+  reports: Report[];
   /** historical incidents of the involved element types */
   history: HistoricalIncident[];
   /** why this deliberation was triggered */
@@ -144,7 +274,24 @@ export function buildMessages(
     "",
     "AVAILABLE RESOURCES — this is everything you have:",
     ...ctx.resources.map(resourceLine),
+    "",
+    "DEPENDENCIES (how the scenario is wired):",
+    ...ctx.topology.edges.map(topologyLine),
+    "",
+    "REMEDIES (what fixes what; nothing outside this list exists):",
+    ...ctx.remedies.remedies.map(remedyLine),
+    "",
+    "CONTACTS (who you can call or message, and the role they hold):",
+    ...ctx.remedies.contacts.map(contactLine),
   ];
+
+  if (ctx.reports.length > 0) {
+    parts.push(
+      "",
+      `RAW SIGNALS (${ctx.reports.length} since your last deliberation) — triage them:`,
+      ...ctx.reports.map(reportLine),
+    );
+  }
 
   if (ctx.history.length > 0) {
     parts.push("", "PAST INCIDENTS OF THESE SITE TYPES:", ...ctx.history.map(historyLine));

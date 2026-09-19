@@ -1,4 +1,5 @@
 import type {
+  SensorMetric,
   ValidationContext,
   ElementView,
   ValidatableElement,
@@ -12,13 +13,44 @@ import {
   calculatePriority,
   deriveMetricStatus,
 } from "@swarmup/shared";
+import { dependentsOf } from "@swarmup/shared";
+import type { Remedies, Topology } from "@swarmup/shared";
 import type { ScriptElement, ScriptResource } from "./script.js";
 
 /** Movement speed of crews and generators, simulated km/min */
-const SPEED_KM_MIN = 1.5;
+const SPEED_KM_MIN = 0.5;
 
 /** Minimum ETA: even with the resource already on site, deployment takes time */
-const MIN_ETA_SECONDS = 15;
+const MIN_ETA_SECONDS = 60;
+
+/** Journey multiplier while the junction is unregulated */
+const TRAFFIC_PENALTY = 2;
+
+/** Minutes of delay above which the area counts as gridlocked */
+const HIGH_CONGESTION = 10;
+
+/** Severity a site settles at once its remedy has fully taken hold */
+const RESOLVED_SEVERITY = 5;
+
+/** How often, in crisis seconds, a recovery step is emitted */
+const RECOVERY_STEP_SECONDS = 60;
+
+/**
+ * With the grid back, a site does not stay frozen at its worst reading:
+ * batteries recharge, the datacenter cools and the jam clears. Each metric
+ * converges toward its healthy value at this rate, per crisis minute. `fuel` is
+ * deliberately absent: a tank does not refill itself, that needs the tanker.
+ */
+const RECOVERY: Partial<Record<SensorMetric, { target: number; rate: number }>> = {
+  tower_battery: { target: 95, rate: 12 },
+  generator_battery: { target: 95, rate: 10 },
+  ups_load: { target: 95, rate: 15 },
+  temperature: { target: 22, rate: 6 },
+  congestion: { target: 3, rate: 8 },
+};
+
+/** Voltage above which a site counts as having grid power again */
+const VOLTAGE_WITH_GRID = 90;
 
 /**
  * World changes the agent must observe. The first three are replan triggers
@@ -27,7 +59,29 @@ const MIN_ETA_SECONDS = 15;
 export type WorldEvent =
   | { type: "arrival"; resourceId: string; elementId: string }
   | { type: "eta_missed"; resourceId: string; elementId: string; delaySeconds: number }
-  | { type: "deadline_exceeded"; elementId: string; minutesWithoutPower: number };
+  | { type: "deadline_exceeded"; elementId: string; minutesWithoutPower: number }
+  /**
+   * A remedy has finished taking hold. It carries the readings the real world
+   * would now report: the simulation applies them as if a sensor had sent them,
+   * so the effect of an agent action is indistinguishable from reality.
+   */
+  | {
+      type: "remedy_applied";
+      elementId: string;
+      resourceId: string;
+      metric: SensorMetric;
+      value: number;
+      severity: number;
+      effect: string;
+    }
+  /** With the grid back, one of a site's own metrics steps toward healthy */
+  | {
+      type: "recovery";
+      elementId: string;
+      metric: SensorMetric;
+      value: number;
+      severity: number;
+    };
 
 export type AssignmentResult =
   | { ok: true; etaSeconds: number }
@@ -49,6 +103,10 @@ interface ResourceState {
   etaSeconds: number;
   /** `eta_missed` was already emitted for this route */
   delayReported: boolean;
+  /** Simulated second it reached its destination; null if it has not */
+  arrivedAt: number | null;
+  /** `remedy_applied` was already emitted for this assignment */
+  remedyApplied: boolean;
 }
 
 export interface World {
@@ -83,10 +141,12 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
   return Math.hypot(dLat, dLng);
 }
 
-export function createWorld(script: {
-  elements: ScriptElement[];
-  resources: ScriptResource[];
-}): World {
+export function createWorld(
+  script: { elements: ScriptElement[]; resources: ScriptResource[] },
+  remedies: Remedies,
+  topology: Topology,
+): World {
+  const typeOf = new Map(script.elements.map((e) => [e.id, e.type]));
   const criticality = new Map(script.elements.map((e) => [e.id, e.criticality]));
   const coordinates = new Map(script.elements.map((e) => [e.id, { lat: e.lat, lng: e.lng }]));
 
@@ -97,6 +157,10 @@ export function createWorld(script: {
   const deadlineReported = new Set<string>();
   /** events emitted outside the tick; the next `advance` drains them */
   const pending: WorldEvent[] = [];
+  /** last second a recovery step was emitted, per element */
+  const lastRecovery = new Map<string, number>();
+  /** the junction is gridlocked and nobody is directing it */
+  let highCongestion = false;
   let lastSecond = 0;
 
   function seed(): void {
@@ -114,11 +178,14 @@ export function createWorld(script: {
         departedAt: null,
         etaSeconds: 0,
         delayReported: false,
+        arrivedAt: null,
+        remedyApplied: false,
       });
     }
     withoutPower.clear();
     for (const e of script.elements) withoutPower.set(e.id, 0);
     deadlineReported.clear();
+    lastRecovery.clear();
     pending.length = 0;
     lastSecond = 0;
   }
@@ -149,6 +216,31 @@ export function createWorld(script: {
     return true;
   }
 
+  /** Reading a site starts reporting once its remedy has completed */
+  const HEALTHY_METRIC: Record<string, { metric: SensorMetric; value: number }> = {
+    substation: { metric: "grid_voltage", value: 98 },
+    hospital: { metric: "generator_battery", value: 95 },
+    datacenter: { metric: "ups_load", value: 90 },
+    tower: { metric: "tower_battery", value: 85 },
+    fuel_station: { metric: "grid_voltage", value: 96 },
+    junction: { metric: "congestion", value: 3 },
+  };
+
+  /** The remedy `resource` offers for a site of `elementType`, if any */
+  function remedyFor(resource: string, elementType: string) {
+    return remedies.remedies.find(
+      (r) => r.resource === resource && (r.appliesTo as readonly string[]).includes(elementType),
+    );
+  }
+
+  /** With the junction unregulated, every journey takes twice as long */
+  function trafficPenalised(): boolean {
+    const directed = [...resources.values()].some(
+      (r) => r.type === "police" && r.status === "assigned",
+    );
+    return directed ? false : highCongestion;
+  }
+
   function positionOnRoute(r: ResourceState, seconds: number): { lat: number; lng: number } {
     if (!r.origin || !r.destination || r.departedAt === null || r.etaSeconds <= 0) {
       return { lat: r.lat, lng: r.lng };
@@ -165,6 +257,11 @@ export function createWorld(script: {
       const delta = Math.max(seconds - lastSecond, 0);
       lastSecond = seconds;
       const events: WorldEvent[] = pending.splice(0, pending.length);
+
+      // the junction reports whether the area is gridlocked; police neutralise it
+      const junction = elements.find((e) => e.type === "junction");
+      highCongestion =
+        junction !== undefined && (junction.sensors.congestion ?? 0) >= HIGH_CONGESTION;
 
       for (const e of elements) {
         if (isWithoutPower(e)) {
@@ -196,12 +293,85 @@ export function createWorld(script: {
           r.origin = null;
           r.destination = null;
           r.departedAt = null;
+          r.arrivedAt = seconds;
           events.push({
             type: "arrival",
             resourceId: r.id,
             elementId: r.assignedElementId ?? "",
           });
         }
+      }
+
+      // A deployed resource takes its remedy's declared minutes to take hold.
+      // Once that time is up the site reports healthy readings: an agent action
+      // changes the world exactly as it would in reality.
+      for (const r of resources.values()) {
+        if (r.status !== "assigned" || r.arrivedAt === null || r.remedyApplied) continue;
+        const targetId = r.assignedElementId;
+        if (!targetId) continue;
+        const elementType = typeOf.get(targetId);
+        if (!elementType) continue;
+        const remedy = remedyFor(r.type, elementType);
+        if (!remedy) continue;
+        if (seconds - r.arrivedAt < remedy.minutes * 60) continue;
+
+        r.remedyApplied = true;
+        const healthy = HEALTHY_METRIC[elementType];
+        if (healthy) {
+          events.push({
+            type: "remedy_applied",
+            elementId: targetId,
+            resourceId: r.id,
+            metric: healthy.metric,
+            value: healthy.value,
+            severity: RESOLVED_SEVERITY,
+            effect: remedy.effect,
+          });
+        }
+        // supplies: repairing a node returns the grid to everything below it
+        for (const dependent of dependentsOf(topology, targetId)) {
+          if (!typeOf.has(dependent)) continue;
+          events.push({
+            type: "remedy_applied",
+            elementId: dependent,
+            resourceId: r.id,
+            metric: "grid_voltage",
+            value: 96,
+            severity: RESOLVED_SEVERITY,
+            effect: `Grid restored by the repair of ${targetId}`,
+          });
+        }
+      }
+
+      // With the grid back, a site's own metrics stop being frozen at their
+      // worst reading and converge toward healthy. Without this the demo ends
+      // with three sites in red even though the agent solved everything.
+      for (const e of elements) {
+        const voltage = e.sensors.grid_voltage;
+        if (voltage === undefined || voltage < VOLTAGE_WITH_GRID) continue;
+        const since = lastRecovery.get(e.id) ?? -Infinity;
+        if (seconds - since < RECOVERY_STEP_SECONDS) continue;
+
+        let emitted = false;
+        for (const [key, cfg] of Object.entries(RECOVERY)) {
+          const metric = key as SensorMetric;
+          const current = e.sensors[metric];
+          if (current === undefined || current === cfg.target) continue;
+          const next =
+            cfg.target > current
+              ? Math.min(current + cfg.rate, cfg.target)
+              : Math.max(current - cfg.rate, cfg.target);
+          const remaining = Math.abs(cfg.target - next) / Math.abs(cfg.target || 1);
+          events.push({
+            type: "recovery",
+            elementId: e.id,
+            metric,
+            value: Math.round(next),
+            severity: Math.round(Math.min(remaining * 100, 25)),
+          });
+          emitted = true;
+        }
+        if (emitted) lastRecovery.set(e.id, seconds);
       }
 
       return events;
@@ -217,7 +387,9 @@ export function createWorld(script: {
       if (!destination) return { ok: false, reason: `nonexistent element: ${elementId}` };
 
       const km = distanceKm({ lat: r.lat, lng: r.lng }, destination);
-      const eta = Math.max(Math.round((km / SPEED_KM_MIN) * 60), MIN_ETA_SECONDS);
+      const base = Math.max(Math.round((km / SPEED_KM_MIN) * 60), MIN_ETA_SECONDS);
+      // enables_transit: without the junction directed, moving costs double
+      const eta = trafficPenalised() ? base * TRAFFIC_PENALTY : base;
 
       r.status = "in_transit";
       r.assignedElementId = elementId;
@@ -226,6 +398,8 @@ export function createWorld(script: {
       r.departedAt = seconds;
       r.etaSeconds = eta;
       r.delayReported = false;
+      r.arrivedAt = null;
+      r.remedyApplied = false;
 
       return { ok: true, etaSeconds: eta };
     },
@@ -240,6 +414,8 @@ export function createWorld(script: {
       r.departedAt = null;
       r.etaSeconds = 0;
       r.delayReported = false;
+      r.arrivedAt = null;
+      r.remedyApplied = false;
     },
 
     delay(resourceId: string, extraSeconds: number): void {
