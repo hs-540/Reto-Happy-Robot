@@ -10,20 +10,19 @@ import type {
   TopologyView,
 } from "@swarmup/shared";
 import { loadHistory, loadRemedies, loadRoads, loadTopology } from "@swarmup/shared";
-import { createAgent } from "./agent.js";
+import { createAgent, type Agent } from "./agent.js";
 import { config, redactSecrets } from "./config.js";
 import { createActionRegistry, controlSchema } from "./control.js";
 import { createFeed, parseSince } from "./feed.js";
-import { toTopology, loadScript } from "./script.js";
+import { toTopology, loadScript, type Script } from "./script.js";
 import { createHappyRobotClient } from "./happyrobot.js";
 import { createLlmClient } from "./llm.js";
-import { createWorld } from "./world.js";
+import { createWorld, type World } from "./world.js";
 import { startChroma } from "./rag/chroma.js";
 import { createHistoryRag, type HistoryRag } from "./rag/history.js";
-import { createSimulation, type IncidentClosure } from "./sim.js";
+import { createSimulation, type IncidentClosure, type Simulation } from "./sim.js";
 
 const repoRoot = new URL("../../", import.meta.url);
-const script = loadScript(new URL("data/scripts/madrid-blackout.json", repoRoot));
 const feed = createFeed();
 /** Physical facts about the scenario: what depends on what and what fixes what */
 const topologyGraph = loadTopology(new URL("data/topology.json", repoRoot).pathname);
@@ -40,8 +39,6 @@ const roads = (() => {
     return undefined;
   }
 })();
-
-const world = createWorld(script, remedies, topologyGraph, roads);
 
 /** History shipped with the repo, per site type: the seed of the incident memory */
 const history: HistoricalIncident[] = ["hospital", "datacenter", "substation"].flatMap((type) =>
@@ -94,35 +91,58 @@ function onResolved(closure: IncidentClosure): void {
   });
 }
 
-const sim = createSimulation(script, Date.now(), feed, world, onResolved, (report) =>
-  agent.queueReport(report),
-);
 const actionRegistry = createActionRegistry(feed);
-const topology: TopologyView = toTopology(script);
 
 /**
- * The channel to the real world. Created before the agent and receiving the
- * closure by callback: a call takes a minute to resolve and the engine does not
- * wait for it.
+ * The channel to the real world. Created once and receiving the closure by
+ * callback: a call takes a minute to resolve and the engine does not wait for
+ * it. `onClosed` reads the current runtime, so a hang-up that lands after a
+ * reset closes on the run that owns the action.
  */
 const happyrobot = createHappyRobotClient({
   apiKey: config.happyrobot.apiKey,
   baseUrl: config.happyrobot.baseUrl,
-  onClosed: (closure) => agent.closeCall(closure),
+  onClosed: (closure) => runtime.agent.closeCall(closure),
 });
 
-const agent = createAgent({
-  world,
-  feed,
-  llm: createLlmClient(config.llm.gateways),
-  actionRegistry,
-  happyrobot,
-  history,
-  rag: ragReady,
-  topology: topologyGraph,
-  remedies,
-  seconds: () => sim.seconds(),
-});
+/** One generation of the crisis: everything a reset throws away and rebuilds */
+interface Runtime {
+  script: Script;
+  world: World;
+  sim: Simulation;
+  agent: Agent;
+  /** served by `GET /api/topology`; derived from this generation's script */
+  topology: TopologyView;
+}
+
+/**
+ * Builds a runtime generation from the curated script. Loading the script here
+ * (instead of once at boot) is what lets a reset swap the whole crisis: until
+ * the generator lands (#90) every rebuild replays the same Madrid blackout,
+ * but through a fresh world, sim and agent with a topology to match.
+ */
+function createRuntime(): Runtime {
+  const script = loadScript(new URL("data/scripts/madrid-blackout.json", repoRoot));
+  const world = createWorld(script, remedies, topologyGraph, roads);
+  const sim = createSimulation(script, Date.now(), feed, world, onResolved, (report) =>
+    agent.queueReport(report),
+  );
+  const agent = createAgent({
+    world,
+    feed,
+    llm: createLlmClient(config.llm.gateways),
+    actionRegistry,
+    happyrobot,
+    history,
+    rag: ragReady,
+    topology: topologyGraph,
+    remedies,
+    seconds: () => sim.seconds(),
+  });
+  return { script, world, sim, agent, topology: toTopology(script) };
+}
+
+let runtime: Runtime = createRuntime();
 
 /**
  * One tick of the system: the sim applies the script's due events and the world
@@ -130,6 +150,7 @@ const agent = createAgent({
  * are replan triggers (RULES.md §7) and the decision engine consumes them.
  */
 function advance(): void {
+  const { sim, world, agent } = runtime;
   sim.advance(Date.now());
   const events = world.advance(sim.seconds(), sim.state().elements);
   for (const ev of events) {
@@ -183,6 +204,7 @@ function advance(): void {
 
 /** `attention` is derived and computed by the backend (CONTRACT.md, golden rule 4) */
 function fullState(): StateView {
+  const { sim, world, agent } = runtime;
   const state = sim.state();
   return {
     ...state,
@@ -202,7 +224,7 @@ function errorResponse(error: string): ControlResponse {
 }
 
 app.get("/api/topology", (_req, res) => {
-  res.json(topology);
+  res.json(runtime.topology);
 });
 
 app.get("/api/state", (_req, res) => {
@@ -212,6 +234,7 @@ app.get("/api/state", (_req, res) => {
 
 app.get("/api/agent", (_req, res) => {
   advance();
+  const { sim, agent } = runtime;
   const view: AgentView = { ...agent.view(), tick: sim.tick(), paused: sim.paused };
   res.json(view);
 });
@@ -228,6 +251,7 @@ app.get("/api/feed", (req, res) => {
 
 app.get("/api/health", (_req, res) => {
   advance();
+  const { sim } = runtime;
   const health: HealthResponse = {
     status: "ok",
     tick: sim.tick(),
@@ -258,7 +282,7 @@ app.post("/api/call/outcome", (req, res) => {
     res.status(400).json(errorResponse(`invalid body: ${details}`));
     return;
   }
-  agent.closeCall(parsed.data);
+  runtime.agent.closeCall(parsed.data);
   res.json({ ok: true });
 });
 
@@ -273,13 +297,16 @@ app.post("/api/control", (req, res) => {
     return;
   }
   const body = parsed.data;
+  const { sim } = runtime;
   switch (body.action) {
     case "start":
       sim.start(Date.now());
       break;
     case "reset":
-      sim.reset();
-      agent.reset();
+      // a new generation of the crisis, not a rewind of this one; the shared
+      // feed is cleared here because its `seq` must stay monotonic across runs
+      feed.reset();
+      runtime = createRuntime();
       break;
     case "pause":
       sim.pause();
