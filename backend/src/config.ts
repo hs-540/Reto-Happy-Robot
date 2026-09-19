@@ -18,7 +18,7 @@ const envSchema = z.object({
   LLM_BASE_URL: z.url(),
   LLM_API_KEY: z.string().min(1),
   LLM_MODEL: z.string().min(1),
-  LLM_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
+  LLM_EMBEDDING_MODEL: z.string().min(1).default("qwen3-embedding"),
   /** Etiqueta del proveedor; solo aparece en logs */
   LLM_PROVIDER: z.string().min(1).default("helmcode"),
   HAPPYROBOT_API_KEY: z.string().min(1),

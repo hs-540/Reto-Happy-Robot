@@ -3,8 +3,14 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import type { z } from "zod";
 
-/** Presupuesto por intento de gateway: el tick del motor dura 5-10s (DESIGN.md) */
-const TIMEOUT_MS = 5_000;
+/**
+ * Presupuesto por intento de gateway. Medido contra Helmcode con el prompt
+ * real del agente (catálogo de reglas + mundo + histórico): deepseek-v4-flash
+ * tarda entre 8s y 19s, porque razona antes de responder, y la latencia sube
+ * con el tamaño del prompt. 35s cubre esa horquilla. El tick de la simulación no
+ * espera a que el motor termine, así que esto no frena el guion.
+ */
+const TIMEOUT_MS = 35_000;
 
 export interface GatewayLlm {
   id: string;
