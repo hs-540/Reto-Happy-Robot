@@ -1,4 +1,5 @@
 import express from "express";
+import { z } from "zod";
 import type {
   AgentView,
   ControlResponse,
@@ -8,12 +9,13 @@ import type {
   StateView,
   TopologyView,
 } from "@swarmup/shared";
-import { loadHistory } from "@swarmup/shared";
+import { loadHistory, loadRemedies, loadTopology } from "@swarmup/shared";
 import { createAgent } from "./agent.js";
 import { config, redactSecrets } from "./config.js";
 import { createActionRegistry, controlSchema } from "./control.js";
 import { createFeed, parseSince } from "./feed.js";
 import { toTopology, loadScript } from "./script.js";
+import { createHappyRobotClient } from "./happyrobot.js";
 import { createLlmClient } from "./llm.js";
 import { createWorld } from "./world.js";
 import { startChroma } from "./rag/chroma.js";
@@ -23,7 +25,11 @@ import { createSimulation, type IncidentClosure } from "./sim.js";
 const repoRoot = new URL("../../", import.meta.url);
 const script = loadScript(new URL("data/scripts/madrid-blackout.json", repoRoot));
 const feed = createFeed();
-const world = createWorld(script);
+/** Physical facts about the scenario: what depends on what and what fixes what */
+const topologyGraph = loadTopology(new URL("data/topology.json", repoRoot).pathname);
+const remedies = loadRemedies(new URL("data/remedies.json", repoRoot).pathname);
+
+const world = createWorld(script, remedies, topologyGraph);
 
 /** Local Chroma (RAG): if it does not start, the demo goes on without loop closure */
 const ragReady: Promise<HistoryRag | null> = startChroma({
@@ -54,7 +60,9 @@ function onResolved(closure: IncidentClosure): void {
   });
 }
 
-const sim = createSimulation(script, Date.now(), feed, world, onResolved);
+const sim = createSimulation(script, Date.now(), feed, world, onResolved, (report) =>
+  agent.queueReport(report),
+);
 const actionRegistry = createActionRegistry(feed);
 const topology: TopologyView = toTopology(script);
 
@@ -63,12 +71,26 @@ const history: HistoricalIncident[] = ["hospital", "datacenter", "substation"].f
   loadHistory(new URL(`data/history/${type}/incidents.json`, repoRoot).pathname),
 );
 
+/**
+ * The channel to the real world. Created before the agent and receiving the
+ * closure by callback: a call takes a minute to resolve and the engine does not
+ * wait for it.
+ */
+const happyrobot = createHappyRobotClient({
+  apiKey: config.happyrobot.apiKey,
+  baseUrl: config.happyrobot.baseUrl,
+  onClosed: (closure) => agent.closeCall(closure),
+});
+
 const agent = createAgent({
   world,
   feed,
   llm: createLlmClient(config.llm.gateways),
   actionRegistry,
+  happyrobot,
   history,
+  topology: topologyGraph,
+  remedies,
   seconds: () => sim.seconds(),
 });
 
@@ -88,10 +110,30 @@ function advance(): void {
         kind: "system",
         message: `${ev.resourceId} misses its ETA to ${ev.elementId} (+${ev.delaySeconds}s)`,
       });
-    } else {
+    } else if (ev.type === "deadline_exceeded") {
       feed.publish({
         kind: "system",
         message: `${ev.elementId} exceeds its limit without power (${ev.minutesWithoutPower} min)`,
+      });
+    } else if (ev.type === "remedy_applied") {
+      // the agent's action changes the world: applied as a real reading
+      sim.inject({
+        elementId: ev.elementId,
+        metric: ev.metric,
+        value: ev.value,
+        severity: ev.severity,
+      });
+      feed.publish({
+        kind: "system",
+        message: `${ev.resourceId} takes effect on ${ev.elementId}: ${ev.effect}`,
+      });
+    } else {
+      // recovery: silent, it does not clutter the feed but the world improves
+      sim.inject({
+        elementId: ev.elementId,
+        metric: ev.metric,
+        value: ev.value,
+        severity: ev.severity,
       });
     }
   }
@@ -149,6 +191,31 @@ app.get("/api/health", (_req, res) => {
     started: sim.started,
   };
   res.json(health);
+});
+
+/**
+ * The return path of a real call. HappyRobot invokes it on hang-up with what the
+ * person answered; if they refused or asked for more time, `delayMinutes`
+ * invalidates the plan's ETA and the agent replans on the next tick.
+ */
+const callClosureSchema = z.object({
+  actionId: z.string().min(1),
+  outcome: z.enum(["accepted", "accepted_with_delay", "refused", "no_answer"]),
+  delayMinutes: z.number().int().min(0).nullable().default(null),
+  commitment: z.string().min(1).nullable().default(null),
+  summary: z.string().min(1),
+});
+
+app.post("/api/call/outcome", (req, res) => {
+  advance();
+  const parsed = callClosureSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    res.status(400).json(errorResponse(`invalid body: ${details}`));
+    return;
+  }
+  agent.closeCall(parsed.data);
+  res.json({ ok: true });
 });
 
 app.post("/api/control", (req, res) => {

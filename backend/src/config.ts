@@ -23,6 +23,7 @@ const envSchema = z.object({
   /** Provider label; only shows up in logs */
   LLM_PROVIDER: z.string().min(1).default("helmcode"),
   HAPPYROBOT_API_KEY: z.string().min(1),
+  HAPPYROBOT_BASE_URL: z.url().default("https://app.happyrobot.ai"),
   CHROMA_PATH: z.string().min(1).default("backend/chroma-data"),
   CHROMA_PORT: z.coerce.number().int().positive().default(8000),
 });
@@ -75,6 +76,7 @@ export const config = deepFreeze({
   },
   happyrobot: {
     apiKey: parsed.data.HAPPYROBOT_API_KEY,
+    baseUrl: parsed.data.HAPPYROBOT_BASE_URL,
   },
   chroma: {
     path: path.resolve(repoRoot, parsed.data.CHROMA_PATH),

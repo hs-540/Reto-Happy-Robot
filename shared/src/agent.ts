@@ -13,6 +13,24 @@ export interface Action {
   timestamp: string;
 }
 
+/**
+ * What a real call returns. If the contact refuses or cannot act now,
+ * `delayMinutes` says how long it slips: that invalidates the ETA the plan was
+ * built on and is, by itself, a replanning trigger.
+ */
+export type CallOutcome = "accepted" | "accepted_with_delay" | "refused" | "no_answer";
+
+export interface CallClosure {
+  actionId: string;
+  outcome: CallOutcome;
+  /** minutes of delay the contact reports; null when not applicable */
+  delayMinutes: number | null;
+  /** what they commit to, in their own words */
+  commitment: string | null;
+  /** conversation summary for the feed */
+  summary: string;
+}
+
 export interface Decision {
   id: string;
   timestamp: string;

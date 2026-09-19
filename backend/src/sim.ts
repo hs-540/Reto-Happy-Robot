@@ -11,12 +11,22 @@ import {
   RESOLVED_STABLE_VOLTAGE,
   deriveStatus,
 } from "@swarmup/shared";
+import type { Report } from "@swarmup/shared";
 import type { Script, ScriptEvent } from "./script.js";
 import type { Feed } from "./feed.js";
 import type { World } from "./world.js";
 
 /** Decision engine cadence (DESIGN.md): tick every 5-10s */
 export const TICK_SECONDS = 5;
+
+/**
+ * Crisis seconds per real second. The domain numbers are realistic — a hospital
+ * survives 8 min without power, repairing a substation takes 18 — but a demo
+ * runs for five minutes: at 1:1 none of those deadlines ever came due. At 6x,
+ * five minutes of demo is half an hour of emergency and every limit in
+ * rules.json and every duration in remedies.json starts meaning something.
+ */
+export const TIME_SCALE = 6;
 
 /** Delay suffered by the crew at moment 4 of the script */
 const ETA_DELAY_SECONDS = 60;
@@ -69,6 +79,8 @@ export function createSimulation(
   feed: Feed,
   world: World,
   onResolved?: (closure: IncidentClosure) => void,
+  /** hands each raw signal to the decision engine so it can triage it */
+  onReport?: (report: Report) => void,
 ): Simulation {
   const timeline = [...script.timeline].sort((a, b) => a.atSeconds - b.atSeconds);
   let next = 0;
@@ -107,6 +119,18 @@ export function createSimulation(
   }
 
   function applyEvent(ev: ScriptEvent): void {
+    if (ev.kind === "report") {
+      // Raw signal: most of it is noise. It does not touch the world; deciding
+      // whether it changes anything is the agent's job, and that triage counts.
+      feed.publish({
+        kind: "report",
+        source: ev.payload.source,
+        text: ev.payload.text,
+        elementId: ev.payload.elementId,
+      });
+      onReport?.(ev.payload);
+      return;
+    }
     if (ev.kind === "narrative") {
       if (ev.note !== undefined) {
         feed.publish({ kind: "system", message: ev.note });
@@ -182,7 +206,7 @@ export function createSimulation(
       }
       const deltaMs = nowMs - lastMs;
       lastMs = nowMs;
-      if (!paused) seconds += deltaMs / 1000;
+      if (!paused) seconds += (deltaMs / 1000) * TIME_SCALE;
       while (next < timeline.length && timeline[next].atSeconds <= seconds) {
         applyEvent(timeline[next]);
         next++;

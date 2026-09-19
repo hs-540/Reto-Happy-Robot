@@ -14,6 +14,7 @@ export const BLOCKING_RULE_IDS = [
   "hospital-power-priority",
   "hospital-power-deadline",
   "critical-ups-act",
+  "generator-without-fuel",
 ] as const;
 
 export type BlockingRuleId = (typeof BLOCKING_RULE_IDS)[number];
@@ -53,14 +54,24 @@ export interface RulesCatalog {
 
 /* ─── Validation on load: fail fast if the JSON is edited incorrectly ─── */
 
-const ELEMENT_TYPES: readonly ElementType[] = ["datacenter", "hospital", "substation"];
-const RESOURCE_TYPES: readonly ResourceType[] = ["crew", "generator"];
+const ELEMENT_TYPES: readonly ElementType[] = [
+  "datacenter",
+  "hospital",
+  "substation",
+  "tower",
+  "fuel_station",
+  "junction",
+];
+const RESOURCE_TYPES: readonly ResourceType[] = ["crew", "generator", "tanker", "police"];
 const METRICS: readonly SensorMetric[] = [
   "temperature",
   "ups_load",
   "generator_battery",
   "network_coverage",
   "grid_voltage",
+  "tower_battery",
+  "fuel",
+  "congestion",
 ];
 const STATUSES: readonly ElementStatus[] = ["normal", "degraded", "critical", "resolved"];
 
@@ -125,6 +136,9 @@ export const MAX_MINUTES_WITHOUT_POWER: Record<ElementType, number> =
 export const UPS_ACT_THRESHOLD = AGENT_RULES.ups.act;
 export const UPS_EMERGENCY_THRESHOLD = AGENT_RULES.ups.emergency;
 export const CRITICAL_BATTERY_THRESHOLD = AGENT_RULES.ups.criticalBattery;
+
+/** Litres below which a generator cannot be deployed without refuelling first */
+export const CRITICAL_FUEL_THRESHOLD = AGENT_RULES.metricThresholds.fuel.critical;
 
 export const METRIC_THRESHOLDS: Record<SensorMetric, MetricThresholds> =
   AGENT_RULES.metricThresholds;
@@ -204,6 +218,15 @@ export function deriveElementStatus(
 }
 
 /* ─── Action validation against the blocking rules ─── */
+
+/**
+ * Resources that can cover a hospital's power need and therefore compete with
+ * it. The hospital priority and deadline rules apply only to these: a crew
+ * repairing the root cause or a patrol regulating a junction is no substitute
+ * for a generator, and blocking them paralyses the agent while giving the
+ * hospital nothing in return.
+ */
+const RESOURCES_COMPETING_WITH_HOSPITAL: readonly ResourceType[] = ["generator", "tanker"];
 
 export type EngineActionType = "contact" | "assign_resource" | "wait";
 
@@ -299,7 +322,19 @@ export function validateAction(
         };
       }
     }
-    if (hospitalPastDeadline && target && target.id !== hospitalPastDeadline.id) {
+    // generator-without-fuel: deploying a dry generator wastes the journey
+    if (resource.type === "generator") {
+      const fuel = target?.metrics.fuel;
+      if (fuel !== undefined && fuel <= CRITICAL_FUEL_THRESHOLD) {
+        return {
+          allowed: false,
+          rule: "generator-without-fuel",
+          reason: `${target?.id} reports fuel ${fuel} (threshold ${CRITICAL_FUEL_THRESHOLD}): refuel with the tanker before deploying a generator`,
+        };
+      }
+    }
+    const competes = RESOURCES_COMPETING_WITH_HOSPITAL.includes(resource.type);
+    if (competes && hospitalPastDeadline && target && target.id !== hospitalPastDeadline.id) {
       const validTarget =
         target.type === "substation" && target.status === "critical";
       if (!validTarget) {

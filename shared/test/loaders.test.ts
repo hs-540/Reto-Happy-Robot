@@ -13,11 +13,11 @@ const historyPath = (type: string) =>
 
 test("the current script validates without errors", () => {
   const script = loadScript(scriptPath);
-  assert.equal(script.title, "Regional blackout — Getafe, Community of Madrid");
-  assert.equal(script.durationSeconds, 300);
-  assert.equal(script.elements.length, 3);
-  assert.equal(script.resources.length, 3);
-  assert.equal(script.timeline.length, 10);
+  assert.equal(script.title, "Cascading blackout — Getafe, Community of Madrid");
+  assert.equal(script.durationSeconds, 1800);
+  assert.equal(script.elements.length, 6);
+  assert.equal(script.resources.length, 5);
+  assert.equal(script.timeline.length, 54);
 });
 
 test("the current histories validate without errors", () => {

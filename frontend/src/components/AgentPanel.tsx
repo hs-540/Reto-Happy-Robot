@@ -8,6 +8,21 @@ interface AgentPanelProps {
   elementNames: Record<string, string>
 }
 
+const SOURCE_LABEL: Record<string, string> = {
+  social: 'Social media',
+  emergency_call: '112 call',
+  press: 'Press',
+  field: 'Field team',
+  faulty_sensor: 'Sensor reading in doubt',
+}
+
+const OUTCOME_LABEL: Record<string, string> = {
+  accepted: 'Accepts',
+  accepted_with_delay: 'Accepts with delay',
+  refused: 'Refuses',
+  no_answer: 'No answer',
+}
+
 const ACTION_LABEL: Record<string, string> = {
   voice_call: 'Voice call',
   chat_message: 'Message',
@@ -37,6 +52,18 @@ function feedDescription(
         title: `${ACTION_LABEL[item.type] ?? item.type} · ${item.status}`,
         detail: item.message,
       }
+    case 'report':
+      return {
+        title: SOURCE_LABEL[item.source] ?? item.source,
+        detail: item.text,
+      }
+    case 'outcome': {
+      const delay = item.delayMinutes === null ? '' : ` · +${item.delayMinutes} min delay`
+      return {
+        title: `Reply · ${OUTCOME_LABEL[item.outcome] ?? item.outcome}${delay}`,
+        detail: item.summary,
+      }
+    }
     case 'system':
       return { title: 'System', detail: item.message }
   }

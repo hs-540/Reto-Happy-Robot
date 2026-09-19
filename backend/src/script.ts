@@ -20,6 +20,18 @@ export interface ScriptSensorEvent {
   };
 }
 
+export interface ScriptReport {
+  atSeconds: number;
+  kind: "report";
+  note?: string;
+  payload: {
+    id: string;
+    source: "social" | "emergency_call" | "press" | "field" | "faulty_sensor";
+    text: string;
+    elementId: string | null;
+  };
+}
+
 export interface ScriptNarrativeEvent {
   atSeconds: number;
   kind: "narrative";
@@ -30,7 +42,7 @@ export interface ScriptNarrativeEvent {
   };
 }
 
-export type ScriptEvent = ScriptSensorEvent | ScriptNarrativeEvent;
+export type ScriptEvent = ScriptSensorEvent | ScriptNarrativeEvent | ScriptReport;
 
 export interface ScriptElement {
   id: string;
@@ -64,9 +76,19 @@ const METRICS: readonly SensorMetric[] = [
   "generator_battery",
   "network_coverage",
   "grid_voltage",
+  "tower_battery",
+  "fuel",
+  "congestion",
 ];
-const ELEMENT_TYPES: readonly ElementType[] = ["datacenter", "hospital", "substation"];
-const RESOURCE_TYPES: readonly ResourceType[] = ["crew", "generator"];
+const ELEMENT_TYPES: readonly ElementType[] = [
+  "datacenter",
+  "hospital",
+  "substation",
+  "tower",
+  "fuel_station",
+  "junction",
+];
+const RESOURCE_TYPES: readonly ResourceType[] = ["crew", "generator", "tanker", "police"];
 const RESOURCE_STATUSES: readonly ResourceStatus[] = ["available", "in_transit", "assigned"];
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -135,7 +157,7 @@ function validateEvent(v: unknown, path: string): ScriptEvent {
   if (!isRecord(v)) throw new Error(`invalid script: ${path} must be an object`);
   const atSeconds = numberField(v, "atSeconds", path);
   const note = optionalStringField(v, "note");
-  const kind = oneOf(v.kind, ["sensor_event", "narrative"], `${path}.kind`);
+  const kind = oneOf(v.kind, ["sensor_event", "narrative", "report"], `${path}.kind`);
   const payload = v.payload;
   if (!isRecord(payload)) throw new Error(`invalid script: ${path}.payload must be an object`);
   if (kind === "sensor_event") {
@@ -149,6 +171,24 @@ function validateEvent(v: unknown, path: string): ScriptEvent {
         metric: oneOf(payload.metric, METRICS, `${path}.payload.metric`),
         value: numberField(payload, "value", `${path}.payload`),
         severity: numberField(payload, "severity", `${path}.payload`),
+      },
+    };
+  }
+  if (kind === "report") {
+    const elementId = payload.elementId;
+    return {
+      atSeconds,
+      kind,
+      note,
+      payload: {
+        id: stringField(payload, "id", `${path}.payload`),
+        source: oneOf(
+          payload.source,
+          ["social", "emergency_call", "press", "field", "faulty_sensor"] as const,
+          `${path}.payload.source`,
+        ),
+        text: stringField(payload, "text", `${path}.payload`),
+        elementId: elementId === null ? null : stringField(payload, "elementId", `${path}.payload`),
       },
     };
   }

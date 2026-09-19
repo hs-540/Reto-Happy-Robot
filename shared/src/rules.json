@@ -12,17 +12,55 @@
   },
   "metricThresholds": {
     "$comment": "direction `low`: the lower the value the worse. direction `high`: the higher the worse. Inclusive cuts.",
-    "grid_voltage": { "direction": "low", "degraded": 85, "critical": 50 },
-    "ups_load": { "direction": "low", "degraded": 50, "critical": 15 },
-    "generator_battery": { "direction": "low", "degraded": 60, "critical": 20 },
-    "temperature": { "direction": "high", "degraded": 40, "critical": 45 },
-    "network_coverage": { "direction": "low", "degraded": 80, "critical": 50 }
+    "grid_voltage": {
+      "direction": "low",
+      "degraded": 85,
+      "critical": 50
+    },
+    "ups_load": {
+      "direction": "low",
+      "degraded": 50,
+      "critical": 15
+    },
+    "generator_battery": {
+      "direction": "low",
+      "degraded": 60,
+      "critical": 20
+    },
+    "temperature": {
+      "direction": "high",
+      "degraded": 40,
+      "critical": 45
+    },
+    "network_coverage": {
+      "direction": "low",
+      "degraded": 80,
+      "critical": 50
+    },
+    "tower_battery": {
+      "direction": "low",
+      "degraded": 40,
+      "critical": 20
+    },
+    "fuel": {
+      "direction": "low",
+      "degraded": 40,
+      "critical": 15
+    },
+    "congestion": {
+      "direction": "high",
+      "degraded": 10,
+      "critical": 25
+    }
   },
   "maxMinutesWithoutPower": {
     "$comment": "Maximum minutes without grid power or reliable backup, per site type. Exceeding a hospital's limit triggers the blocking rule hospital-power-deadline.",
     "hospital": 8,
     "datacenter": 12,
-    "substation": 20
+    "substation": 20,
+    "tower": 15,
+    "fuel_station": 30,
+    "junction": 45
   },
   "ups": {
     "$comment": "UPS load in %. Below `act` waiting is forbidden (hist-dc-002). Below `emergency` it is immediate backup activation.",
@@ -32,14 +70,38 @@
   },
   "resources": {
     "$comment": "Total scenario capacity (DESIGN.md). Mutual exclusion: one resource serves one element at a time.",
-    "capacity": { "crew": 1, "generator": 2 }
+    "capacity": {
+      "crew": 1,
+      "generator": 2,
+      "tanker": 1,
+      "police": 1
+    }
   },
   "priority": {
-    "$comment": "Priority order when elements compete for resources, and weights to compute an element's numeric priority: priority = 0.5 * criticality + statusWeight + typeWeight + minuteWithoutPowerWeight * min(minutesWithoutPower, 15).",
-    "typeOrder": ["hospital", "substation", "datacenter"],
+    "$comment": "Priority order when elements compete for resources, and weights to compute an element's numeric priority: priority = 0.5 * criticality + statusWeight + typeWeight + minuteWithoutPowerWeight * min(minutesWithoutPower, 15).. The tower weighs almost as much as the substation: losing it costs the ability to coordinate at all. priority = 0.5 * criticality + statusWeight + typeWeight + minuteWithoutPowerWeight * min(minutesWithoutPower, 15).",
+    "typeOrder": [
+      "hospital",
+      "substation",
+      "tower",
+      "datacenter",
+      "fuel_station",
+      "junction"
+    ],
     "criticalityWeight": 0.5,
-    "statusWeight": { "critical": 60, "degraded": 20, "normal": 0, "resolved": 0 },
-    "typeWeight": { "hospital": 30, "substation": 20, "datacenter": 10 },
+    "statusWeight": {
+      "critical": 60,
+      "degraded": 20,
+      "normal": 0,
+      "resolved": 0
+    },
+    "typeWeight": {
+      "hospital": 30,
+      "substation": 20,
+      "tower": 18,
+      "datacenter": 10,
+      "fuel_station": 8,
+      "junction": 6
+    },
     "minuteWithoutPowerWeight": 2,
     "maxCountedMinutes": 15
   },
@@ -59,13 +121,18 @@
     {
       "id": "critical-ups-act",
       "rule": "With ups_load below the act threshold waiting is forbidden: a resource must be assigned or the issue escalated (hist-dc-002)."
+    },
+    {
+      "id": "generator-without-fuel",
+      "rule": "A generator whose fuel is below the critical threshold cannot be deployed to a new site: it must be refuelled by the tanker first."
     }
   ],
   "$commentRules": "The LLM cannot propose an action that violates blockingRules: the rules layer rejects it before execution.",
   "replanTriggers": [
     "An event makes a critical element cross a severity threshold.",
     "An action in progress fails or misses its ETA.",
-    "A hospital exceeds its limit of minutes without power."
+    "A hospital exceeds its limit of minutes without power.",
+    "A contact refuses an action or reports a delay: the plan relied on an ETA that no longer holds."
   ],
   "$commentTriggers": "They trigger a full re-plan (abandon the current plan), not just incremental adjustment."
 }

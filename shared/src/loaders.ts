@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { ScriptSchema, type Script } from "./script.js";
 import { HistoricalIncidentSchema, type HistoricalIncident } from "./history.js";
+import { RemediesSchema, TopologySchema, type Remedies, type Topology } from "./graphs.js";
 
 /* ─── Pure parsing: unknown → validated type, with actionable errors ─── */
 
@@ -38,6 +39,14 @@ export function parseHistory(input: unknown): HistoricalIncident[] {
   return parseWith(z.array(HistoricalIncidentSchema), input);
 }
 
+export function parseTopology(input: unknown): Topology {
+  return parseWith(TopologySchema, input);
+}
+
+export function parseRemedies(input: unknown): Remedies {
+  return parseWith(RemediesSchema, input);
+}
+
 /* ─── File loading: read + JSON.parse + validation ─── */
 
 function errorMessage(error: unknown): string {
@@ -70,4 +79,12 @@ export function loadScript(path: string): Script {
 
 export function loadHistory(path: string): HistoricalIncident[] {
   return loadJson(path, parseHistory);
+}
+
+export function loadTopology(path: string): Topology {
+  return loadJson(path, parseTopology);
+}
+
+export function loadRemedies(path: string): Remedies {
+  return loadJson(path, parseRemedies);
 }

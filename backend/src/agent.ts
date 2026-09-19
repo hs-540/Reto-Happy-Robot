@@ -6,11 +6,16 @@ import type {
   Decision,
   ElementStatus,
   ElementView,
+  CallClosure,
   HistoricalIncident,
+  Remedies,
+  Report,
   StateView,
+  Topology,
 } from "@swarmup/shared";
 import { validateAction } from "@swarmup/shared";
 import type { ActionRegistry } from "./control.js";
+import type { HappyRobotClient } from "./happyrobot.js";
 import type { LlmClient } from "./llm.js";
 import type { WorldEvent, World } from "./world.js";
 import type { Feed } from "./feed.js";
@@ -22,7 +27,28 @@ import {
 } from "./prompt.js";
 
 /** Retries on actions rejected by the hard rules, before discarding them */
-const MAX_RETRIES = 2;
+/**
+ * One retry, not two: each call costs 15-35s, so three attempts ate the whole
+ * budget and guaranteed the fallback precisely when the agent was correcting
+ * itself.
+ */
+const MAX_RETRIES = 1;
+
+/** Sources whose arrival alone justifies waking the engine */
+const HIGH_SIGNAL_SOURCES: readonly string[] = ["emergency_call", "field"];
+
+/** Backlog of low-signal reports that is worth a triage pass on its own */
+const REPORT_BACKLOG = 8;
+
+/**
+ * Reports and historical incidents handed over per deliberation. Measured: with
+ * everything at once the model burns its budget on decisions and leaves the
+ * communications field EMPTY — the very thing it exists for. Trimmed, it gets
+ * there. High-signal reports go first, so the needle in the haystack survives
+ * the cut; the rest is a sample large enough for the triage to be real.
+ */
+const MAX_REPORTS_PER_TURN = 12;
+const MAX_HISTORY_PER_TURN = 3;
 
 /**
  * Total budget of a deliberation, retries included; once spent, the
@@ -30,7 +56,7 @@ const MAX_RETRIES = 2;
  * with the provider's measured latency: one long call (~19s) plus a retry
  * after a hard-rule rejection.
  */
-const DELIBERATION_BUDGET_MS = 60_000;
+const DELIBERATION_BUDGET_MS = 75_000;
 
 /** Decisions kept for `/api/agent` */
 const MAX_DECISIONS = 20;
@@ -41,6 +67,13 @@ export interface Agent {
   view(): AgentView;
   /** Derived attention state, which the contract requires to be computed in the backend */
   attention(elementId: string): ElementView["attention"];
+  /** Raw incoming signal; buffered until the next deliberation */
+  queueReport(report: Report): void;
+  /**
+   * Outcome of a real call. A refusal or a delay invalidates the ETA the plan
+   * was built on, so it forces replanning on the next tick.
+   */
+  closeCall(closure: CallClosure): void;
   reset(): void;
 }
 
@@ -50,7 +83,11 @@ export interface AgentOptions {
   llm: LlmClient;
   /** Registry of real actions: stamps them as executed and publishes them (#43, no human gate) */
   actionRegistry: ActionRegistry;
+  /** channel to the real world: calls and messages */
+  happyrobot: HappyRobotClient;
   history: HistoricalIncident[];
+  topology: Topology;
+  remedies: Remedies;
   /** Current simulated second */
   seconds: () => number;
 }
@@ -62,7 +99,8 @@ function timeoutAfter(ms: number): Promise<never> {
 }
 
 export function createAgent(options: AgentOptions): Agent {
-  const { world, feed, llm, actionRegistry, history, seconds } = options;
+  const { world, feed, llm, actionRegistry, happyrobot, history, topology, remedies, seconds } =
+    options;
 
   let plan: AgentPlan | null = null;
   let decisions: Decision[] = [];
@@ -73,6 +111,16 @@ export function createAgent(options: AgentOptions): Agent {
   /** a deliberation in flight outlives a tick: they do not overlap */
   let deliberating = false;
   let counter = 0;
+  /**
+   * Warnings already sent, by recipient and text. With real phones, repeating
+   * the same message to the same person is calling them twice to say the same
+   * thing: it annoys and costs credibility. If the text changes, it goes out.
+   */
+  const warningsSent = new Set<string>();
+  /** raw signals accumulated since the last deliberation */
+  let pendingReports: Report[] = [];
+  /** extra reasons injected from outside (call outcomes) */
+  let externalReasons: string[] = [];
 
   function newId(prefix: string): string {
     counter += 1;
@@ -102,6 +150,22 @@ export function createAgent(options: AgentOptions): Agent {
       }
     }
 
+    // Raw signals have to be able to wake the engine on their own: a 112 call
+    // reporting a home ventilator is not going to change any sensor reading,
+    // and if only status changes trigger deliberation that call is never read.
+    const highSignal = pendingReports.filter((r) => HIGH_SIGNAL_SOURCES.includes(r.source));
+    if (highSignal.length > 0) {
+      reasons.push(
+        `${highSignal.length} signal(s) from emergency calls or field teams awaiting triage`,
+      );
+    } else if (pendingReports.length >= REPORT_BACKLOG) {
+      reasons.push(`${pendingReports.length} unprocessed signals piling up`);
+    }
+
+    // a refusal or a delay reported by phone invalidates the plan's ETA
+    reasons.push(...externalReasons);
+    externalReasons = [];
+
     // startup: there is a crisis and there is still no plan
     if (plan === null && state.elements.some((e) => e.status === "critical" || e.status === "degraded")) {
       reasons.push("first assessment of the crisis: no plan yet");
@@ -111,6 +175,11 @@ export function createAgent(options: AgentOptions): Agent {
   }
 
   /* ─── Deterministic fallback: the agent degrades, it never freezes ───── */
+
+  /** Contact who answers for a site, for the fallback's automatic warning */
+  function leadFor(elementId: string): string | null {
+    return remedies.contacts.find((c) => c.elementId === elementId)?.id ?? null;
+  }
 
   function decideByRules(state: StateView, reasons: string[]): AgentOutput {
     const context = world.context(state.elements);
@@ -125,6 +194,7 @@ export function createAgent(options: AgentOptions): Agent {
         evaluation: { discarded: [], actionable: [] },
         objective: "No active incidents: watch mode",
         steps: [],
+        communications: [],
         decisions: [],
       };
     }
@@ -157,6 +227,18 @@ export function createAgent(options: AgentOptions): Agent {
       evaluation: { discarded: [], actionable: reasons },
       objective: `Degraded mode (no LLM): attend ${target.elementId} by rule priority`,
       steps: [{ description: action.message, elementId: target.elementId }],
+      // even without the LLM the site lead is warned: going silent is no option
+      communications: leadFor(target.elementId)
+        ? [
+            {
+              recipient: leadFor(target.elementId) as string,
+              channel: "chat_message" as const,
+              elementId: target.elementId,
+              message: `Active incident at ${target.elementId}. ${action.message}.`,
+              reason: "Automatic warning in degraded mode",
+            },
+          ]
+        : [],
       decisions: [
         {
           elementId: target.elementId,
@@ -182,9 +264,18 @@ export function createAgent(options: AgentOptions): Agent {
       secondsWithoutPower: (id: string) => world.secondsWithoutPower(id),
       priorities: world.priorities(state.elements),
       currentPlan: plan,
-      history: history.filter((h) => involvedTypes.has(h.type)),
+      history: history.filter((h) => involvedTypes.has(h.type)).slice(0, MAX_HISTORY_PER_TURN),
+      topology,
+      remedies,
+      reports: [
+        ...pendingReports.filter((r) => HIGH_SIGNAL_SOURCES.includes(r.source)),
+        ...pendingReports.filter((r) => !HIGH_SIGNAL_SOURCES.includes(r.source)),
+      ].slice(0, MAX_REPORTS_PER_TURN),
       reasons,
     };
+
+    // consumed: the next deliberation only sees what arrives from now on
+    pendingReports = [];
 
     let rejections: string[] = [];
     let last: AgentOutput | null = null;
@@ -245,7 +336,40 @@ export function createAgent(options: AgentOptions): Agent {
 
   /* ─── Execution ──────────────────────────────────────────────────────── */
 
-  function execute(output: AgentOutput, state: StateView): void {
+  /**
+   * Replanning means ABANDONING a plan that already existed because the facts
+   * overtook it. A status change happens every tick and does not qualify: if
+   * everything is flagged, the badge stops distinguishing anything and the
+   * moment that matters — the crew missing its ETA — is lost.
+   */
+  const REPLAN_REASONS = ["misses its ETA", "exceeded its limit", "Call "];
+
+  function isReplan(reasons: string[]): boolean {
+    if (plan === null) return false; // no plan to abandon
+    return reasons.some((r) => REPLAN_REASONS.some((p) => r.includes(p)));
+  }
+
+  /**
+   * The LLM sometimes uses `elementId` as a free-text subject and puts a
+   * resource or a contact there. The decision is still sound; the label is what
+   * failed. Re-anchor it to the site it really concerns instead of dropping it.
+   */
+  function anchorToSite(id: string, state: StateView): string {
+    if (state.elements.some((e) => e.id === id)) return id;
+    const byResource = state.resources.find((r) => r.id === id)?.assignedElementId;
+    if (byResource && state.elements.some((e) => e.id === byResource)) return byResource;
+    const contact = remedies.contacts.find((c) => c.id === id);
+    if (contact?.elementId && state.elements.some((e) => e.id === contact.elementId)) {
+      return contact.elementId;
+    }
+    if (contact?.resourceId) {
+      const dest = state.resources.find((r) => r.id === contact.resourceId)?.assignedElementId;
+      if (dest) return dest;
+    }
+    return world.priorities(state.elements)[0]?.elementId ?? id;
+  }
+
+  function execute(output: AgentOutput, state: StateView, provokesReplan: boolean): void {
     const now = state.simulationClock;
 
     if (output.evaluation.discarded.length > 0) {
@@ -255,7 +379,6 @@ export function createAgent(options: AgentOptions): Agent {
       });
     }
 
-    const provokesReplan = output.decisions.length > 0;
     plan = {
       objective: output.objective,
       steps: output.steps.map((s, i) => ({
@@ -267,6 +390,37 @@ export function createAgent(options: AgentOptions): Agent {
       generatedAt: now,
       replanOf: plan === null ? null : (decisions[0]?.id ?? null),
     };
+
+    // Communications are a field of their own: they execute every time, even if
+    // the model put no `contact` action inside a decision.
+    for (const c of output.communications) {
+      const fingerprint = `${c.recipient}|${c.message.trim()}`;
+      if (warningsSent.has(fingerprint)) continue;
+      const contact = remedies.contacts.find((x) => x.id === c.recipient);
+      if (!contact) {
+        feed.publish({
+          kind: "system",
+          message: `Unknown recipient "${c.recipient}": the warning does not go out`,
+        });
+        continue;
+      }
+      warningsSent.add(fingerprint);
+      const action = actionRegistry.record({
+        type: c.channel,
+        targetElementId: anchorToSite(c.elementId, state),
+        recipient: contact.id,
+        message: c.message,
+      });
+      actions = [action, ...actions].slice(0, MAX_DECISIONS);
+      // Here the system leaves the laptop: a real phone rings.
+      happyrobot.contact({
+        actionId: action.id,
+        contact,
+        channel: c.channel,
+        message: c.message,
+        context: { elementId: action.targetElementId, situation: c.reason },
+      });
+    }
 
     for (const d of output.decisions) {
       const decision: Decision = {
@@ -338,7 +492,7 @@ export function createAgent(options: AgentOptions): Agent {
           });
           output = decideByRules(state, reasons);
         }
-        execute(output, state);
+        execute(output, state, isReplan(reasons));
       } finally {
         deliberating = false;
       }
@@ -368,11 +522,36 @@ export function createAgent(options: AgentOptions): Agent {
     },
 
 
+    queueReport(report): void {
+      pendingReports.push(report);
+    },
+
+    closeCall(closure): void {
+      const action = actions.find((a) => a.id === closure.actionId);
+      feed.publish({
+        kind: "outcome",
+        elementId: action?.targetElementId ?? null,
+        actionId: closure.actionId,
+        outcome: closure.outcome,
+        delayMinutes: closure.delayMinutes,
+        summary: closure.summary,
+      });
+      if (closure.outcome === "accepted") return;
+      const delay =
+        closure.delayMinutes === null ? "no concrete timeframe" : `${closure.delayMinutes} min delay`;
+      externalReasons.push(
+        `Call ${closure.actionId} ended as "${closure.outcome}" (${delay}): ${closure.summary}. The plan relied on a deadline that no longer holds.`,
+      );
+    },
+
     reset(): void {
       plan = null;
       decisions = [];
       actions = [];
       previousStatus = new Map();
+      warningsSent.clear();
+      pendingReports = [];
+      externalReasons = [];
       counter = 0;
     },
   };

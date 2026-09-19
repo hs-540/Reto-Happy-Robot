@@ -130,7 +130,7 @@ test("hospital-power-priority: generators only to the critical hospital without 
   );
 });
 
-test("hospital-power-deadline: past the limit only the hospital or the critical substation may be acted on", () => {
+test("hospital-power-deadline only binds resources that compete with the hospital", () => {
   const ctx: ValidationContext = {
     elements: [
       element("hosp-01", "hospital", {
@@ -140,18 +140,43 @@ test("hospital-power-deadline: past the limit only the hospital or the critical 
       element("dc-01", "datacenter", { status: "degraded" }),
       element("sub-01", "substation", { status: "critical" }),
     ],
-    resources: [resource("crew-1", "crew"), resource("generator-1", "generator")],
+    resources: [
+      resource("crew-1", "crew"),
+      resource("generator-1", "generator"),
+      resource("tanker-1", "tanker"),
+      resource("police-1", "police"),
+    ],
   };
   const waitDatacenter = validateAction({ type: "wait", elementId: "dc-01" }, ctx);
   assert.equal(waitDatacenter.allowed, false);
   assert.equal(ruleOf(waitDatacenter), "hospital-power-deadline");
 
-  const toDatacenter = validateAction(
-    { type: "assign_resource", elementId: "dc-01", resourceId: "crew-1" },
+  // a generator does compete with the hospital: still blocked elsewhere
+  const generatorToDatacenter = validateAction(
+    { type: "assign_resource", elementId: "dc-01", resourceId: "generator-1" },
     ctx,
   );
-  assert.equal(toDatacenter.allowed, false);
-  assert.equal(ruleOf(toDatacenter), "hospital-power-deadline");
+  assert.equal(generatorToDatacenter.allowed, false);
+
+  // so does the tanker, which refuels hospitals too
+  const tankerToDatacenter = validateAction(
+    { type: "assign_resource", elementId: "dc-01", resourceId: "tanker-1" },
+    ctx,
+  );
+  assert.equal(tankerToDatacenter.allowed, false);
+  assert.equal(ruleOf(tankerToDatacenter), "hospital-power-deadline");
+
+  // a traffic patrol is no substitute for a generator: blocking it only
+  // paralyses the agent without giving the hospital anything
+  assert.deepEqual(
+    validateAction({ type: "assign_resource", elementId: "junction-01", resourceId: "police-1" }, ctx),
+    { allowed: true },
+  );
+  // nor is the crew, which repairs the root cause
+  assert.deepEqual(
+    validateAction({ type: "assign_resource", elementId: "dc-01", resourceId: "crew-1" }, ctx),
+    { allowed: true },
+  );
 
   assert.deepEqual(
     validateAction({ type: "assign_resource", elementId: "hosp-01", resourceId: "crew-1" }, ctx),
@@ -221,7 +246,7 @@ test("calculatePriority: critical hospital without power beats degraded datacent
 
 test("AGENT_RULES is serializable to be injected into the LLM prompt", () => {
   const json = JSON.parse(JSON.stringify(AGENT_RULES));
-  assert.equal(json.blockingRules.length, 4);
+  assert.equal(json.blockingRules.length, 5);
   assert.equal(json.priority.typeOrder[0], "hospital");
   assert.equal(json.maxMinutesWithoutPower.hospital, MAX_MINUTES_WITHOUT_POWER.hospital);
 });

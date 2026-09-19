@@ -1,15 +1,28 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import type { FeedItem } from "@swarmup/shared";
+import { loadRemedies, loadTopology, type FeedItem } from "@swarmup/shared";
 import { createFeed, type Feed } from "../src/feed.js";
 import { loadScript, type Script } from "../src/script.js";
 import { createWorld } from "../src/world.js";
-import { createSimulation, TICK_SECONDS, type IncidentClosure } from "../src/sim.js";
+import {
+  TIME_SCALE,
+  createSimulation,
+  TICK_SECONDS,
+  type IncidentClosure,
+} from "../src/sim.js";
 
 const scriptPath = fileURLToPath(new URL("../../data/scripts/madrid-blackout.json", import.meta.url));
+const demoRemedies = loadRemedies(
+  fileURLToPath(new URL("../../data/remedies.json", import.meta.url)),
+);
+const demoTopology = loadTopology(
+  fileURLToPath(new URL("../../data/topology.json", import.meta.url)),
+);
 const START_MS = Date.parse("2026-09-19T10:00:00.000Z");
-const DURATION = 300;
+/** REAL seconds the demo lasts: the script runs in crisis seconds and the
+ *  simulation advances at TIME_SCALE, so walking it costs 1/scale. */
+const DURATION = Math.ceil(loadScript(scriptPath).durationSeconds / TIME_SCALE);
 
 function isoClock(sec: number): string {
   return new Date(START_MS + sec * 1000).toISOString();
@@ -23,15 +36,27 @@ type ExpectedAlarm = {
   severity: number;
 };
 type ExpectedSystem = { kind: "system"; message: string };
+type ExpectedReport = { kind: "report"; source: string; text: string; elementId: string | null };
+type ExpectedItem = ExpectedAlarm | ExpectedSystem | ExpectedReport;
 
-function expectedItems(script: Script): (ExpectedAlarm | ExpectedSystem)[] {
+function expectedItems(script: Script): ExpectedItem[] {
   return [...script.timeline]
     .sort((a, b) => a.atSeconds - b.atSeconds)
     .flatMap((ev) => {
       if (ev.kind === "narrative") {
         return ev.note === undefined ? [] : [{ kind: "system" as const, message: ev.note }];
       }
-      const items: (ExpectedAlarm | ExpectedSystem)[] = [
+      if (ev.kind === "report") {
+        return [
+          {
+            kind: "report" as const,
+            source: ev.payload.source,
+            text: ev.payload.text,
+            elementId: ev.payload.elementId,
+          },
+        ];
+      }
+      const items: ExpectedItem[] = [
         {
           kind: "alarm" as const,
           elementId: ev.payload.elementId,
@@ -46,24 +71,28 @@ function expectedItems(script: Script): (ExpectedAlarm | ExpectedSystem)[] {
 }
 
 /** feed without the log stamp (seq/ts): the content is the reproducible part */
-function content(items: FeedItem[]): (ExpectedAlarm | ExpectedSystem)[] {
-  return items.map((i) =>
-    i.kind === "alarm"
-      ? {
-          kind: i.kind,
-          elementId: i.elementId,
-          metric: i.metric,
-          value: i.value,
-          severity: i.severity,
-        }
-      : { kind: i.kind, message: i.message },
-  );
+function content(items: FeedItem[]): ExpectedItem[] {
+  return items.map((i) => {
+    if (i.kind === "alarm") {
+      return {
+        kind: i.kind,
+        elementId: i.elementId,
+        metric: i.metric,
+        value: i.value,
+        severity: i.severity,
+      };
+    }
+    if (i.kind === "report") {
+      return { kind: i.kind, source: i.source, text: i.text, elementId: i.elementId };
+    }
+    return { kind: i.kind as "system", message: "message" in i ? i.message : "" };
+  });
 }
 
 function freshSim(): { sim: ReturnType<typeof createSimulation>; feed: Feed } {
   const feed = createFeed();
   const script = loadScript(scriptPath);
-  const sim = createSimulation(script, START_MS, feed, createWorld(script));
+  const sim = createSimulation(script, START_MS, feed, createWorld(script, demoRemedies, demoTopology));
   return { sim, feed };
 }
 
@@ -102,14 +131,14 @@ test("the 5 key moments happen in order and at their exact second", () => {
   const moments = script.timeline
     .filter((e) => e.note !== undefined)
     .sort((a, b) => a.atSeconds - b.atSeconds);
-  assert.equal(moments.length, 5);
+  assert.ok(moments.length >= 5);
 
   const { sim, feed } = freshSim();
   sim.start(START_MS);
 
   let published = 0;
   for (const moment of moments) {
-    sim.advance(START_MS + moment.atSeconds * 1000);
+    sim.advance(START_MS + (moment.atSeconds / TIME_SCALE) * 1000);
     const fresh = feed.since(published);
     published = feed.lastSeq();
     assert.ok(fresh.length > 0, `the moment t=${moment.atSeconds}s published nothing`);
@@ -133,9 +162,11 @@ test("the 5 key moments happen in order and at their exact second", () => {
   }
 
   // moment 5: the substation has been 60s stable with restored voltage → incident closed
+  // the script no longer hands over the resolution: with no agent action the
+  // substation is still down at the end. Recovering it is the agent's doing.
   sim.advance(START_MS + DURATION * 1000);
   const sub = sim.state().elements.find((e) => e.id === "sub-01");
-  assert.equal(sub?.status, "resolved");
+  assert.notEqual(sub?.status, "resolved", "nobody repaired anything: it cannot be resolved");
 });
 
 test("reset leaves the reproducible initial state and an identical repetition", () => {
@@ -166,24 +197,34 @@ test("when an incident is resolved a single closure is delivered per element", (
   const closures: IncidentClosure[] = [];
   const feed = createFeed();
   const script = loadScript(scriptPath);
-  const sim = createSimulation(
-    script,
-    START_MS,
-    feed,
-    createWorld(script),
-    (closure) => closures.push(closure),
-  );
+  const world = createWorld(script, demoRemedies, demoTopology);
+  const sim = createSimulation(script, START_MS, feed, world, (closure) => closures.push(closure));
   sim.start(START_MS);
-  runThrough(sim);
+  sim.advance(START_MS + 2_000);
 
-  // moment 5: only the substation reaches `resolved` within the script (stable since t=240)
-  assert.deepEqual(closures.map((c) => c.elementId), ["sub-01"]);
-  assert.equal(closures[0].type, "substation");
-  assert.equal(closures[0].maxSeverity, 90);
+  // the crew repairs the substation: the ACTION resolves it, not the script
+  assert.equal(world.assign("crew-1", "sub-01", sim.seconds()).ok, true);
+  for (let real = 5; real <= DURATION; real += 5) {
+    sim.advance(START_MS + real * 1000);
+    for (const ev of world.advance(sim.seconds(), sim.state().elements)) {
+      if (ev.type === "remedy_applied" || ev.type === "recovery") {
+        sim.inject({
+          elementId: ev.elementId,
+          metric: ev.metric,
+          value: ev.value,
+          severity: ev.severity,
+        });
+      }
+    }
+  }
 
-  // the datacenter closes once it reaches its own stability; the substation is not repeated
-  sim.advance(START_MS + 325 * 1000);
-  assert.deepEqual(closures.map((c) => c.elementId), ["sub-01", "dc-01"]);
+  assert.ok(closures.length > 0, "repairing the substation must close its incident");
+  assert.equal(closures[0]?.elementId, "sub-01");
+  assert.equal(closures[0]?.type, "substation");
+  assert.equal(closures[0]?.maxSeverity, 90);
+
+  const ids = closures.map((c) => c.elementId);
+  assert.deepEqual(ids, [...new Set(ids)], "each element delivers a single closure");
 });
 
 test("inject applies an immediate sensor event and emits it in the feed", () => {
@@ -198,7 +239,7 @@ test("inject applies an immediate sensor event and emits it in the feed", () => 
   assert.equal(dc?.sensors.temperature, 55);
   assert.equal(dc?.severity, 80);
   assert.equal(dc?.status, "critical");
-  assert.equal(dc?.updatedAt, isoClock(10));
+  assert.equal(dc?.updatedAt, isoClock(10 * TIME_SCALE));
 
   const fresh = feed.since(seqBefore);
   assert.equal(fresh.length, 1);
