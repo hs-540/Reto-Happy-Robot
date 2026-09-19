@@ -65,7 +65,7 @@ const MAX_HISTORY_PER_TURN = 3;
  * `hospital-power-deadline` bites. Spending longer than that on one decision
  * means answering about a hospital that has already blown its limit, so the
  * answer arrives describing a world that no longer exists. At the current
- * numbers (8 crisis-minutes at 6x) this is 80s of wall clock.
+ * numbers (8 crisis-minutes at 15x) this is 32s of wall clock.
  */
 const STALENESS_CEILING_MS =
   (MAX_MINUTES_WITHOUT_POWER.hospital * 60 * 1000) / TIME_SCALE;

@@ -12,7 +12,11 @@ try {
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
-  TICK_MS: z.coerce.number().int().positive().default(5000),
+  /* Engine cadence: the demo compresses 30 crisis-minutes into ~2 real minutes
+     (TIME_SCALE = 15), so a 5 s tick would let 75 crisis-seconds pass between
+     decisions. Two seconds keeps reactions quick; the LLM wakes only on
+     triggers, so call volume does not grow with the cadence. */
+  TICK_MS: z.coerce.number().int().positive().default(2000),
   /* LLM provider with an OpenAI-compatible interface (Helmcode). The provider
      is configuration, not code: switching it means editing the `.env`, without
      touching this. */

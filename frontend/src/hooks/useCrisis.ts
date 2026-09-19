@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { AgentView, FeedItem, RunSummaryView, StateView, TopologyView } from '@swarmup/shared'
 import { getAgent, getFeed, getState, getSummary, getTopology } from '../api'
 
-const POLL_MS = 2000
+/* The map moves fast (TIME_SCALE = 15): one-second polling keeps marker
+   motion smooth instead of teleporting between jumps. */
+const POLL_MS = 1000
 
 const EMPTY_TOPOLOGY: TopologyView = {
   crisis: { title: 'Connecting to the backend…', durationSeconds: 0, moments: [] },
