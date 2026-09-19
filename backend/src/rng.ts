@@ -50,7 +50,11 @@ export function createRng(seed: number): Rng {
   };
 }
 
-/** Seed for the retry chain: deterministic given the base seed and the attempt */
+/**
+ * Seed for the retry chain: the first attempt is the seed itself, later
+ * attempts derive from it, deterministically
+ */
 export function deriveSeed(base: number, attempt: number): number {
-  return (Math.imul(base ^ (attempt + 1), 0x9e3779b1) + attempt) >>> 0;
+  if (attempt === 0) return base >>> 0;
+  return (Math.imul(base ^ attempt, 0x9e3779b1) + attempt) >>> 0;
 }
