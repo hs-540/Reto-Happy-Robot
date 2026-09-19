@@ -179,6 +179,19 @@ function feedDetails(
       }
       return rows
     }
+    case 'directive':
+      return [
+        { label: 'Directive', value: item.directiveId },
+        { label: 'Type', value: item.directive === 'priority_pin' ? 'Priority pin' : 'Order' },
+        { label: 'Site', value: item.elementId ? names[item.elementId] ?? item.elementId : '—' },
+        { label: 'Text', value: item.text || 'Prioritize this site' },
+      ]
+    case 'directive_response':
+      return [
+        { label: 'Directive', value: item.directiveId },
+        { label: 'Decision', value: item.decision },
+        { label: 'Reasoning', value: item.reasoning },
+      ]
     case 'system':
       return [{ label: 'Message', value: item.message }]
   }
