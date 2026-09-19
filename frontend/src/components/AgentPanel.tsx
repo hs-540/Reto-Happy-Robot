@@ -231,22 +231,78 @@ const DIRECTIVE_STATUS: Record<Directive['status'], string> = {
   rejected: 'rejected',
 }
 
+/** One row of the console: what the operator asked and how the agent answered */
+interface ConsoleEntry {
+  id: string
+  kind: Directive['kind']
+  elementId: string | null
+  text: string
+  status: Directive['status']
+  reasoning: string | null
+}
+
 /**
- * The operator-to-agent channel: free-text orders plus the standing directives
- * (pins and unanswered orders) with the agent's answers as they arrive.
+ * Merges the standing directives (`/api/agent`) with the feed history so an
+ * answered order does NOT vanish: the operator sees every request and its
+ * answer without digging through the events stream. Standing entries win —
+ * they carry the authoritative status; the feed fills in orders the backend
+ * already retired.
+ */
+function consoleEntries(directives: Directive[], feed: FeedItem[]): ConsoleEntry[] {
+  const entries = new Map<string, ConsoleEntry>()
+  for (const d of directives) {
+    entries.set(d.id, {
+      id: d.id,
+      kind: d.kind,
+      elementId: d.elementId,
+      text: d.text,
+      status: d.status,
+      reasoning: d.responseReasoning,
+    })
+  }
+  for (const item of feed) {
+    if (item.kind === 'directive' && !entries.has(item.directiveId)) {
+      entries.set(item.directiveId, {
+        id: item.directiveId,
+        kind: item.directive,
+        elementId: item.elementId,
+        text: item.text,
+        status: 'open',
+        reasoning: null,
+      })
+    } else if (item.kind === 'directive_response') {
+      const entry = entries.get(item.directiveId)
+      if (entry && entry.status === 'open') {
+        entry.status = item.decision
+        entry.reasoning = item.reasoning
+      }
+    }
+  }
+  return [...entries.values()]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .reverse()
+    .slice(0, 6)
+}
+
+/**
+ * The operator-to-agent channel: free-text orders plus the directive history
+ * (pins, orders and their answers) with the agent's responses as they arrive.
  */
 function OperatorConsole({
   directives,
+  feed,
   pending,
   onOrder,
   onUnprioritize,
 }: {
   directives: Directive[]
+  feed: FeedItem[]
   pending: boolean
   onOrder: (text: string) => void
   onUnprioritize: (id: string) => void
 }) {
   const [order, setOrder] = useState('')
+  const entries = consoleEntries(directives, feed)
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -272,25 +328,28 @@ function OperatorConsole({
           Order
         </button>
       </form>
-      {directives.length > 0 && (
+      {entries.length > 0 && (
         <ul className="opconsole__list">
-          {directives.map((d) => (
+          {entries.map((d) => (
             <li key={d.id} className={`opdir opdir--${d.status} opdir--${d.kind}`}>
               <span className="opdir__kind">
                 <Icon name={d.kind === 'priority_pin' ? 'pin' : 'chat'} size={11} />
                 {d.kind === 'priority_pin' ? 'PIN' : 'ORDER'}
               </span>
-              <span className="opdir__text" title={d.responseReasoning ?? undefined}>
+              <span className="opdir__text" title={d.reasoning ?? undefined}>
                 {d.kind === 'priority_pin'
                   ? d.elementId
                     ? `${d.elementId}${d.text ? ` — ${d.text}` : ''}`
                     : d.text
                   : d.text}
               </span>
-              <span className={`opdir__status opdir__status--${d.status}`}>
+              <span
+                className={`opdir__status opdir__status--${d.status}`}
+                title={d.reasoning ?? undefined}
+              >
                 {DIRECTIVE_STATUS[d.status]}
               </span>
-              {d.kind === 'priority_pin' && (
+              {d.kind === 'priority_pin' && d.status !== 'rejected' && (
                 <button
                   type="button"
                   className="opdir__withdraw"
@@ -395,6 +454,7 @@ export function AgentPanel({
 
         <OperatorConsole
           directives={agent.directives}
+          feed={feed}
           pending={pending}
           onOrder={onOrder}
           onUnprioritize={onUnprioritize}

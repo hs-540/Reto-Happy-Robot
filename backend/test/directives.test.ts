@@ -42,10 +42,12 @@ const MODEL_OUTPUT: { data: unknown } = {
 };
 
 /** Captures the prompt: the only way to prove what the directives injected */
-function stubLlm(prompts: string[]): LlmClient {
+function stubLlm(prompts: string[], fail = false, during?: () => void): LlmClient {
   return {
     structured: async (messages: ChatCompletionMessageParam[]) => {
+      if (fail) throw new Error("the gateway is down");
       prompts.push(messages.map((m) => String(m.content)).join("\n"));
+      during?.();
       return {
         text: "{}",
         data: MODEL_OUTPUT.data as never,
@@ -62,9 +64,8 @@ function stubLlm(prompts: string[]): LlmClient {
 
 const happyrobot: HappyRobotClient = {
   mode: "simulated",
-  contact: () => {
-    throw new Error("this test does not communicate");
-  },
+  // the contingency playbook escalates by contacting someone: harmless here
+  contact: () => {},
 };
 
 /* ─── World under crisis ─────────────────────────────────────────────── */
@@ -102,12 +103,12 @@ function crisis(elements: ElementView[]): StateView {
   };
 }
 
-function agentWith(prompts: string[]) {
+function agentWith(prompts: string[], failLlm = false, during?: () => void) {
   const feed = createFeed();
   const agent = createAgent({
     world: createWorld(script, remedies, topology),
     feed,
-    llm: stubLlm(prompts),
+    llm: stubLlm(prompts, failLlm, during),
     actionRegistry: createActionRegistry(feed),
     happyrobot,
     history: [],
@@ -237,8 +238,80 @@ test("a rejected pin stays visible, overruled, until the operator withdraws it",
   );
 });
 
-test("a silent model still answers the operator: fallback marks it acknowledged", async () => {
+test("a directive landed mid-deliberation waits for the next one instead of being swallowed", async () => {
   const prompts: string[] = [];
+  const holder: { agent?: ReturnType<typeof createAgent> } = {};
+  let fired = false;
+  const { agent, feed } = agentWith(prompts, false, () => {
+    // the operator types while the model is already thinking: the directive is
+    // NOT in the prompt this call is answering
+    if (fired) return;
+    fired = true;
+    holder.agent?.queueDirective("order", null, "queued while you were thinking");
+  });
+  holder.agent = agent;
+  MODEL_OUTPUT.data = {
+    evaluation: { discarded: [], actionable: [] },
+    objective: "Triage",
+    steps: [],
+    communications: [],
+    decisions: [],
+    directiveResponses: [],
+  };
+
+  await agent.observe(crisis([element("dc-01", "datacenter", "Datacenter", "degraded", 55)]), []);
+
+  const first = agent.view().directives;
+  assert.equal(first.length, 1, "the order is not swallowed");
+  assert.equal(first[0]?.status, "open", "a deliberation that never read it cannot answer it");
+  assert.ok(
+    !feed.since(0).some((i) => i.kind === "directive_response"),
+    "no answer is published on the model's behalf",
+  );
+
+  // the next deliberation does read it and answers it
+  MODEL_OUTPUT.data = {
+    evaluation: { discarded: [], actionable: [] },
+    objective: "Triage",
+    steps: [],
+    communications: [],
+    decisions: [],
+    directiveResponses: [
+      { directiveId: "dir-001", decision: "acknowledged", reasoning: "Recibido." },
+    ],
+  };
+  await agent.observe(crisis([element("dc-01", "datacenter", "Datacenter", "degraded", 55)]), []);
+
+  assert.match(prompts[1] ?? "", /queued while you were thinking/, "the order reaches the next prompt");
+  assert.equal(agent.view().directives.length, 0, "once answered, the one-shot order leaves");
+  assert.ok(feed.since(0).some((i) => i.kind === "directive_response" && i.directiveId === "dir-001"));
+});
+
+test("the contingency playbook never answers directives: they wait for the LLM", async () => {
+  const prompts: string[] = [];
+  const { agent, feed } = agentWith(prompts, true);
+  MODEL_OUTPUT.data = {
+    evaluation: { discarded: [], actionable: [] },
+    objective: "Triage",
+    steps: [],
+    communications: [],
+    decisions: [],
+    directiveResponses: [],
+  };
+  agent.queueDirective("order", null, "hold the tanker for now");
+
+  await agent.observe(crisis([element("dc-01", "datacenter", "Datacenter", "degraded", 55)]), []);
+
+  const directives = agent.view().directives;
+  assert.equal(directives.length, 1, "the order stays standing");
+  assert.equal(directives[0]?.status, "open", "a playbook that never read it cannot answer it");
+  assert.ok(
+    !feed.since(0).some((i) => i.kind === "directive_response"),
+    "no answer is published on the model's behalf",
+  );
+});
+
+test("a silent model still answers the operator: fallback marks it acknowledged", async () => {  const prompts: string[] = [];
   const { agent, feed } = agentWith(prompts);
   MODEL_OUTPUT.data = {
     evaluation: { discarded: [], actionable: [] },
