@@ -21,10 +21,15 @@ test("the current script validates without errors", () => {
 });
 
 test("the current histories validate without errors", () => {
-  for (const type of ["hospital", "datacenter", "substation"]) {
+  for (const type of ["hospital", "datacenter", "substation", "tower", "fuel_station", "junction"]) {
     const incidents = loadHistory(historyPath(type));
-    assert.equal(incidents.length, 3);
+    // 10-15 per type so the retrieval can rank a real subset, not return everything
+    assert.ok(
+      incidents.length >= 10 && incidents.length <= 15,
+      `${type} must carry 10-15 incidents, got ${incidents.length}`,
+    );
     assert.ok(incidents.every((i) => i.type === type));
+    assert.equal(new Set(incidents.map((i) => i.id)).size, incidents.length);
   }
 });
 

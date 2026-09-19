@@ -97,6 +97,41 @@ function objectiveOf(agent: Agent): string {
   return plan.objective;
 }
 
+test("the playbook commits every site it can serve in one pass", async () => {
+  const elements = [
+    element("tower-01", { sensors: { tower_battery: 21 } }),
+    element("junction-01", {}),
+    element("fuel-01", { status: "normal", severity: 10 }),
+  ];
+  const { agent, world, state } = setup(elements);
+
+  // only one generator and the patrol stay free: exactly the capacity the two
+  // uncovered sites need, so a one-move playbook would leave one unattended
+  parkEverythingOn(world, "fuel-01", ["generator-2", "police-1"]);
+
+  await agent.observe(state(), []);
+
+  assert.deepEqual(
+    coveringResources(world, "tower-01"),
+    ["generator-2"],
+    "the tower must be covered in the same pass as the junction",
+  );
+  assert.deepEqual(
+    coveringResources(world, "junction-01"),
+    ["police-1"],
+    "the junction must not wait for a later pass",
+  );
+  const decisionElements = agent.view().decisions.map((d) => d.elementId);
+  assert.ok(
+    decisionElements.includes("tower-01") && decisionElements.includes("junction-01"),
+    `one decision per committed site, got ${JSON.stringify(decisionElements)}`,
+  );
+  const plan = agent.view().currentPlan;
+  assert.ok(plan);
+  assert.match(plan.objective, /generator-2 to tower-01/);
+  assert.match(plan.objective, /police-1 to junction-01/);
+});
+
 test("the playbook does not send a second resource to an already covered site", async () => {
   const elements = [
     element("hosp-01", { sensors: { grid_voltage: 5, generator_battery: 30 } }),

@@ -22,5 +22,77 @@
     "summary": "A crew already en route to the substation was redirected to a hospital by a sudden emergency, delaying the substation repair.",
     "outcome": "The substation repair was delayed 22 minutes, prolonging the crisis for every element depending on it. Lesson: diverting a crew heading to the root cause (substation) is only justified if the new destination is more critical than fixing the blackout's origin for everyone else.",
     "date": "2026-05-19"
+  },
+  {
+    "id": "hist-sub-004",
+    "type": "substation",
+    "title": "Crew could not reach the substation switchyard — February 2026",
+    "summary": "A crew assigned to restore a substation was stopped at the perimeter because the switchyard gate was locked and no key holder was on the dispatch list. The grid_voltage stayed low while the crew waited outside.",
+    "outcome": "A key holder was reached after 17 minutes and the repair began. Lesson: confirm access and a key holder before dispatching a crew to a substation; a locked switchyard delays every dependent of that grid_voltage.",
+    "date": "2026-02-21"
+  },
+  {
+    "id": "hist-sub-005",
+    "type": "substation",
+    "title": "Repair crew sent to the wrong substation in the ring — April 2026",
+    "summary": "The dispatch confused two substations with similar names and the crew began work at a healthy site while the failed one kept its grid_voltage near zero.",
+    "outcome": "The error was noticed 13 minutes in and the crew rerouted. Lesson: confirm the substation id and its current grid_voltage before assigning a crew; a crew at the wrong ring does not restore anyone.",
+    "date": "2026-04-16"
+  },
+  {
+    "id": "hist-sub-006",
+    "type": "substation",
+    "title": "Cascading failure treated as independent incidents — June 2026",
+    "summary": "A substation failure dropped grid_voltage at several dependents, and each dependent was escalated as a separate incident before the shared origin was identified.",
+    "outcome": "Resources were scattered across the dependents for 18 minutes before the crew was sent to the origin. Lesson: when several sites lose grid_voltage at once, find the shared substation first; the root repair restores all dependents at once.",
+    "date": "2026-06-25"
+  },
+  {
+    "id": "hist-sub-007",
+    "type": "substation",
+    "title": "Partial restoration deprioritized the substation too early — August 2026",
+    "summary": "The grid_voltage recovered to 65% and the incident was lowered in priority before the breaker bank was fully repaired. The voltage collapsed again minutes later.",
+    "outcome": "A second blackout peak hit the dependents. Lesson: hold a substation incident open until grid_voltage stays stable above 90% for 5 minutes; a partial reading is not a repair.",
+    "date": "2026-08-08"
+  },
+  {
+    "id": "hist-sub-008",
+    "type": "substation",
+    "title": "Crew diverted from the substation to a hospital — October 2026",
+    "summary": "The only crew repairing the origin substation was pulled to a hospital emergency, so every dependent stayed dark longer than the hospital emergency alone would have caused.",
+    "outcome": "The grid_voltage stayed low for 25 more minutes. Lesson: only divert the crew away from the origin substation if the new destination's human cost outweighs the blackout it prolongs for every dependent.",
+    "date": "2026-10-19"
+  },
+  {
+    "id": "hist-sub-009",
+    "type": "substation",
+    "title": "Fuel exhaustion stranded the repair crew — December 2026",
+    "summary": "The crew's vehicle ran out of fuel on the way to a substation because the assigned refuel station had no stock, and the repair did not start.",
+    "outcome": "A tanker was rerouted and the crew resumed 21 minutes later. Lesson: confirm the repair crew's own fuel and its refuel station before dispatch; a crew that cannot reach the switchyard is not a repair.",
+    "date": "2026-12-14"
+  },
+  {
+    "id": "hist-sub-010",
+    "type": "substation",
+    "title": "Faulty grid_voltage reading hid the collapse — January 2026",
+    "summary": "A faulty grid_voltage sensor reported 88% while the feeder was actually at 9%, so the substation was not escalated until a field report contradicted the reading.",
+    "outcome": "The crew started 15 minutes late. Lesson: corroborate an isolated healthy grid_voltage reading with field reports before trusting it; one faulty sensor can hide a full collapse.",
+    "date": "2026-01-28"
+  },
+  {
+    "id": "hist-sub-011",
+    "type": "substation",
+    "title": "Preventive repair on a declining grid_voltage trend — March 2026",
+    "summary": "The substation's grid_voltage declined slowly for 20 minutes but never crossed the critical threshold. A crew was sent on the trend alone and caught the fault before it cascaded.",
+    "outcome": "No dependent lost power. Lesson: a sustained grid_voltage decline at a substation justifies a preventive crew; a slow feeder fault is cheaper to stop before it cascades.",
+    "date": "2026-03-06"
+  },
+  {
+    "id": "hist-sub-012",
+    "type": "substation",
+    "title": "Two substations failed and only one crew existed — May 2026",
+    "summary": "Two substations in different rings failed within minutes and only one crew was available. The crew was committed to the ring with more dependents first while the other grid_voltage kept falling.",
+    "outcome": "The second ring stayed dark 30 minutes longer but the wider ring recovered first. Lesson: with one crew and two failed substations, repair the one with more dependents first and hold the other with generators on its critical sites.",
+    "date": "2026-05-22"
   }
 ]

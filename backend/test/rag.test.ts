@@ -55,11 +55,11 @@ test("the preload is idempotent: re-running does not duplicate", async () => {
   const first = await rag.preload(all);
   const second = await rag.preload(all);
 
-  assert.equal(first, 9);
-  assert.equal(second, 9);
-  assert.equal(await countOf("hospital"), 3);
-  assert.equal(await countOf("datacenter"), 3);
-  assert.equal(await countOf("substation"), 3);
+  assert.equal(first, all.length);
+  assert.equal(second, all.length);
+  assert.equal(await countOf("hospital"), incidentsOf("hospital").length);
+  assert.equal(await countOf("datacenter"), incidentsOf("datacenter").length);
+  assert.equal(await countOf("substation"), incidentsOf("substation").length);
 });
 
 test("the search for a hospital only returns incidents from the hospital collection", async () => {
@@ -91,13 +91,14 @@ test("loop closure records the resolved incident and does not duplicate re-closu
     clock: "2026-09-19T10:05:00.000Z",
   };
 
+  const substationCount = incidentsOf("substation").length;
   await rag.recordClosure(closure);
   const afterFirst = await countOf("substation");
   await rag.recordClosure(closure);
   const afterRepeat = await countOf("substation");
 
-  assert.equal(afterFirst, 4);
-  assert.equal(afterRepeat, 4);
+  assert.equal(afterFirst, substationCount + 1);
+  assert.equal(afterRepeat, substationCount + 1);
 
   const res = await rag.search("substation", "blackout resolved at the substation", 10);
   const hit = res.find(({ incident }) => incident.id.startsWith("closure-sub-01-"));
@@ -193,4 +194,118 @@ test("a deep history of closures cannot crowd out the curated lessons", async ()
     `both curated lessons must survive, got ${ids.join(", ")}`,
   );
   assert.ok(ids.includes("closure-sub-0"), "the best closure still fills the free slot");
+});
+
+/**
+ * The gateway embeddings are the real ranker; a test cannot call them, so this
+ * double approximates them with a deterministic bag of words weighted by inverse
+ * document frequency. The length-only `testLlm` above cannot tell two situations
+ * apart: with 12 incidents per type the ranking has to turn on the vocabulary of
+ * the live situation, not on how long the query happens to be.
+ */
+const STOPWORDS = new Set([
+  "the", "and", "for", "with", "that", "was", "were", "this", "from", "into",
+  "its", "his", "her", "their", "there", "then", "than", "them", "they", "not",
+  "but", "had", "has", "have", "been", "before", "after", "when", "while",
+  "over", "under", "again", "once", "only", "also", "are", "does", "did", "who",
+  "whom", "which", "what", "where", "why", "how", "all", "any", "both", "each",
+  "few", "more", "most", "other", "some", "such", "nor", "too", "very", "can",
+  "will", "just", "should", "now", "site", "sites",
+]);
+
+function tokens(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z0-9_]+/g) ?? []).filter(
+    (word) => word.length > 1 && !STOPWORDS.has(word),
+  );
+}
+
+const EMBEDDING_DIM = 96;
+
+function vocabularyEmbedder(corpus: readonly string[]): (text: string) => number[] {
+  const documentFrequency = new Map<string, number>();
+  for (const doc of corpus) {
+    for (const token of new Set(tokens(doc))) {
+      documentFrequency.set(token, (documentFrequency.get(token) ?? 0) + 1);
+    }
+  }
+  const idf = (token: string) =>
+    Math.log((corpus.length + 1) / ((documentFrequency.get(token) ?? 0) + 1)) + 1;
+
+  return (text: string) => {
+    const vector = Array.from({ length: EMBEDDING_DIM }, () => 0);
+    for (const token of tokens(text)) {
+      let hash = 0;
+      for (let i = 0; i < token.length; i += 1) {
+        hash = (hash * 31 + token.charCodeAt(i)) >>> 0;
+      }
+      vector[hash % EMBEDDING_DIM] += idf(token);
+    }
+    const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1;
+    return vector.map((value) => value / norm);
+  };
+}
+
+test("two different situations of the same type retrieve different incidents", async () => {
+  // The tower collection is untouched by the other tests, so a second history
+  // rag with a more realistic embedding can be preloaded here without disturbing
+  // the counts above.
+  const towerIncidents = incidentsOf("tower");
+  const embed = vocabularyEmbedder(
+    towerIncidents.map((i) => `${i.title} ${i.summary} ${i.outcome}`),
+  );
+  const rankingRag = createHistoryRag({
+    client: chroma.client,
+    llm: {
+      structured: async () => {
+        throw new Error("not used in this test");
+      },
+      embeddings: async (texts) => texts.map(embed),
+    },
+  });
+  await rankingRag.preload(towerIncidents);
+
+  const towerView = (sensors: ElementView["sensors"]): ElementView => ({
+    id: "tower-04",
+    type: "tower",
+    name: "Las Margaritas Telecoms Tower",
+    lat: 40.2991,
+    lng: -3.7473,
+    status: "critical",
+    severity: 85,
+    sensors,
+    attention: { state: "unattended", resourceId: null, activeDecisionId: null },
+    updatedAt: "2026-09-19T10:05:00.000Z",
+  });
+
+  const accessSituation = await retrieveHistory({
+    rag: rankingRag,
+    reasons: [
+      "the crew reached the tower but the compound gate is locked and they have no access credentials",
+    ],
+    sites: [towerView({ tower_battery: 34 })],
+    limit: 4,
+  });
+  const batterySituation = await retrieveHistory({
+    rag: rankingRag,
+    reasons: [
+      "tower_battery is draining faster than the autonomy estimate because network_coverage demand doubled",
+    ],
+    sites: [towerView({ tower_battery: 12, network_coverage: 30 })],
+    limit: 4,
+  });
+
+  const accessIds = accessSituation.map((e) => e.incident.id);
+  const batteryIds = batterySituation.map((e) => e.incident.id);
+
+  assert.notDeepEqual(accessIds, batteryIds, "the live situation must change which incidents rank");
+  assert.ok(
+    accessIds.some((id) => id === "hist-tow-002" || id === "hist-tow-005"),
+    `the access situation must surface an access incident, got ${accessIds.join(", ")}`,
+  );
+  assert.ok(
+    batteryIds.some(
+      (id) => id === "hist-tow-001" || id === "hist-tow-004" || id === "hist-tow-012",
+    ),
+    `the battery situation must surface a battery incident, got ${batteryIds.join(", ")}`,
+  );
 });

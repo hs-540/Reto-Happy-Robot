@@ -66,9 +66,37 @@ If a Chroma is already listening on its port, it gets reused instead of starting
 
 Everything from the UI, no `curl`:
 
-- **Start** the script — button in the header. Each run draws a random crisis from a seed (`backend/src/scenario.ts`): 8-15 of the 15 sites, 4-10 of the 10 resources, and ~100-120 timeline entries spaced across the 30-minute window, most of them noise the agent must triage. The clock runs for 1800 s (30 min) of simulated time; a demo run does not need all of it.
+- **Start** the script — button in the header. Each run draws a random crisis from a seed (`backend/src/scenario.ts`): 8-15 of the 15 sites, 4-10 of the 10 resources — always at least one fewer than the drawn sites, so prioritizing is never optional — and ~100-120 timeline entries spaced across the 30-minute window, most of them noise the agent must triage. The clock runs for 1800 s (30 min) of simulated time; a demo run does not need all of it.
 - **Pause / resume** — header.
 - **Inject live events** — injection panel. Crossing a threshold triggers a full re-plan on the next tick.
+
+### Talking to the agent
+
+The **Chat** tab of the agent panel is a direct channel to it: ask what it is
+doing and why, change a priority ("the hospital on Calle de Atocha comes
+first"), or order a unit somewhere ("send generator-2 to sub-01"). The turn is
+read by the LLM, which returns a reply plus the orders it understood.
+
+Those orders are **real and bounded**:
+
+- `prioritize` / `deprioritize` shift the site in `World.priorities`, the single
+  ranking the prompt, the contingency playbook, the idle-resource pairing and
+  the call queue all read — so nothing downstream can disagree about what comes
+  first. They **stand**: every later deliberation sees them, until a reset.
+- `assign` / `release` move the fleet through the same `world.assign` /
+  `world.release` the agent uses, after passing `validateAction` — the same hard
+  rules that veto the model's own proposals. A refused order comes back naming
+  the rule that refused it (`✕ Not done — [no-double-assignment] …`) and moves
+  nothing. The operator is a human in the loop, not an exception to the rules.
+- `note` commits nothing; it adds context the agent carries into its next
+  deliberations ("the ICU is already on a private generator").
+
+Orders are validated against the world as it is when they execute, not the
+snapshot the model read while thinking, and every turn — and every accepted
+order — is published to the feed, so a human intervention is readable back in
+the log the run is judged on. The reply costs a model call: `POST /api/chat`
+returns as soon as the turn is accepted and the answer arrives through the
+normal poll.
 
 `reset` draws a **new** scenario — a fresh seed, a different map, a different
 fleet — it does not rewind the current one. The CommandBar wires start, pause,
@@ -96,6 +124,8 @@ The first deliberation **takes between 8 and 20 seconds** (measured against `dee
 | `/api/agent`    | GET    | Current plan, decisions and actions of the agent   |
 | `/api/feed`     | GET    | Append-only log with `since` cursor                |
 | `/api/control`  | POST   | Start, reset, pause, resume and inject             |
+| `/api/chat`     | GET    | Operator channel: conversation and standing orders |
+| `/api/chat`     | POST   | Sends an operator turn to the agent                |
 | `/api/call/outcome` | POST | HappyRobot webhook: outcome of a call on hang-up |
 | `/api/health`   | GET    | Backend healthcheck                                |
 

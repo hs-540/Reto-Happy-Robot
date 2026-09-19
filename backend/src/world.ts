@@ -159,6 +159,16 @@ export interface World {
   context(elements: ElementView[]): ValidationContext;
   /** Elements sorted by `calculatePriority`, from most to least urgent */
   priorities(elements: ElementView[]): { elementId: string; score: number }[];
+  /**
+   * Operator override folded into `priorities`, cumulative and lasting until
+   * the run ends. It lives here rather than in the agent so that EVERY
+   * consumer of the ranking obeys it at once: the prompt's priority clue, the
+   * contingency playbook, the idle-capacity pairing and the call queue's
+   * urgency. An override only one of them honoured would be a lie on screen.
+   */
+  boost(elementId: string, amount: number): void;
+  /** Standing operator overrides, by elementId; empty when none was given */
+  boosts(): Map<string, number>;
 }
 
 /** Approximate distance in km. At municipal scale the flat approximation is plenty. */
@@ -198,12 +208,15 @@ export function createWorld(
   const pending: WorldEvent[] = [];
   /** last second a recovery step was emitted, per element */
   const lastRecovery = new Map<string, number>();
+  /** operator priority overrides from the chat, per element */
+  const priorityBoosts = new Map<string, number>();
   /** the junction is gridlocked and nobody is directing it */
   let highCongestion = false;
   let lastSecond = 0;
 
   function seed(): void {
     resources.clear();
+    priorityBoosts.clear();
     for (const r of script.resources) {
       resources.set(r.id, {
         id: r.id,
@@ -668,14 +681,28 @@ export function createWorld(
       return elements
         .map((e) => ({
           elementId: e.id,
-          score: calculatePriority({
-            type: e.type,
-            status: e.status,
-            criticality: criticality.get(e.id) ?? 50,
-            secondsWithoutPower: withoutPower.get(e.id) ?? 0,
-          }),
+          score:
+            Math.round(
+              (calculatePriority({
+                type: e.type,
+                status: e.status,
+                criticality: criticality.get(e.id) ?? 50,
+                secondsWithoutPower: withoutPower.get(e.id) ?? 0,
+              }) +
+                (priorityBoosts.get(e.id) ?? 0)) *
+                10,
+            ) / 10,
         }))
         .sort((a, b) => b.score - a.score);
+    },
+
+    boost(elementId: string, amount: number): void {
+      if (!coordinates.has(elementId)) return;
+      priorityBoosts.set(elementId, (priorityBoosts.get(elementId) ?? 0) + amount);
+    },
+
+    boosts(): Map<string, number> {
+      return new Map(priorityBoosts);
     },
   };
 }

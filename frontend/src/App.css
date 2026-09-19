@@ -1100,6 +1100,9 @@
 .sitem--system {
   --c: var(--degraded);
 }
+.sitem--operator {
+  --c: var(--accent-strong);
+}
 
 .sitem__icon {
   width: 26px;
@@ -1808,6 +1811,22 @@
   --uc: var(--accent);
 }
 
+/*
+ * A unit's dot wears its OWN identity colour (--uc, the unit palette in
+ * palette.ts), never the site-status palette: green/amber/red/blue dots are
+ * sites, and a unit painted with the same hues vanished among them. The
+ * resource status stays visible as line style — a dashed border is a unit
+ * still driving.
+ */
+.marker--resource .marker__dot {
+  --c: var(--uc);
+  border-radius: 30%;
+}
+
+.marker--resource.marker--in_transit .marker__dot {
+  border-style: dashed;
+}
+
 .marker__dot {
   position: relative; /* anchor for .marker__eta */
   width: 32px;
@@ -2025,6 +2044,209 @@
 }
 
 /* ---------- Responsive ---------- */
+
+/* Operator channel: the human in the loop talks to the agent here */
+
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat__standing {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--inset-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+
+.chat__standing-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.chat__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chip:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.chip svg {
+  opacity: 0.85;
+}
+
+.chip.is-accepted {
+  color: var(--normal);
+  background: color-mix(in srgb, var(--normal) 12%, transparent);
+  border-color: color-mix(in srgb, var(--normal) 32%, transparent);
+}
+
+.chip.is-refused {
+  color: var(--critical);
+  background: color-mix(in srgb, var(--critical) 12%, transparent);
+  border-color: color-mix(in srgb, var(--critical) 32%, transparent);
+}
+
+.chat__log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat__hint {
+  margin: auto 0;
+}
+
+.bubble {
+  max-width: 88%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 11px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+/* The operator's own turns lean right, the way any console reads back */
+.bubble--operator {
+  align-self: flex-end;
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  border-bottom-right-radius: 4px;
+}
+
+.bubble--agent {
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+
+.bubble__top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bubble__who {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+.bubble__top time {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted-2);
+  margin-left: auto;
+}
+
+.bubble__text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble.is-thinking .bubble__text {
+  font-style: italic;
+}
+
+.chat__composer {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px;
+  background: var(--inset-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+
+.chat__composer textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: 12px/1.45 var(--sans);
+  padding: 4px 5px;
+}
+
+.chat__composer textarea::placeholder {
+  color: var(--muted-2);
+}
+
+.chat__composer textarea:focus {
+  outline: none;
+}
+
+.chat__composer button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  box-shadow: 0 2px 12px -3px color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: opacity 0.15s;
+}
+
+.chat__composer button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.chat__error {
+  flex: none;
+  margin: 0;
+  font-size: 11px;
+  color: var(--critical);
+}
 
 @media (max-width: 1280px) {
   .frame {
