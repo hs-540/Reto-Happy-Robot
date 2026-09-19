@@ -29,7 +29,7 @@ Three layers per tick:
 If the LLM does not answer in time, the engine **degrades to the deterministic priority formula** and the simulation keeps running. The demo never freezes.
 
 - **LLM**: a provider with an OpenAI-compatible interface ([Helmcode](https://helmcode.com), model `deepseek-v4-flash`). The provider is configuration, not code: it changes in the `.env`. `createLlmClient` takes a list of gateways and fails over between them; `config.ts` currently builds exactly one, so today there is nothing to fail over to.
-- **Real actions**: **built and wired end to end, running simulated for want of a credential.** `backend/src/happyrobot.ts` has a real client that `POST`s to `{HAPPYROBOT_BASE_URL}/api/v1/dial/outbound` with a Bearer key, the agent calls it for every communication it decides (`execute()` in `agent.ts`), and the return path is live: HappyRobot posts the hang-up to `POST /api/call/outcome`, the backend validates it and hands it to `agent.closeCall()`, where a refusal or a delay becomes a replanning trigger. What is missing is only `HAPPYROBOT_API_KEY`: without a usable one, `createHappyRobotClient()` picks the simulated client, which exercises that exact same chain with scripted answers. Setting the key switches to real phone calls with no code change.
+- **Real actions**: built and wired end to end. `backend/src/happyrobot.ts` has a real client that `POST`s `{ "prompt": ..., "missionId": ... }` to the HappyRobot mission hook (`HAPPYROBOT_WEBHOOK_URL`), where `missionId` is the id of the action the agent decided — a call is traceable end to end. The return path is the events API: when the voice agent hangs up, the hook posts a call-summary event to the worker and `backend/src/outcome-poll.ts` polls it (`EVENTS_POLL_MS`, default 10 s), matches each summary by mission and hands it to `agent.closeCall()`, where a refusal or a delay becomes a replanning trigger. With no hook configured, `createHappyRobotClient()` picks the simulated client, which exercises that exact same chain with scripted answers. Setting the URL switches to real phone calls with no code change.
 - **Call queue**: real phone capacity is one line, not eight simultaneous calls. `backend/src/call-queue.ts` wraps the HappyRobot client with bounded concurrency: voice calls dial only while a slot is free (`HAPPYROBOT_MAX_CONCURRENT_CALLS`, default `1`), the rest wait in a bounded queue (`HAPPYROBOT_MAX_QUEUED_CALLS`, default `3`) ordered by the urgency of the target site, and a call that is stale by the time a slot frees is discarded. A slot held with no closure for `HAPPYROBOT_CALL_SLOT_TIMEOUT_MS` (default `120000`) is released and the call closes as `no_answer`, so a lost webhook cannot deadlock the line. Chat messages pass straight through: they consume no line.
 - **Learning**: built. Local Chroma is started by the backend and seeded at boot; `npm run rag:preload` vectorizes `data/history/<type>/` into a collection per element type, and every resolved incident is written back with `recordClosure()`. Retrieval is wired into every deliberation: `tryRetrieveHistory()` (`agent.ts`) calls `rag.search()` per affected element type behind a 6 s timeout, falling back to the static JSON history (`MAX_HISTORY_PER_TURN = 3`) if the search fails or times out. Retrieved incidents reach the prompt with a "Retrieved because..." line and the agent cites the incidents it used by id (`historyCitation`).
 
@@ -42,15 +42,15 @@ If the LLM does not answer in time, the engine **degrades to the deterministic p
 
 ```bash
 npm install
-cp .env.example .env   # fill in LLM_BASE_URL, LLM_API_KEY, LLM_MODEL and HAPPYROBOT_API_KEY
+cp .env.example .env   # fill in LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
 npm run dev
 ```
 
 Every variable in `.env.example` without a default must be set or the backend
-exits on startup — `HAPPYROBOT_API_KEY` included, and an empty string counts as
-missing. With no real HappyRobot credential, set it to the placeholder token
-`credentialUsable()` recognises (`backend/src/happyrobot.ts`); communications
-then run simulated and everything else behaves identically.
+exits on startup, and an empty string counts as missing. With no
+`HAPPYROBOT_WEBHOOK_URL` set, communications run simulated and everything else
+behaves identically; set the hook URL (and `EVENTS_API_KEY`) to place real
+calls.
 
 Then open **http://localhost:5173**. Three processes start:
 
@@ -103,7 +103,7 @@ Full detail in [`docs/CONTRACT.md`](docs/CONTRACT.md).
 
 ## Configuration
 
-All variables go in `.env` (repo root, outside git). See [`.env.example`](.env.example): port, tick cadence, LLM provider (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_EMBEDDING_MODEL`), HappyRobot key and Chroma settings.
+All variables go in `.env` (repo root, outside git). See [`.env.example`](.env.example): port, tick cadence, LLM provider (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_EMBEDDING_MODEL`), the HappyRobot mission hook and call queue, the events API that closes real calls, and Chroma settings.
 
 The backend validates the `.env` on startup and does not start if something is missing, stating which variable failed without showing its value.
 

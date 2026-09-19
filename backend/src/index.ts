@@ -19,6 +19,7 @@ import { createFeed, parseSince } from "./feed.js";
 import { toTopology, type Script } from "./script.js";
 import { createHappyRobotClient, type ContactRequest } from "./happyrobot.js";
 import { createLlmClient } from "./llm.js";
+import { createOutcomePoller } from "./outcome-poll.js";
 import { createRunStats } from "./stats.js";
 import { createWorld, type World } from "./world.js";
 import { startChroma } from "./rag/chroma.js";
@@ -120,6 +121,9 @@ function isStillRelevant(request: ContactRequest): boolean {
   return element !== undefined && element.status !== "resolved";
 }
 
+/** Missions the hook accepted this run: the outcome poller only closes these */
+const dispatchedMissions = new Set<string>();
+
 /**
  * The channel to the real world. Created once and receiving the closure by
  * callback: a call takes a minute to resolve and the engine does not wait for
@@ -130,9 +134,9 @@ function isStillRelevant(request: ContactRequest): boolean {
  */
 const happyrobot = createCallQueue(
   createHappyRobotClient({
-    apiKey: config.happyrobot.apiKey,
-    baseUrl: config.happyrobot.baseUrl,
+    webhookUrl: config.happyrobot.webhookUrl,
     onClosed: (closure) => happyrobot.onClosed(closure),
+    onDispatched: (missionId) => dispatchedMissions.add(missionId),
   }),
   {
     feed,
@@ -143,6 +147,30 @@ const happyrobot = createCallQueue(
     isStillRelevant,
   },
 );
+
+/**
+ * The loop that closes real calls. The hook does not call back: it leaves a
+ * call-summary event in the events-api and this poller turns it into the
+ * closure that frees the queue slot and wakes the engine. The simulated client
+ * needs none of this — it closes its own calls.
+ */
+const outcomePoller =
+  config.happyrobot.webhookUrl && config.eventsApi.apiKey
+    ? createOutcomePoller({
+        url: config.eventsApi.url,
+        apiKey: config.eventsApi.apiKey,
+        pollMs: config.eventsApi.pollMs,
+        llm: createLlmClient(config.llm.gateways, stats),
+        isTrackedMission: (missionId) => dispatchedMissions.has(missionId),
+        onClosed: (closure) => happyrobot.onClosed(closure),
+      })
+    : null;
+
+if (config.happyrobot.webhookUrl && !outcomePoller) {
+  console.warn(
+    "[happyrobot] mission hook configured but EVENTS_API_KEY is missing: real calls will only close through the slot backstop",
+  );
+}
 
 /** One generation of the crisis: everything a reset throws away and rebuilds */
 interface Runtime {
@@ -460,6 +488,7 @@ const errorHandler: express.ErrorRequestHandler = (err, _req, res, _next) => {
 app.use(errorHandler);
 
 setInterval(advance, config.tickMs);
+outcomePoller?.start();
 
 app.listen(config.port, () => {
   console.log(`Backend listening at http://localhost:${config.port}`);
