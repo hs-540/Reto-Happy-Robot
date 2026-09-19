@@ -9,10 +9,12 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "node --import tsx --test test/*.test.ts"
+    "test": "node --import tsx --test test/*.test.ts",
+    "rag:precarga": "tsx src/rag/precarga.ts"
   },
   "dependencies": {
     "@swarmup/shared": "*",
+    "chromadb": "^3.5.0",
     "express": "^4.19.2",
     "openai": "^7.19.0",
     "zod": "^4.6.5"

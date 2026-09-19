@@ -16,13 +16,45 @@ import { crearFeed, parsearSince } from "./feed.js";
 import { aTopologia, cargarGuion } from "./guion.js";
 import { crearClienteLlm } from "./llm.js";
 import { crearMundo } from "./mundo.js";
-import { crearSimulacion } from "./sim.js";
+import { arrancarChroma } from "./rag/chroma.js";
+import { crearRagHistorico, type RagHistorico } from "./rag/historico.js";
+import { crearSimulacion, type CierreIncidente } from "./sim.js";
 
 const raiz = new URL("../../", import.meta.url);
 const guion = cargarGuion(new URL("data/scripts/apagon-madrid.json", raiz));
 const feed = crearFeed();
 const mundo = crearMundo(guion);
-const sim = crearSimulacion(guion, Date.now(), feed, mundo);
+
+/** Chroma local (RAG): si no arranca, la demo sigue sin cierre del bucle */
+const ragListo: Promise<RagHistorico | null> = arrancarChroma({
+  ruta: config.chroma.path,
+  puerto: config.chroma.port,
+})
+  .then((chroma) =>
+    crearRagHistorico({ cliente: chroma.cliente, llm: crearClienteLlm(config.llm.gateways) }),
+  )
+  .catch((err: unknown) => {
+    console.error(
+      `[rag] Chroma no disponible, los incidentes resueltos no se registrarán: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
+    );
+    return null;
+  });
+
+function alResolver(cierre: CierreIncidente): void {
+  void ragListo.then((rag) => {
+    if (!rag) return;
+    rag
+      .registrarCierre(cierre)
+      .then(() => console.log(`[rag] cierre registrado en el histórico: ${cierre.elementoId}`))
+      .catch((err: unknown) => {
+        console.error(
+          `[rag] no se pudo registrar el cierre de ${cierre.elementoId}: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
+        );
+      });
+  });
+}
+
+const sim = crearSimulacion(guion, Date.now(), feed, mundo, alResolver);
 const registroAcciones = crearRegistroAcciones(feed);
 const topologia: TopologyView = aTopologia(guion);
 

@@ -11,6 +11,7 @@ export interface GatewayLlm {
   url: string;
   apiKey: string;
   modelo: string;
+  modeloEmbeddings: string;
 }
 
 export interface RespuestaLlm {
@@ -31,6 +32,8 @@ export interface ClienteLlm {
     esquema: z.ZodType<T>,
     nombre: string,
   ): Promise<RespuestaEstructurada<T>>;
+  /** Vectores alineados con `textos` (misma posición y longitud) */
+  embeddings(textos: readonly string[]): Promise<number[][]>;
 }
 
 /** Clasifica el error según el failover del diseño: timeout/conexión, 429 y 5xx. null = no hay failover */
@@ -105,6 +108,21 @@ export function crearClienteLlm(gateways: readonly GatewayLlm[]): ClienteLlm {
         throw new Error(`gateway ${gw.id} no devolvió salida estructurada válida`);
       }
       return { texto, datos, gateway: gw.id, modelo: gw.modelo, latenciaMs };
+    },
+
+    embeddings: async (textos) => {
+      if (textos.length === 0) return [];
+      const { resultado, gw } = await conFailover(({ cliente, gw }: IntentoGateway) =>
+        cliente.embeddings.create({ model: gw.modeloEmbeddings, input: [...textos] }),
+      );
+      const vectores = resultado.data.map((d) => d.embedding);
+      if (
+        vectores.length !== textos.length ||
+        vectores.some((v) => !Array.isArray(v) || v.length === 0)
+      ) {
+        throw new Error(`gateway ${gw.id} devolvió embeddings incompletos`);
+      }
+      return vectores;
     },
   };
 }
