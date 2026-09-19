@@ -124,6 +124,15 @@ function isStillRelevant(request: ContactRequest): boolean {
   return element !== undefined && element.status !== "resolved";
 }
 
+/**
+ * The end-of-run gate for the call queue. Reads the current runtime, like
+ * `isStillRelevant`: a reset draws a new crisis and the phones open again on
+ * it, while the run that just ended stays closed for good.
+ */
+function isRunOver(): boolean {
+  return runtime.sim.finished;
+}
+
 /** Missions the hook accepted this run: the outcome poller only closes these */
 const dispatchedMissions = new Set<string>();
 
@@ -152,6 +161,7 @@ const happyrobot = createCallQueue(
     slotTimeoutMs: config.happyrobot.callSlotTimeoutMs,
     onClosed: (closure) => runtime.agent.closeCall(closure),
     isStillRelevant,
+    isRunOver,
   },
 );
 
@@ -362,6 +372,9 @@ function advance(): void {
   });
   if (sim.finished && !summaryPublished) {
     summaryPublished = true;
+    // The calls still waiting for a contact are dropped here, at the end of the
+    // run, rather than lingering until some late closure pumps the queue.
+    happyrobot.dropWaiting();
     publishRunSummary();
   }
 }

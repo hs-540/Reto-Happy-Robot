@@ -233,6 +233,13 @@ Evaluation in 3 blocks with equal weight: **Decision Quality**, **Execution**, *
 > `HAPPYROBOT_CALL_SLOT_TIMEOUT_MS` is released as `no_answer` so a lost webhook
 > cannot deadlock the line. Chat messages consume no line.
 >
+> **When the run ends, the phones close.** Past the end of the script the queue
+> dials nothing at all: a call decided now is dropped, and so are the ones still
+> waiting for a contact. The engine goes on running as it did — what stops is
+> the outbound line, because a call placed after the end rings a real person
+> about a crisis that is already over and that nobody is watching the screen
+> for. A reset draws a new crisis and opens the phones again on it.
+>
 > The contact list lives in `data/remedies.json` (`contacts`), filtered per
 > generation to the sites and units actually drawn. One veto applies to calling:
 > contacts marked `emergencyService` are never dialled
