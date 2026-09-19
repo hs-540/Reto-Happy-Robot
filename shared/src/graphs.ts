@@ -61,6 +61,8 @@ export const ContactSchema = z.object({
   elementId: z.string().min(1).optional(),
   /** number HappyRobot dials; without it the contact only receives messages */
   phone: z.string().min(1).optional(),
+  /** emergency services: the agent never contacts them, whatever the plan says */
+  emergencyService: z.boolean().optional(),
   $note: z.string().optional(),
 });
 

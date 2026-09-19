@@ -15,6 +15,7 @@ export const BLOCKING_RULE_IDS = [
   "hospital-power-deadline",
   "critical-ups-act",
   "generator-without-fuel",
+  "no-emergency-services-calls",
 ] as const;
 
 export type BlockingRuleId = (typeof BLOCKING_RULE_IDS)[number];

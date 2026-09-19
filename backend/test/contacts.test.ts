@@ -141,11 +141,30 @@ test("every warning the model addressed in prose still rings a phone", async () 
 
   await run();
 
-  assert.equal(calls.length, written.length, "all four warnings must go out");
-  assert.deepEqual(
-    calls.map((c) => c.contact.id).sort(),
-    AS_THE_MODEL_WROTE_THEM.map(([, id]) => id).sort(),
+  // The 112 coordinator is among the written recipients and must NOT be called
+  assert.equal(calls.length, written.length - 1, "every warning goes out but the emergency one");
+  assert.deepEqual(calls.map((c) => c.contact.id).sort(), [
+    "datacenter-operator",
+    "hospital-lead",
+    "ventilator-citizen",
+  ]);
+  assert.ok(!calls.some((c) => c.contact.emergencyService), "112 is never dialled");
+});
+
+test("an emergency service is never dialled, however the model addresses it", async () => {
+  // Resolution is the easy half: whichever way the model names 112 — bare id,
+  // prose, or the control room's own name — none of them may reach a phone
+  const { calls, run } = agentDispatching(
+    outputWith([
+      "emergency-coordinator",
+      "emergency-coordinator (Madrid 112)",
+      "Madrid 112 control room",
+    ]),
   );
+
+  await run();
+
+  assert.equal(calls.length, 0, "no variant of the 112 coordinator may reach the phone");
 });
 
 test("the same person and text twice is one call, however they were addressed", async () => {

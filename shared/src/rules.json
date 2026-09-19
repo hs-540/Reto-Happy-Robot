@@ -125,6 +125,10 @@
     {
       "id": "generator-without-fuel",
       "rule": "A generator whose fuel is below the critical threshold cannot be deployed to a new site: it must be refuelled by the tanker first."
+    },
+    {
+      "id": "no-emergency-services-calls",
+      "rule": "Emergency services (marked emergencyService in the contacts) are never contacted by the agent, whatever the situation: escalation runs through the rules and the plan, never through a dial to 112."
     }
   ],
   "$commentRules": "The LLM cannot propose an action that violates blockingRules: the rules layer rejects it before execution.",

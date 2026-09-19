@@ -712,6 +712,15 @@ export function createAgent(options: AgentOptions): Agent {
         });
         continue;
       }
+      // no-emergency-services-calls: 112 is never dialled, whatever the model
+      // decided. The veto is published so the block is visible, not silent.
+      if (contact.emergencyService) {
+        feed.publish({
+          kind: "system",
+          message: `Blocked contact to ${contact.name} (${contact.id}): emergency services are never contacted (no-emergency-services-calls)`,
+        });
+        continue;
+      }
       // fingerprinted by the RESOLVED id: the same text addressed once as
       // `hospital-lead` and once as "Dr. Elena Duarte" is one phone call, not two
       const fingerprint = `${contact.id}|${c.message.trim()}`;
@@ -775,14 +784,24 @@ export function createAgent(options: AgentOptions): Agent {
               : `Could not assign ${a.resourceId}: ${result.reason}`,
           });
         } else if (a.type === "contact" && a.channel) {
+          // same recovery as the communications field: the panel shows the id
+          // of whoever it really is, not whatever prose the model wrote
+          const resolved = a.recipient ? contactFor(a.recipient) : null;
+          // no-emergency-services-calls: the veto applies here too, so a
+          // decision-level contact never even shows up as executed
+          if (resolved?.emergencyService) {
+            feed.publish({
+              kind: "system",
+              message: `Blocked contact to ${resolved.name} (${resolved.id}): emergency services are never contacted (no-emergency-services-calls)`,
+            });
+            continue;
+          }
           // No human gate (#43): recorded as executed and published
           const action = actionRegistry.record(
             {
               type: a.channel,
               targetElementId: a.elementId,
-              // same recovery as the communications field: the panel shows the id
-              // of whoever it really is, not whatever prose the model wrote
-              recipient: (a.recipient ? contactFor(a.recipient)?.id : undefined) ?? undefined,
+              recipient: resolved?.id ?? undefined,
               message: a.message,
             },
             "executed",

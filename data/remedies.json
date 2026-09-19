@@ -132,7 +132,8 @@
       "name": "Madrid 112 control room",
       "role": "Emergency coordination",
       "phone": "+34600000007",
-      "$note": "Where escalations go when the available resources are not enough."
+      "emergencyService": true,
+      "$note": "Escalation target of last resort, shown for context only: the agent never contacts emergency services (no-emergency-services-calls)."
     }
   ]
 }
