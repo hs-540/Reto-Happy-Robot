@@ -7,19 +7,20 @@ import { ICON_PATHS, ELEMENT_ICON, RESOURCE_ICON } from './iconPaths'
 import { resourceColor } from '../lib/palette'
 import { formatCountdown } from '../lib/format'
 
+/**
+ * Stadia serves the raster basemap. It is free without a key on localhost; a
+ * deployed host needs a free Stadia account and its key in VITE_MAP_TILE_KEY.
+ */
+const TILE_KEY = import.meta.env.VITE_MAP_TILE_KEY as string | undefined
+const TILE_QUERY = TILE_KEY ? `?api_key=${TILE_KEY}` : ''
+
+const tileUrls = (style: string): string[] => [
+  `https://tiles.stadiamaps.com/tiles/${style}/{z}/{x}/{y}@2x.png${TILE_QUERY}`,
+]
+
 const TILES: Record<'dark' | 'light', string[]> = {
-  dark: [
-    'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-    'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-    'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-    'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-  ],
-  light: [
-    'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-    'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-    'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-    'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-  ],
+  dark: tileUrls('alidade_smooth_dark'),
+  light: tileUrls('alidade_smooth'),
 }
 
 interface RouteCollection {
@@ -36,11 +37,11 @@ const EMPTY_ROUTES: RouteCollection = { type: 'FeatureCollection', features: [] 
 const STYLE: StyleSpecification = {
   version: 8,
   sources: {
-    carto: {
+    basemap: {
       type: 'raster',
       tiles: TILES.dark,
       tileSize: 256,
-      attribution: '© OpenStreetMap contributors © CARTO',
+      attribution: '© OpenStreetMap contributors © OpenMapTiles © Stadia Maps',
     },
     routes: {
       type: 'geojson',
@@ -48,7 +49,7 @@ const STYLE: StyleSpecification = {
     },
   },
   layers: [
-    { id: 'carto', type: 'raster', source: 'carto' },
+    { id: 'basemap', type: 'raster', source: 'basemap' },
     {
       id: 'route-line',
       type: 'line',
@@ -343,7 +344,7 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    const source = map.getSource('carto')
+    const source = map.getSource('basemap')
     if (source && 'setTiles' in source) {
       ;(source as { setTiles: (tiles: string[]) => void }).setTiles(TILES[theme])
     }
