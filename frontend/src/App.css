@@ -1836,11 +1836,27 @@
   place-items: center;
   color: var(--c);
   background: color-mix(in srgb, var(--c) 16%, var(--marker-base));
+  /* Unit dots keep a real border: theirs goes dashed while in transit. Site
+     dots swap it for --ring below, so no-op here. */
+  --ring: 0 0 0 0 transparent;
   border: 2px solid var(--c);
   box-shadow:
+    var(--ring),
     0 0 0 4px color-mix(in srgb, var(--c) 14%, transparent),
     0 4px 12px -2px rgba(0, 0, 0, 0.65);
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s, box-shadow 0.15s, width 0.15s, height 0.15s;
+}
+
+/*
+ * Safari drew faint hairlines across the middle of every site dot: the seams of
+ * a cached bitmap being stretched. Site dots therefore keep clear of what it
+ * caches — the ring is an inset shadow rather than a border, and the growth on
+ * hover is a size change rather than a scale transform (see below). Same 32px
+ * circle, same 2px ring; only the property that paints them changes.
+ */
+.marker--element .marker__dot {
+  --ring: inset 0 0 0 2px var(--c);
+  border: 0;
 }
 
 .marker__dot svg {
@@ -1889,11 +1905,13 @@
   0%,
   100% {
     box-shadow:
+      var(--ring),
       0 0 0 4px color-mix(in srgb, var(--c) 14%, transparent),
       0 4px 12px -2px rgba(0, 0, 0, 0.65);
   }
   50% {
     box-shadow:
+      var(--ring),
       0 0 0 10px color-mix(in srgb, var(--c) 24%, transparent),
       0 4px 12px -2px rgba(0, 0, 0, 0.65);
   }
@@ -1976,14 +1994,30 @@
   z-index: 5;
 }
 
-.marker--element.is-selected .marker__dot,
-.marker--element:hover .marker__dot,
 .marker--resource.is-selected .marker__dot {
   transform: scale(1.18);
 }
 
+/*
+ * The other half of the hairline fix above: a site dot grows by size instead of
+ * being scaled, since Safari rasterises a scaled layer once and stretches that
+ * bitmap. Same 1.18x, nothing cached to stretch.
+ */
+.marker--element.is-selected .marker__dot,
+.marker--element:hover .marker__dot {
+  width: 38px;
+  height: 38px;
+}
+
+.marker--element.is-selected .marker__dot svg,
+.marker--element:hover .marker__dot svg {
+  width: 18px;
+  height: 18px;
+}
+
 .marker--element.is-selected .marker__dot {
   box-shadow:
+    var(--ring),
     0 0 0 3px color-mix(in srgb, var(--accent) 65%, transparent),
     0 0 0 9px color-mix(in srgb, var(--accent) 18%, transparent),
     0 4px 12px -2px rgba(0, 0, 0, 0.65);
