@@ -1,5 +1,5 @@
 {
-  "name": "@reto/frontend",
+  "name": "@swarmup/frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,7 +11,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@reto/shared": "*",
+    "@swarmup/shared": "*",
     "maplibre-gl": "^6.10.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

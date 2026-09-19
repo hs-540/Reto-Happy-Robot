@@ -1,6 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { cargarHistorico } from "@reto/shared";
+import { cargarHistorico } from "@swarmup/shared";
 import { config, redactSecrets } from "../config.js";
 import { crearClienteLlm } from "../llm.js";
 import { arrancarChroma } from "./chroma.js";

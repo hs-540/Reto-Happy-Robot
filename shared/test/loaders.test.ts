@@ -53,7 +53,7 @@ test("un campo inválido reporta campo y valor recibido", () => {
 });
 
 test("un JSON malformado falla con mensaje accionable", () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "reto-data-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "swarmup-data-"));
   try {
     const ruta = path.join(dir, "roto.json");
     writeFileSync(ruta, "{ titulo: roto }", "utf8");

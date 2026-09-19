@@ -14,7 +14,7 @@ luego se actualiza este documento. El tracker de issues no manda.
 | `/api/state` | GET | Mundo + recursos (foto actual) | 2s |
 | `/api/agent` | GET | Plan actual, decisiones vivas, acciones | 2s |
 | `/api/feed?since=<seq>` | GET | Log append-only (`alarma`/`decision`/`accion`/`sistema`) | 1-2s |
-| `/api/control` | POST | `pausar`/`reanudar`/`confirmar`/`rechazar`/`inyectar` | — |
+| `/api/control` | POST | `pausar`/`reanudar`/`inyectar` | — |
 | `/api/health` | GET | Estado de conexión | 5s |
 
 ## Reglas de oro
@@ -129,7 +129,7 @@ La asignación aparece en los dos lados (`element.atencion.recursoId` y `resourc
           "type": "llamada_voz",
           "targetElementId": "hosp-01",
           "destinatario": "responsable_hospital",
-          "status": "propuesta",
+          "status": "ejecutada",
           "mensaje": "Cortaremos suministro 10 min para conectar el generador portátil.",
           "timestamp": "2026-09-18T10:03:10.000Z"
         }
@@ -141,7 +141,7 @@ La asignación aparece en los dos lados (`element.atencion.recursoId` y `resourc
 ```
 
 `Decision.provocaReplan` marca los ticks que regeneran el plan global. El resto son ajustes incrementales.
-`Action.status` nace en `propuesta`; solo pasa a `confirmada` → `ejecutada` tras confirmación humana.
+`Action.status` nace directamente en `ejecutada`: las acciones del agente se ejecutan sin gate humano de confirmación.
 
 ## GET /api/feed?since=<seq>
 
@@ -164,10 +164,6 @@ Sin `since` → devuelve el feed completo (útil para debug).
 ## POST /api/control
 
 ```json
-{ "accion": "confirmar", "id": "act-007" }
-```
-
-```json
 { "accion": "inyectar", "payload": { "elementId": "dc-01", "metric": "temperatura", "value": 55, "severidad": 80 } }
 ```
 
@@ -177,10 +173,9 @@ Respuesta:
 { "ok": true }
 ```
 
-`accion`: `iniciar` | `reiniciar` | `pausar` | `reanudar` | `confirmar` | `rechazar` | `inyectar`.
+`accion`: `iniciar` | `reiniciar` | `pausar` | `reanudar` | `inyectar`.
 La simulación **no arranca sola al boot**: `iniciar` arranca el guion cronometrado y `reiniciar` devuelve el mundo al estado inicial reproducible (reloj a 0, feed vacío, recursos y elementos re-sembrados) y lo deja detenido.
 `pausar` congela el reloj de simulación y detiene el tick del LLM.
-`confirmar`/`rechazar` requieren `id` (actionId); si no hay ninguna acción viva responden `409 {ok:false, error}`.
 `inyectar` requiere `payload` (sensor event sin `id`, que asigna el backend); un `elementId` desconocido responde `400 {ok:false, error}`.
 Cuerpo inválido responde `400 {ok:false, error}`.
 
@@ -197,5 +192,4 @@ Cuerpo inválido responde `400 {ok:false, error}`.
 | Marcador, color | `/api/state` | `elementos[].status` |
 | Movimiento de recurso | `/api/state` | `recursos[].lat/lng` |
 | Texto de decisión | `/api/agent` | `decisiones[].razonamiento` |
-| Botón confirmar | `/api/agent` | `acciones[].id` → `POST /api/control` |
 | Ticker / historial | `/api/feed` | `items[].elementId`, `decisionId`, `actionId` |

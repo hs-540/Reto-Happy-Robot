@@ -3,21 +3,23 @@ import type {
   ElementType,
   ElementView,
   InyectarPayload,
-  ResourceStatus,
-  ResourceView,
   SensorMetric,
   StateView,
-} from "@reto/shared";
+} from "@swarmup/shared";
 import {
   SEGUNDOS_ESTABLE_RESUELTO,
   TENSION_ESTABLE_RESUELTO,
   derivarStatus,
-} from "@reto/shared";
+} from "@swarmup/shared";
 import type { Guion, GuionEvento } from "./guion.js";
 import type { Feed } from "./feed.js";
+import type { Mundo } from "./mundo.js";
 
 /** Cadencia del motor de decisión (DESIGN.md): tick cada 5-10s */
 export const TICK_SEGUNDOS = 5;
+
+/** Retraso que sufre la cuadrilla en el momento 4 del guion */
+const RETRASO_ETA_SEG = 60;
 
 interface EstadoElemento {
   severidad: number;
@@ -55,6 +57,8 @@ export interface Simulacion {
   inyectar(payload: InyectarPayload): void;
   estado(): StateView;
   tick(): number;
+  /** Segundo simulado actual; lo consume `mundo.avanzar` */
+  segundos(): number;
   readonly pausado: boolean;
   readonly iniciado: boolean;
 }
@@ -63,6 +67,7 @@ export function crearSimulacion(
   guion: Guion,
   inicioMs: number,
   feed: Feed,
+  mundo: Mundo,
   alResolver?: (cierre: CierreIncidente) => void,
 ): Simulacion {
   const timeline = [...guion.timeline].sort((a, b) => a.atSeconds - b.atSeconds);
@@ -91,26 +96,10 @@ export function crearSimulacion(
   }
   sembrarElementos();
 
-  const recursos = new Map<string, { status: ResourceStatus; assignedElementId: string | null }>();
-
-  function sembrarRecursos(): void {
-    recursos.clear();
-    for (const r of guion.resources) {
-      recursos.set(r.id, { status: r.status, assignedElementId: r.assignedElementId });
-    }
-  }
-  sembrarRecursos();
-
   function estadoDe(id: string): EstadoElemento {
     const estado = elementos.get(id);
     if (!estado) throw new Error(`evento para elemento desconocido: ${id}`);
     return estado;
-  }
-
-  function recursoDe(id: string): { status: ResourceStatus; assignedElementId: string | null } {
-    const recurso = recursos.get(id);
-    if (!recurso) throw new Error(`evento para recurso desconocido: ${id}`);
-    return recurso;
   }
 
   function relojIso(seg: number): string {
@@ -123,12 +112,9 @@ export function crearSimulacion(
         feed.publicar({ kind: "sistema", mensaje: ev.nota });
       }
       if (ev.payload.evento !== "eta_incumplida" || ev.payload.resourceId === undefined) return;
-      // momento 4 del guion: la cuadrilla falla su ETA → replanteamiento, queda libre
-      const recurso = recursoDe(ev.payload.resourceId);
-      if (recurso.status !== "disponible") {
-        recurso.status = "disponible";
-        recurso.assignedElementId = null;
-      }
+      // momento 4 del guion: la cuadrilla no llega a tiempo. El mundo alarga su
+      // trayecto y emite el trigger de replanificación en el siguiente tick.
+      mundo.retrasar(ev.payload.resourceId, RETRASO_ETA_SEG);
       return;
     }
     const estado = estadoDe(ev.payload.elementId);
@@ -217,7 +203,7 @@ export function crearSimulacion(
       feed.reiniciar();
       inyecciones = 0;
       sembrarElementos();
-      sembrarRecursos();
+      mundo.reiniciar();
     },
     pausar(): void {
       pausado = true;
@@ -256,17 +242,6 @@ export function crearSimulacion(
           actualizadoEn: relojIso(estado.actualizadoEn),
         };
       });
-      const vistasRecursos: ResourceView[] = guion.resources.map((r) => {
-        const recurso = recursoDe(r.id);
-        return {
-          id: r.id,
-          type: r.type,
-          status: recurso.status,
-          assignedElementId: recurso.assignedElementId,
-          lat: r.lat,
-          lng: r.lng,
-        };
-      });
       return {
         tick: Math.floor(segundos / TICK_SEGUNDOS),
         pausado,
@@ -274,11 +249,15 @@ export function crearSimulacion(
         relojSimulacion: relojIso(segundos),
         ultimoSeq: feed.ultimoSeq(),
         elementos: vistas,
-        recursos: vistasRecursos,
+        // los recursos los posee `mundo`: estado físico, posición y trayectos
+        recursos: mundo.recursos(),
       };
     },
     tick(): number {
       return Math.floor(segundos / TICK_SEGUNDOS);
+    },
+    segundos(): number {
+      return segundos;
     },
     get pausado(): boolean {
       return pausado;

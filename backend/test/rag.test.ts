@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { cargarHistorico } from "@reto/shared";
+import { cargarHistorico } from "@swarmup/shared";
 import type { ClienteLlm } from "../src/llm.js";
 import { arrancarChroma, type ChromaLocal } from "../src/rag/chroma.js";
 import { crearRagHistorico } from "../src/rag/historico.js";

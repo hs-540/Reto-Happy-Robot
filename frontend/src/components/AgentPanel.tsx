@@ -1,4 +1,4 @@
-import type { AgentView, FeedItem } from '@reto/shared'
+import type { AgentView, FeedItem } from '@swarmup/shared'
 
 interface AgentPanelProps {
   agent: AgentView
@@ -119,11 +119,6 @@ export function AgentPanel({
               <p className="card__razonamiento">{a.mensaje}</p>
               {a.destinatario && (
                 <span className="card__destino">→ {a.destinatario}</span>
-              )}
-              {a.status === 'propuesta' && (
-                <button type="button" className="btn btn--primary btn--sm">
-                  Confirmar
-                </button>
               )}
             </li>
           ))}

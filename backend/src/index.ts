@@ -1,18 +1,29 @@
 import express from "express";
-import { z } from "zod";
-import { SensorEventSchema } from "@reto/shared";
-import type { ControlResponse, FeedResponse, HealthResponse, TopologyView } from "@reto/shared";
+import type {
+  AgentView,
+  ControlResponse,
+  FeedResponse,
+  HealthResponse,
+  HistoricoIncidente,
+  StateView,
+  TopologyView,
+} from "@swarmup/shared";
+import { cargarHistorico } from "@swarmup/shared";
+import { crearAgente } from "./agente.js";
 import { config, redactSecrets } from "./config.js";
+import { crearRegistroAcciones, esquemaControl } from "./control.js";
 import { crearFeed, parsearSince } from "./feed.js";
 import { aTopologia, cargarGuion } from "./guion.js";
 import { crearClienteLlm } from "./llm.js";
+import { crearMundo } from "./mundo.js";
 import { arrancarChroma } from "./rag/chroma.js";
 import { crearRagHistorico, type RagHistorico } from "./rag/historico.js";
 import { crearSimulacion, type CierreIncidente } from "./sim.js";
 
-const guion = cargarGuion(new URL("../../data/scripts/apagon-madrid.json", import.meta.url));
+const raiz = new URL("../../", import.meta.url);
+const guion = cargarGuion(new URL("data/scripts/apagon-madrid.json", raiz));
 const feed = crearFeed();
-const topologia: TopologyView = aTopologia(guion);
+const mundo = crearMundo(guion);
 
 /** Chroma local (RAG): si no arranca, la demo sigue sin cierre del bucle */
 const ragListo: Promise<RagHistorico | null> = arrancarChroma({
@@ -43,20 +54,62 @@ function alResolver(cierre: CierreIncidente): void {
   });
 }
 
-const sim = crearSimulacion(guion, Date.now(), feed, alResolver);
+const sim = crearSimulacion(guion, Date.now(), feed, mundo, alResolver);
+const registroAcciones = crearRegistroAcciones(feed);
+const topologia: TopologyView = aTopologia(guion);
+
+/** Histórico pre-cargado por tipo de sitio: contexto del agente desde el primer tick */
+const historico: HistoricoIncidente[] = ["hospital", "datacenter", "subestacion"].flatMap((tipo) =>
+  cargarHistorico(new URL(`data/history/${tipo}/incidentes.json`, raiz).pathname),
+);
+
+const agente = crearAgente({
+  mundo,
+  feed,
+  llm: crearClienteLlm(config.llm.gateways),
+  registroAcciones,
+  historico,
+  segundos: () => sim.segundos(),
+});
+
+/**
+ * Un tick del sistema: la sim aplica los eventos del guion vencidos y el mundo
+ * avanza el estado físico sobre esa foto. Los eventos que devuelve `mundo` son
+ * triggers de replanificación (RULES.md §7) y los consumirá el motor de decisión.
+ */
+function avanzar(): void {
+  sim.avanzar(Date.now());
+  const eventos = mundo.avanzar(sim.segundos(), sim.estado().elementos);
+  for (const ev of eventos) {
+    if (ev.tipo === "llegada") {
+      feed.publicar({ kind: "sistema", mensaje: `${ev.recursoId} ha llegado a ${ev.elementId}` });
+    } else if (ev.tipo === "eta_incumplida") {
+      feed.publicar({
+        kind: "sistema",
+        mensaje: `${ev.recursoId} no cumple su ETA hacia ${ev.elementId} (+${ev.retrasoSeg}s)`,
+      });
+    } else {
+      feed.publicar({
+        kind: "sistema",
+        mensaje: `${ev.elementId} supera su límite sin energía (${ev.minutosSinEnergia} min)`,
+      });
+    }
+  }
+  // el motor decide sobre la foto ya avanzada; no se espera a que termine
+  void agente.observar(estadoCompleto(), eventos);
+}
+
+/** `atencion` es derivada y la calcula el backend (CONTRACT.md, regla de oro 5) */
+function estadoCompleto(): StateView {
+  const estado = sim.estado();
+  return {
+    ...estado,
+    elementos: estado.elementos.map((e) => ({ ...e, atencion: agente.atencion(e.id) })),
+  };
+}
 
 const app = express();
 app.use(express.json());
-
-const ControlBodySchema = z.discriminatedUnion("accion", [
-  z.object({ accion: z.literal("iniciar") }),
-  z.object({ accion: z.literal("reiniciar") }),
-  z.object({ accion: z.literal("pausar") }),
-  z.object({ accion: z.literal("reanudar") }),
-  z.object({ accion: z.literal("confirmar"), id: z.string().min(1) }),
-  z.object({ accion: z.literal("rechazar"), id: z.string().min(1) }),
-  z.object({ accion: z.literal("inyectar"), payload: SensorEventSchema.omit({ id: true }) }),
-]);
 
 function respuestaError(error: string): ControlResponse {
   return { ok: false, error };
@@ -67,8 +120,14 @@ app.get("/api/topology", (_req, res) => {
 });
 
 app.get("/api/state", (_req, res) => {
-  sim.avanzar(Date.now());
-  res.json(sim.estado());
+  avanzar();
+  res.json(estadoCompleto());
+});
+
+app.get("/api/agent", (_req, res) => {
+  avanzar();
+  const vista: AgentView = { ...agente.vista(), tick: sim.tick(), pausado: sim.pausado };
+  res.json(vista);
 });
 
 app.get("/api/feed", (req, res) => {
@@ -82,7 +141,7 @@ app.get("/api/feed", (req, res) => {
 });
 
 app.get("/api/health", (_req, res) => {
-  sim.avanzar(Date.now());
+  avanzar();
   const health: HealthResponse = {
     status: "ok",
     tick: sim.tick(),
@@ -93,8 +152,8 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.post("/api/control", (req, res) => {
-  sim.avanzar(Date.now());
-  const parsed = ControlBodySchema.safeParse(req.body);
+  avanzar();
+  const parsed = esquemaControl.safeParse(req.body);
   if (!parsed.success) {
     const detalles = parsed.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
@@ -109,6 +168,7 @@ app.post("/api/control", (req, res) => {
       break;
     case "reiniciar":
       sim.reiniciar();
+      agente.reiniciar();
       break;
     case "pausar":
       sim.pausar();
@@ -124,13 +184,6 @@ app.post("/api/control", (req, res) => {
         return;
       }
       break;
-    case "confirmar":
-    case "rechazar":
-      // el motor de decisiones (issue del agente) aún no registra acciones vivas
-      res
-        .status(409)
-        .json(respuestaError(`no hay ninguna acción viva '${body.id}' que ${body.accion}`));
-      return;
   }
   res.json({ ok: true });
 });
@@ -142,7 +195,7 @@ const errorHandler: express.ErrorRequestHandler = (err, _req, res, _next) => {
 
 app.use(errorHandler);
 
-setInterval(() => sim.avanzar(Date.now()), config.tickMs);
+setInterval(avanzar, config.tickMs);
 
 app.listen(config.port, () => {
   console.log(`Backend escuchando en http://localhost:${config.port}`);

@@ -65,6 +65,11 @@
   white-space: nowrap;
 }
 
+.header__error {
+  font-size: 11px;
+  color: var(--critico);
+}
+
 .dot {
   width: 9px;
   height: 9px;
@@ -434,28 +439,10 @@
   border-color: color-mix(in srgb, var(--degradado) 40%, transparent);
 }
 
-.badge--propuesta {
-  color: var(--degradado);
-  background: color-mix(in srgb, var(--degradado) 14%, transparent);
-  border-color: color-mix(in srgb, var(--degradado) 40%, transparent);
-}
-
-.badge--confirmada {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
 .badge--ejecutada {
   color: var(--normal);
   background: color-mix(in srgb, var(--normal) 14%, transparent);
   border-color: color-mix(in srgb, var(--normal) 40%, transparent);
-}
-
-.badge--rechazada {
-  color: var(--critico);
-  background: color-mix(in srgb, var(--critico) 14%, transparent);
-  border-color: color-mix(in srgb, var(--critico) 40%, transparent);
 }
 
 /* Feed */
@@ -545,6 +532,11 @@
   padding: 4px 10px;
   font-size: 11px;
   margin-top: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* ---------- Resource bar ---------- */

@@ -1,4 +1,4 @@
-import type { ElementView, ResourceView } from '@reto/shared'
+import type { ElementView, ResourceView } from '@swarmup/shared'
 
 interface ResourceBarProps {
   recursos: ResourceView[]

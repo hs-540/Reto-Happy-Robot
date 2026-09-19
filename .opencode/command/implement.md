@@ -64,7 +64,7 @@ Non-negotiable, in every area:
 - **Do only what the issue asks.** No extra endpoints, no extra props, no "while I'm here" refactors. Anything under `## Fuera de alcance` stays unwritten.
 - **No speculative abstraction.** No interface, factory, generic or config flag with a single call site. Three repetitions before extracting, not two.
 - **Small units with one job.** Pure functions where the logic is pure; side effects (I/O, fetch, timers, `process.env`) pushed to the edges.
-- **Types over comments.** `strict` TypeScript everywhere; no `any`, no non-null `!` to silence the compiler, no `as` casts to escape a bad shape — fix the shape. Shared shapes live in `@reto/shared`.
+- **Types over comments.** `strict` TypeScript everywhere; no `any`, no non-null `!` to silence the compiler, no `as` casts to escape a bad shape — fix the shape. Shared shapes live in `@swarmup/shared`.
 - **Comments only for the non-obvious "why"** — a business threshold, a scripted-demo constraint, a workaround. Never comment what the code already says, never leave a commented-out block.
 - **No dead code, no TODOs, no `console.log` debris.** A log that must stay is a deliberate, structured one.
 - **Errors are handled where they can be answered**: validate input at the boundary, return a proper HTTP status from the backend, render a visible state in the frontend. Never swallow an error into an empty `catch`.

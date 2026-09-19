@@ -3,7 +3,7 @@ import {
   HistoricoIncidenteSchema,
   type ElementType,
   type HistoricoIncidente,
-} from "@reto/shared";
+} from "@swarmup/shared";
 import type { ClienteLlm } from "../llm.js";
 import type { CierreIncidente } from "../sim.js";
 

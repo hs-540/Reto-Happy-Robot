@@ -51,8 +51,6 @@ export type ControlAction =
   | "reiniciar"
   | "pausar"
   | "reanudar"
-  | "confirmar"
-  | "rechazar"
   | "inyectar";
 
 export interface InyectarPayload {
@@ -64,8 +62,6 @@ export interface InyectarPayload {
 
 export interface ControlBody {
   accion: ControlAction;
-  /** actionId para confirmar/rechazar */
-  id?: string;
   /** Evento a inyectar (solo acción "inyectar") */
   payload?: InyectarPayload;
 }

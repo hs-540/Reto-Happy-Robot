@@ -5,7 +5,7 @@ import type {
   ResourceType,
   SensorMetric,
   TopologyView,
-} from "@reto/shared";
+} from "@swarmup/shared";
 
 export interface GuionEventoSensor {
   atSeconds: number;

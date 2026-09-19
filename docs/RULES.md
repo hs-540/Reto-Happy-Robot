@@ -15,7 +15,7 @@
 | **Agente (LLM)** | `REGLAS_PARA_AGENTE` — el JSON completo, inyectado tal cual en el system prompt, para que las decisiones y planes de acción respeten las mismas reglas y pesos |
 | Prioridad de decisiones | `calcularPrioridad` + `ORDEN_PRIORIDAD` |
 
-Flujo de toda acción del agente: **el LLM propone** (tool use / structured output) → **`validarAccion` valida contra las reglas bloqueantes** → si viola una regla se rechaza con su `id` y se devuelve al LLM → si no, se ejecuta y se registra en la `Decision`.
+Flujo de toda acción del agente: **el LLM propone** (tool use / structured output) → **`validarAccion` valida contra las reglas bloqueantes** → si viola una regla se rechaza con su `id` y se devuelve al LLM → si no, **se ejecuta directamente, sin gate humano de confirmación** (#42), y se registra en la `Decision`.
 
 ---
 
