@@ -65,7 +65,11 @@ const MAX_DECISIONS = 20;
 export interface Agent {
   /** One engine tick. Decides whether to deliberate; if it does, executes the outcome. */
   observe(state: StateView, events: WorldEvent[]): Promise<void>;
-  view(): AgentView;
+  /**
+   * The part of `AgentView` the agent owns. `tick` and `paused` belong to the
+   * simulation clock, so the HTTP layer adds them from `sim`.
+   */
+  view(): Omit<AgentView, "tick" | "paused">;
   /** Derived attention state, which the contract requires to be computed in the backend */
   attention(elementId: string): ElementView["attention"];
   /** Raw incoming signal; buffered until the next deliberation */
@@ -562,10 +566,8 @@ export function createAgent(options: AgentOptions): Agent {
       }
     },
 
-    view(): AgentView {
+    view() {
       return {
-        tick: 0,
-        paused: false,
         currentPlan: plan,
         decisions,
         actions,

@@ -43,7 +43,6 @@ export interface StructuredLlmResponse<T> extends LlmResponse {
 }
 
 export interface LlmClient {
-  chat(messages: ChatCompletionMessageParam[]): Promise<LlmResponse>;
   structured<T>(
     messages: ChatCompletionMessageParam[],
     schema: z.ZodType<T>,
@@ -110,15 +109,6 @@ export function createLlmClient(gateways: readonly LlmGateway[]): LlmClient {
   }
 
   return {
-    chat: async (messages) => {
-      const { result, gw, latencyMs } = await withFailover(({ client, gw }: GatewayAttempt) =>
-        client.chat.completions.create({ model: gw.model, messages }),
-      );
-      const text = result.choices?.[0]?.message?.content ?? "";
-      if (!text) throw new Error(`gateway ${gw.id} returned an empty response`);
-      return { text, gateway: gw.id, model: gw.model, latencyMs };
-    },
-
     structured: async (messages, schema, name) => {
       const { result, gw, latencyMs } = await withFailover(({ client, gw }: GatewayAttempt) =>
         client.chat.completions.parse({

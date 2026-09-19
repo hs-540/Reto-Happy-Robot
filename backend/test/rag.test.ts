@@ -21,9 +21,6 @@ function incidentsOf(type: string) {
 
 /** Real embeddings come from the gateway (config); a deterministic one is enough here */
 const testLlm: LlmClient = {
-  chat: async () => {
-    throw new Error("not used in tests");
-  },
   structured: async () => {
     throw new Error("not used in tests");
   },

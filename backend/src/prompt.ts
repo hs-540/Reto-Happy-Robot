@@ -74,7 +74,6 @@ export const AgentOutputSchema = z.object({
 });
 
 export type ProposedAction = z.infer<typeof ProposedActionSchema>;
-export type Communication = z.infer<typeof CommunicationSchema>;
 export type AgentOutput = z.infer<typeof AgentOutputSchema>;
 
 /* ─── Prompt building ─────────────────────────────────────────────────── */

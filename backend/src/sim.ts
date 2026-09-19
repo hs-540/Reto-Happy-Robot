@@ -261,7 +261,8 @@ export function createSimulation(
           status: statusOf(state),
           severity: Math.round(state.severity),
           sensors: { ...state.sensors },
-          // stub attention in this skeleton: the real engine is scope of B
+          // attention is the agent's, not the simulation's: the HTTP layer
+          // replaces this placeholder with `agent.attention(id)` before serving
           attention: { state: "unattended", resourceId: null, activeDecisionId: null },
           updatedAt: isoClock(state.updatedAt),
         };
