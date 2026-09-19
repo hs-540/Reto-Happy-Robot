@@ -70,8 +70,12 @@ export interface Agent {
    * simulation clock, so the HTTP layer adds them from `sim`.
    */
   view(): Omit<AgentView, "tick" | "paused">;
-  /** Derived attention state, which the contract requires to be computed in the backend */
-  attention(elementId: string): ElementView["attention"];
+  /**
+   * Derived attention state, which the contract requires to be computed in the
+   * backend. Needs the element's `status` too: whether a site is already
+   * resolved is not something the agent can tell from its own decisions.
+   */
+  attention(elementId: string, status: ElementStatus): ElementView["attention"];
   /** Raw incoming signal; buffered until the next deliberation */
   queueReport(report: Report): void;
   /**
@@ -574,12 +578,25 @@ export function createAgent(options: AgentOptions): Agent {
       };
     },
 
-    attention(elementId): ElementView["attention"] {
+    /**
+     * `AttentionState` has five members and this used to emit three. The two it
+     * skipped are the two that change a decision:
+     *
+     * - `resource_en_route` — a truck that is still driving was reported as
+     *   "resource deployed". The agent could not tell "powered now" from
+     *   "powered in five minutes", with a hospital that lasts eight.
+     * - `resolved` — a site whose resource has been released reads as
+     *   `unattended`, i.e. NOT COVERED, and invites the agent to send help back
+     *   to somewhere it already fixed.
+     */
+    attention(elementId, status): ElementView["attention"] {
       const resource = world.resources().find((r) => r.assignedElementId === elementId);
       const decision = decisions.find((d) => d.elementId === elementId);
       let state: AttentionState = "unattended";
-      if (resource) state = "resource_assigned";
-      else if (decision) state = "analyzing";
+      if (status === "resolved") state = "resolved";
+      else if (resource) {
+        state = resource.status === "in_transit" ? "resource_en_route" : "resource_assigned";
+      } else if (decision) state = "analyzing";
       return {
         state,
         resourceId: resource?.id ?? null,
