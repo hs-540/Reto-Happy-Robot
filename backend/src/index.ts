@@ -172,7 +172,11 @@ function fullState(): StateView {
   const state = sim.state();
   return {
     ...state,
-    elements: state.elements.map((e) => ({ ...e, attention: agent.attention(e.id, e.status) })),
+    elements: state.elements.map((e) => ({
+      ...e,
+      attention: agent.attention(e.id, e.status),
+      repair: e.status === "resolved" ? null : world.repairEstimate(e.id, sim.seconds()),
+    })),
   };
 }
 
