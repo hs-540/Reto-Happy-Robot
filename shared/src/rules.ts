@@ -331,11 +331,24 @@ export function validateAction(
     const target = elementsById.get(attempt.elementId);
     if (target && resource.type === "generator" && target.type !== "hospital") {
       const hospitalAtRisk = hospitalsAtRisk[0];
-      if (hospitalAtRisk) {
+      /**
+       * Ration only while scarce. The rule exists so a hospital without power
+       * backup is never left wanting while generators wander off — but a
+       * hospital needs ONE generator, and a fleet of four pinned to its queue
+       * left three units idle for most of a live run while towers and
+       * datacenters burned. When free generators outnumber the hospitals at
+       * risk, the surplus is legally free to work elsewhere; the moment the
+       * surplus is gone (each assignment in a batch is validated against the
+       * state the earlier ones leave behind), the ration re-engages by itself.
+       */
+      const freeGenerators = context.resources.filter(
+        (r) => r.type === "generator" && r.status === "available",
+      ).length;
+      if (hospitalAtRisk && freeGenerators <= hospitalsAtRisk.length) {
         return {
           allowed: false,
           rule: "hospital-power-priority",
-          reason: `${hospitalAtRisk.id} is critical without power backup: generators can only go to it`,
+          reason: `${hospitalAtRisk.id} is critical without power backup: the ${freeGenerators} free generator(s) are rationed to the ${hospitalsAtRisk.length} hospital(s) needing one`,
         };
       }
     }

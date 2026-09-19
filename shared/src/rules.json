@@ -112,7 +112,7 @@
     },
     {
       "id": "hospital-power-priority",
-      "rule": "While a hospital is critical, without power backup and with no generator committed to it, generators can only be assigned to it. A generator already on its way counts as committed."
+      "rule": "While a hospital is critical, without power backup and with no generator committed to it, free generators are rationed to the hospitals needing one: assignments elsewhere are rejected only while the free generators do not outnumber them. A generator already on its way counts as committed."
     },
     {
       "id": "hospital-power-deadline",
